@@ -1,4 +1,4 @@
-mport sentencepiece as spm
+import sentencepiece as spm
 from typing import List, Dict
 
 class HindiSentencePieceTokenizer:
