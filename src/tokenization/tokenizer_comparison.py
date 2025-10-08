@@ -1,3 +1,4 @@
+from typing import List, Dict
 from transformers import AutoTokenizer
 from tokenizers import Tokenizer
 from tokenizers.models import BPE, WordPiece
@@ -40,4 +41,70 @@ class TokenizerComparison:
     
     def compute_tokenizer_metrics(self, tokenizer, test_texts: List[str]) -> Dict:
         """Compute comprehensive tokenizer evaluation metrics"""
-        pass
+        total_chars = 0
+        total_tokens = 0
+        total_words = 0
+
+        tokenized_outputs = []
+
+        for text in test_texts:
+            # Tokenize the text
+            if hasattr(tokenizer, 'encode'):
+                # For Tokenizer objects (HuggingFace tokenizers)
+                encoding = tokenizer.encode(text)
+                tokens = encoding.tokens
+            else:
+                # For other tokenizer types
+                tokens = tokenizer.tokenize(text)
+
+            tokenized_outputs.append(tokens)
+
+            # Collect statistics
+            total_chars += len(text)
+            total_tokens += len(tokens)
+            total_words += len(text.split())
+
+        # Compute metrics
+        metrics = {
+            # Compression ratio: chars per token (higher = more efficient)
+            'compression_ratio': total_chars / total_tokens if total_tokens > 0 else 0,
+
+            # Fertility: tokens per word (lower = better)
+            'fertility': total_tokens / total_words if total_words > 0 else 0,
+
+            # Average token length
+            'avg_token_length': total_chars / total_tokens if total_tokens > 0 else 0,
+
+            # Vocabulary efficiency
+            'total_tokens': total_tokens,
+            'total_chars': total_chars,
+            'total_words': total_words,
+        }
+
+        # Compute OOV rate if tokenizer has vocab
+        if hasattr(tokenizer, 'get_vocab'):
+            vocab = tokenizer.get_vocab()
+            unk_token = '[UNK]'
+            unk_count = 0
+
+            for tokens in tokenized_outputs:
+                unk_count += tokens.count(unk_token)
+
+            metrics['oov_rate'] = unk_count / total_tokens if total_tokens > 0 else 0
+
+        # Morphological preservation score (using MorphologicalEvaluator)
+        from .morphological_eval import MorphologicalEvaluator
+        morph_eval = MorphologicalEvaluator()
+        test_words = morph_eval.create_morphological_test_set()
+
+        morph_results = morph_eval.evaluate_morphological_preservation(tokenizer, test_words)
+        total_morph_tests = sum(morph_results.values())
+
+        if total_morph_tests > 0:
+            metrics['morphological_correctness'] = (
+                morph_results['correct_segmentation'] / total_morph_tests
+            )
+        else:
+            metrics['morphological_correctness'] = 0.0
+
+        return metrics

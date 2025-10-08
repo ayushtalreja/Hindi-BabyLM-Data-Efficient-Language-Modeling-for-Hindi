@@ -22,4 +22,36 @@ class TextDeduplicator:
     
     def deduplicate_corpus(self, texts: List[str]) -> Tuple[List[str], List[int]]:
         """Remove duplicates and return cleaned corpus with indices"""
-        pass
+        # First pass: exact duplicate detection using hashes
+        seen_hashes = set()
+        exact_duplicates = set()
+
+        for i, text in enumerate(texts):
+            text_hash = self.get_text_hash(text)
+            if text_hash in seen_hashes:
+                exact_duplicates.add(i)
+            else:
+                seen_hashes.add(text_hash)
+
+        # Second pass: fuzzy duplicate detection using MinHash LSH
+        kept_indices = []
+        for i, text in enumerate(texts):
+            if i in exact_duplicates:
+                continue
+
+            minhash = self.get_minhash(text)
+
+            # Query LSH for near duplicates
+            result = self.lsh.query(minhash)
+
+            if not result:
+                # No near duplicates found, add to index
+                self.lsh.insert(f"text_{i}", minhash)
+                kept_indices.append(i)
+
+        # Return deduplicated corpus and indices of removed items
+        deduplicated_texts = [texts[i] for i in kept_indices]
+        removed_indices = list(exact_duplicates) + [i for i in range(len(texts))
+                                                     if i not in kept_indices and i not in exact_duplicates]
+
+        return deduplicated_texts, removed_indices

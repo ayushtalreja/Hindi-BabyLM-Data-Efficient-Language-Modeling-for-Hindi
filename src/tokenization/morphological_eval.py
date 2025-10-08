@@ -17,7 +17,14 @@ class MorphologicalEvaluator:
             "locative": ["-में", "-पर"],
             "ablative": ["-से"]
         }
-    
+
+    def load_compound_patterns(self) -> Dict:
+        """Load compound word patterns for Hindi"""
+        return {
+            "noun_noun": ["रेलगाड़ी", "पाठशाला"],  # train, school
+            "adj_noun": ["महापुरुष", "नवयुवक"],   # great-man, new-youth
+        }
+
     def evaluate_morphological_preservation(self, tokenizer, test_words: List[str]) -> Dict:
         """Evaluate how well tokenizer preserves morphological structure"""
         results = {
@@ -36,8 +43,74 @@ class MorphologicalEvaluator:
     
     def score_morphological_tokenization(self, word: str, tokens: List[str]) -> str:
         """Score individual word tokenization quality"""
-        pass
+        # Check if word has known morphological structure
+        has_suffix = False
+        expected_splits = 1  # Base form
+
+        # Check for known suffixes
+        for category, suffixes in self.inflection_patterns.items():
+            for suffix in suffixes:
+                if word.endswith(suffix):
+                    has_suffix = True
+                    expected_splits = 2  # Root + suffix
+                    break
+            if has_suffix:
+                break
+
+        num_tokens = len(tokens)
+
+        # Evaluate tokenization
+        if has_suffix:
+            # Word should be split into root + suffix
+            if num_tokens == 2:
+                return "correct_segmentation"
+            elif num_tokens > 2:
+                return "over_segmentation"
+            else:
+                return "under_segmentation"
+        else:
+            # Simple word should not be split
+            if num_tokens == 1:
+                return "correct_segmentation"
+            elif num_tokens > 1:
+                return "over_segmentation"
+            else:
+                return "under_segmentation"
     
     def create_morphological_test_set(self) -> List[str]:
         """Create test set with known morphological patterns"""
-        pass
+        test_words = []
+
+        # Base words
+        base_words = [
+            "लड़का",    # boy
+            "किताब",    # book
+            "घर",       # house
+            "पानी",     # water
+            "स्कूल",    # school
+            "दोस्त",    # friend
+        ]
+
+        # Add base words
+        test_words.extend(base_words)
+
+        # Add inflected forms
+        for base in base_words:
+            # Plural forms
+            test_words.append(base + "ों")
+            test_words.append(base + "ें")
+
+            # Case markers
+            test_words.append(base + "ने")
+            test_words.append(base + "को")
+            test_words.append(base + "में")
+            test_words.append(base + "से")
+
+        # Add some complex compounds
+        test_words.extend([
+            "रेलगाड़ी",        # train (compound)
+            "पाठशाला",        # school (compound)
+            "जन्मदिन",        # birthday (compound)
+        ])
+
+        return test_words
