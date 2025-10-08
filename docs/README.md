@@ -24,8 +24,7 @@ hindi-babylm/
 
 1. **Setup Environment**
 ```bash
-pip install -r requirements.txt
-python -m spacy download hi_core_news_sm
+./setup_env.sh
 ```
 
 2. **Download and Process Data**
