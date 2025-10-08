@@ -1,0 +1,20 @@
+project:
+  name: "hindi-babylm"
+  description: "Hindi BabyLM Challenge Implementation"
+  
+data:
+  max_tokens: 10_000_000  # 10M tokens for strict-small track
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  
+tokenization:
+  vocab_size: 32000
+  methods: ["sentencepiece", "wordpiece", "bpe"]
+  
+training:
+  batch_size: 32
+  learning_rate: 3e-4
+  max_epochs: 10
+  save_steps: 1000
+  eval_steps: 500
