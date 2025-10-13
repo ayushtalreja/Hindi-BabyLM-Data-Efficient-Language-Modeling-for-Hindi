@@ -34,7 +34,6 @@ class HindiTextCleaner:
         text = self.remove_extra_whitespace(text)
         text = self.handle_special_cases(text)
         return text
-    
     def remove_extra_whitespace(self, text: str) -> str:
         """Remove extra whitespace and normalize spacing"""
         # Replace multiple spaces with single space
@@ -44,7 +43,7 @@ class HindiTextCleaner:
         # Normalize spacing around punctuation
         text = re.sub(r'\s*([।॥,;:.!?])\s*', r'\1 ', text)
         return text.strip()
-    
+
     def handle_special_cases(self, text: str) -> str:
         """Handle Hindi-specific text normalization cases"""
         # Normalize Hindi danda (।) and double danda (॥)
@@ -58,3 +57,17 @@ class HindiTextCleaner:
         # text = text.translate(str.maketrans('0123456789', '०१२३४५६७८९'))
 
         return text
+
+
+# Module-level convenience wrapper so callers can import `clean_text` directly
+def clean_text(text: str) -> str:
+    """Convenience wrapper for the HindiTextCleaner.clean_text method.
+
+    This matches the historical API expected by other modules which import
+    `clean_text` directly from this module.
+    """
+    cleaner = HindiTextCleaner()
+    return cleaner.clean_text(text)
+
+
+__all__ = ["HindiTextCleaner", "clean_text"]
