@@ -251,20 +251,45 @@ curriculum:
   enabled: false
 
   # Strategy
-  strategy: "morphological"  # Options: morphological, length, word_length, random
+  # Options: morphological, length, frequency, combined, dynamic, anti
+  strategy: "combined"
 
-  # Progression
-  num_stages: 3
-  stage_ratios: [0.33, 0.33, 0.34]  # Proportion of data in each stage
+  # Base Strategy for Dynamic (if strategy="dynamic")
+  base_strategy: "combined"
 
-  # Scheduling
-  stage_duration_epochs: [3, 3, 4]  # Epochs per stage
-  transition: "smooth"  # Options: smooth, abrupt
+  # Schedule Type
+  # Options: linear, exponential, step, root, performance
+  schedule: "linear"
 
-  # Morphological Complexity (if strategy="morphological")
-  morphological:
-    metrics: ["inflection_density", "avg_word_length", "rare_morpheme_ratio"]
-    weights: [0.5, 0.3, 0.2]
+  # Threshold Parameters
+  start_threshold: 0.2  # Start with easiest 20% of examples
+  end_threshold: 1.0    # End with all examples
+  num_epochs: 10        # Total epochs for curriculum progression
+  warmup_epochs: 0      # Epochs before curriculum starts
+
+  # Step Schedule (if schedule="step")
+  step_epochs: [3, 6, 9]
+  step_thresholds: [0.4, 0.7, 1.0]
+
+  # Performance-Based Schedule (if schedule="performance")
+  adaptation_rate: 0.05
+  performance_window: 5
+  min_threshold: 0.1
+  max_threshold: 1.0
+
+  # Strategy Weights (for combined strategy)
+  morphological_weight: 0.5
+  length_weight: 0.3
+  frequency_weight: 0.2
+
+  # Morphological Complexity Strategy
+  case_weight: 1.0
+  verb_weight: 1.5
+  compound_weight: 1.0
+
+  # Length-Based Strategy
+  min_length: 5
+  max_length: 50
 
 # ==============================================================================
 # EVALUATION CONFIGURATION
