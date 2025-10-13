@@ -7,24 +7,46 @@ The training pipeline manages the complete model training process, including opt
 ## Architecture
 
 ```
-DataLoader → Trainer → Model
+DataLoader → Enhanced Trainer → Model
               ↓
-         Optimizer (AdamW)
+         Optimizer (AdamW/Adam/SGD)
               ↓
-         LR Scheduler
+         LR Scheduler (Linear/Cosine/Constant)
+              ↓
+         Mixed Precision (FP16/BF16)
+              ↓
+         Gradient Accumulation
+              ↓
+         Curriculum Learning (Optional)
               ↓
          Logging (Wandb)
               ↓
-         Checkpointing
+         Checkpointing (Full State)
+              ↓
+         Early Stopping
               ↓
          Evaluation
 ```
 
 ## HindiLanguageModelTrainer
 
-**Location**: `src/training/trainer.py:9`
+**Location**: `src/training/trainer.py:33-586`
 
-**Purpose**: Main training loop with monitoring and checkpointing.
+**Purpose**: Advanced trainer with comprehensive features for efficient training in data-limited regimes.
+
+### Enhanced Features
+
+The `HindiLanguageModelTrainer` extends basic training with:
+- ✅ **Multiple optimizer options** (AdamW, Adam, SGD)
+- ✅ **Multiple LR schedulers** (Linear, Cosine, Constant with warmup)
+- ✅ **Mixed precision training** (FP16/BF16) with automatic scaling
+- ✅ **Gradient accumulation** for larger effective batch sizes
+- ✅ **Full checkpoint management** (model, optimizer, scheduler, scaler states)
+- ✅ **Early stopping** with patience
+- ✅ **Comprehensive logging** (W&B integration)
+- ✅ **Gradient norm tracking** for training stability
+- ✅ **Deterministic training** with seed management
+- ✅ **Checkpoint resumption** with complete state restoration
 
 ### Initialization
 
@@ -243,50 +265,227 @@ def save_checkpoint(self, epoch: int, val_loss: float):
 
 ## Training Configuration
 
-### Optimizer
+### Optimizer Options
 
-**AdamW (Adam with Weight Decay)**
+The trainer supports three optimizer types (`trainer.py:128-165`):
 
-```python
-torch.optim.AdamW(
-    params=model.parameters(),
-    lr=3e-4,              # Learning rate
-    betas=(0.9, 0.999),   # Exponential decay rates
-    eps=1e-8,             # Numerical stability
-    weight_decay=0.01     # L2 regularization
-)
+#### 1. AdamW (Recommended)
+
+**Configuration**:
+```yaml
+optimizer:
+  type: "adamw"
+  learning_rate: 3e-4
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1e-8
+  weight_decay: 0.01
 ```
 
 **Why AdamW?**
-- Adaptive learning rates per parameter
-- Effective for transformers
-- Decoupled weight decay (better than Adam)
+- ✅ Adaptive learning rates per parameter
+- ✅ Effective for transformers
+- ✅ Decoupled weight decay (better regularization than Adam)
+- ✅ Industry standard for LLM training
 
-### Learning Rate
+**Recommended Learning Rates**:
+- Tiny models (<50M): 1e-3 to 5e-3
+- Small models (50-200M): 3e-4 to 1e-3
+- Medium models (200-500M): 1e-4 to 5e-4
+- Large models (>500M): 3e-5 to 1e-4
 
-**Base Learning Rate**: 3e-4
+#### 2. Adam
 
-**Recommended Ranges**:
-- Small models (<50M): 1e-3 to 3e-3
-- Base models (~100M): 1e-4 to 1e-3
-- Large models (>300M): 1e-5 to 1e-4
+**Configuration**:
+```yaml
+optimizer:
+  type: "adam"
+  learning_rate: 1e-3
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1e-8
+  weight_decay: 0.01
+```
 
-**Scheduling** (optional but recommended):
+**When to use**: Legacy support, generally AdamW is preferred.
 
+#### 3. SGD with Momentum
+
+**Configuration**:
+```yaml
+optimizer:
+  type: "sgd"
+  learning_rate: 0.01
+  momentum: 0.9
+  weight_decay: 0.01
+```
+
+**When to use**:
+- Specific research requirements
+- Comparison baseline
+- Generally slower convergence than Adam/AdamW
+
+---
+
+### Learning Rate Schedulers
+
+The trainer supports three LR scheduler types (`trainer.py:167-211`):
+
+#### 1. Linear with Warmup (Default)
+
+**Description**: Linear warmup followed by linear decay to zero.
+
+**Configuration**:
+```yaml
+lr_scheduler:
+  type: "linear"
+  warmup_steps: 1000        # Or use warmup_ratio: 0.1
+  # warmup_ratio: 0.1       # Alternative: ratio of total steps
+```
+
+**Schedule**:
+```
+LR │        /────────\
+   │       /          \
+   │      /            \
+   │     /              \
+   │____/                \____
+   └────────────────────────────→ Steps
+        ↑                ↑
+     Warmup          Decay End
+```
+
+**Use Case**: General purpose, works well for most models.
+
+**Implementation**:
 ```python
 from transformers import get_linear_schedule_with_warmup
 
 scheduler = get_linear_schedule_with_warmup(
     optimizer,
-    num_warmup_steps=1000,    # Warmup for 1000 steps
+    num_warmup_steps=1000,
     num_training_steps=total_steps
 )
 ```
 
-**Schedule Types**:
-1. **Linear Warmup + Decay**: Gradual increase then linear decrease
-2. **Cosine Annealing**: Smooth decay following cosine curve
-3. **Constant with Warmup**: Constant after warmup
+#### 2. Cosine with Warmup
+
+**Description**: Linear warmup followed by cosine annealing.
+
+**Configuration**:
+```yaml
+lr_scheduler:
+  type: "cosine"  # or "cosine_with_warmup"
+  warmup_steps: 1000
+  num_cycles: 0.5        # Number of cosine cycles (0.5 = half cycle)
+```
+
+**Schedule**:
+```
+LR │        /────────╮
+   │       /          ╲
+   │      /            ╲
+   │     /              ╲_
+   │____/                  ──
+   └────────────────────────────→ Steps
+        ↑
+     Warmup
+```
+
+**Use Case**:
+- Smooth convergence
+- Better final performance in many cases
+- Recommended for fine-tuning
+
+**Implementation**:
+```python
+from transformers import get_cosine_schedule_with_warmup
+
+scheduler = get_cosine_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=1000,
+    num_training_steps=total_steps,
+    num_cycles=0.5
+)
+```
+
+#### 3. Constant with Warmup
+
+**Description**: Linear warmup then constant learning rate.
+
+**Configuration**:
+```yaml
+lr_scheduler:
+  type: "constant"
+  warmup_steps: 1000
+```
+
+**Schedule**:
+```
+LR │        /──────────────
+   │       /
+   │      /
+   │     /
+   │____/
+   └────────────────────────────→ Steps
+        ↑
+     Warmup
+```
+
+**Use Case**:
+- When you want stable learning rate
+- Short training runs
+- Transfer learning
+
+**Implementation**:
+```python
+from transformers import get_constant_schedule_with_warmup
+
+scheduler = get_constant_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=1000
+)
+```
+
+---
+
+### Warmup Configuration
+
+**Two options for specifying warmup**:
+
+1. **Absolute steps**:
+   ```yaml
+   warmup_steps: 1000  # Warmup for exactly 1000 steps
+   ```
+
+2. **Ratio of total steps**:
+   ```yaml
+   warmup_ratio: 0.1  # Warmup for 10% of total steps
+   ```
+
+**Recommended warmup ratios**:
+- Short training (<10 epochs): 0.05-0.1 (5-10%)
+- Medium training (10-50 epochs): 0.06-0.08 (6-8%)
+- Long training (>50 epochs): 0.03-0.05 (3-5%)
+
+**Why warmup?**
+- Prevents early training instability
+- Allows model to explore parameter space gradually
+- Reduces risk of divergence with large LRs
+- Standard practice for transformer training
+
+---
+
+### Scheduler Comparison
+
+| Scheduler | Convergence Speed | Final Performance | Use Case |
+|-----------|------------------|-------------------|----------|
+| **Linear** | Fast | Good | General purpose |
+| **Cosine** | Medium | Better | When you want smooth convergence |
+| **Constant** | Medium | Good (short runs) | Transfer learning, short training |
+
+**Recommendation for Hindi BabyLM**: **Cosine with warmup**
+- Reason: Better final performance, smooth convergence, industry standard
 
 ### Batch Size
 
@@ -496,29 +695,335 @@ for i, batch in enumerate(dataloader):
 
 ### 3. Curriculum Learning
 
-**Concept**: Train on simpler examples first, gradually increase complexity
+**Concept**: Train on simpler examples first, gradually increase complexity. Particularly effective for morphologically rich languages like Hindi.
 
-**Strategies**:
-1. **Length-Based**: Short texts → Long texts
-2. **Morphological**: Simple forms → Complex inflections
-3. **Lexical**: Frequent words → Rare words
+**Locations**:
+- Strategies: `src/training/curriculum_strategies.py`
+- Scheduler: `src/training/curriculum_scheduler.py`
 
-**Implementation** (example):
-```python
-def sort_by_difficulty(texts):
-    # Sort by sentence length
-    return sorted(texts, key=lambda x: len(x.split()))
+---
 
-# Create curriculum
-easy_texts = texts[:len(texts)//3]
-medium_texts = texts[len(texts)//3:2*len(texts)//3]
-hard_texts = texts[2*len(texts)//3:]
+#### Curriculum Strategies
 
-# Train in stages
-train_on(easy_texts, epochs=3)
-train_on(medium_texts, epochs=4)
-train_on(hard_texts, epochs=3)
+The framework implements 5 curriculum strategies:
+
+##### 1. Morphological Complexity (`MorphologicalComplexityCurriculum`)
+
+**Description**: Ranks examples by morphological complexity - crucial for Hindi.
+
+**Complexity Factors**:
+- Case markers (ने, को, से, में, पर, का, की, के)
+- Verb inflections (tense, aspect, mood)
+- Compound constructions
+- Sentence length
+
+**Configuration**:
+```yaml
+curriculum:
+  strategy: "morphological"
+  case_weight: 1.0
+  length_weight: 0.5
+  verb_weight: 1.5
+  compound_weight: 1.0
 ```
+
+**Example**:
+```python
+from src.training.curriculum_strategies import MorphologicalComplexityCurriculum
+
+strategy = MorphologicalComplexityCurriculum(config)
+difficulties = strategy.compute_difficulty(examples)
+# Returns: [0.2, 0.5, 0.8, ...] (0=easy, 1=hard)
+
+sorted_examples, scores = strategy.sort_by_difficulty(examples)
+```
+
+**Ranking**:
+- Simple: "मैं घर जाता हूँ" (0.2) - Basic verb, no case markers
+- Medium: "वह स्कूल में पढ़ता है" (0.5) - Locative marker, present tense
+- Hard: "लड़का ने किताब को पढ़ा था" (0.8) - Ergative, accusative, past perfect
+
+##### 2. Length-Based Curriculum (`LengthBasedCurriculum`)
+
+**Description**: Ranks by sentence length (word count).
+
+**Configuration**:
+```yaml
+curriculum:
+  strategy: "length"
+  min_length: 5
+  max_length: 50
+```
+
+**Example**:
+```python
+from src.training.curriculum_strategies import LengthBasedCurriculum
+
+strategy = LengthBasedCurriculum(config)
+difficulties = strategy.compute_difficulty(examples)
+```
+
+**Use Case**: Simple baseline, works for all languages.
+
+##### 3. Frequency-Based Curriculum (`FrequencyBasedCurriculum`)
+
+**Description**: Ranks by word rarity (common words = easy).
+
+**Configuration**:
+```yaml
+curriculum:
+  strategy: "frequency"
+```
+
+**Example**:
+```python
+from src.training.curriculum_strategies import FrequencyBasedCurriculum
+
+strategy = FrequencyBasedCurriculum(config)
+difficulties = strategy.compute_difficulty(examples)
+```
+
+**Metric**: Uses negative log probability (rare words = high difficulty).
+
+##### 4. Combined Curriculum (`CombinedCurriculum`)
+
+**Description**: Combines multiple strategies with weights.
+
+**Configuration**:
+```yaml
+curriculum:
+  strategy: "combined"
+  morphological_weight: 0.5
+  length_weight: 0.3
+  frequency_weight: 0.2
+```
+
+**Example**:
+```python
+from src.training.curriculum_strategies import CombinedCurriculum
+
+strategy = CombinedCurriculum(config)
+# Automatically creates and combines sub-strategies
+difficulties = strategy.compute_difficulty(examples)
+```
+
+**Recommendation**: **Best for Hindi** - balances multiple difficulty factors.
+
+##### 5. Dynamic Curriculum (`DynamicCurriculum`)
+
+**Description**: Adapts difficulty based on model performance.
+
+**Configuration**:
+```yaml
+curriculum:
+  strategy: "dynamic"
+  base_strategy: "combined"
+  adaptation_rate: 0.1
+  min_threshold: 0.1
+  max_threshold: 1.0
+  performance_window: 5
+```
+
+**Example**:
+```python
+from src.training.curriculum_strategies import DynamicCurriculum, create_curriculum_strategy
+
+base = create_curriculum_strategy('combined', config)
+strategy = DynamicCurriculum(base, config)
+
+# After each epoch
+strategy.update_difficulty_threshold(val_loss)
+```
+
+**Behavior**:
+- If validation loss improves → increase difficulty
+- If validation loss worsens → decrease difficulty
+
+---
+
+#### Curriculum Schedules
+
+Controls how difficulty threshold increases over epochs:
+
+##### 1. Linear Schedule
+
+**Description**: Linear increase from start to end threshold.
+
+**Configuration**:
+```yaml
+curriculum:
+  schedule: "linear"
+  start_threshold: 0.2
+  end_threshold: 1.0
+  num_epochs: 10
+  warmup_epochs: 2
+```
+
+**Progression**:
+```
+Threshold
+   1.0 ─────────────────────────
+       │                       /
+   0.8 │                     /
+       │                   /
+   0.6 │                 /
+       │               /
+   0.4 │             /
+       │           /
+   0.2 ─────────/
+       └─────────────────────────→
+         2  4  6  8  10  Epochs
+        ↑
+     Warmup
+```
+
+##### 2. Root Schedule
+
+**Description**: Square root progression (fast initial, slow later).
+
+**Configuration**:
+```yaml
+curriculum:
+  schedule: "root"
+  start_threshold: 0.2
+  end_threshold: 1.0
+```
+
+**Use Case**: When you want rapid early progression.
+
+##### 3. Exponential/Geom Schedule
+
+**Description**: Exponential increase (slow start, fast end).
+
+**Configuration**:
+```yaml
+curriculum:
+  schedule: "exponential"  # or "geom"
+  start_threshold: 0.2
+  end_threshold: 1.0
+```
+
+**Use Case**: When you want gradual introduction of hard examples.
+
+##### 4. Step Schedule
+
+**Description**: Step-wise increases at specific epochs.
+
+**Configuration**:
+```yaml
+curriculum:
+  schedule: "step"
+  step_epochs: [3, 6, 9]
+  step_thresholds: [0.4, 0.7, 1.0]
+```
+
+**Progression**:
+```
+Threshold
+   1.0 ───────────────────
+       │
+   0.7 ─────────────
+       │
+   0.4 ─────
+       │
+   0.2 ──
+       └───────────────────→
+         3    6    9  Epochs
+```
+
+##### 5. Performance-Based Schedule
+
+**Description**: Adapts based on validation metrics.
+
+**Configuration**:
+```yaml
+curriculum:
+  schedule: "performance"
+  adaptation_rate: 0.05
+  performance_window: 5
+```
+
+**Behavior**: Similar to dynamic strategy but at schedule level.
+
+---
+
+#### Complete Curriculum Training Example
+
+```python
+from src.training.curriculum_scheduler import CurriculumTrainingManager
+
+# 1. Create curriculum manager
+curriculum_config = {
+    'enabled': True,
+    'strategy': 'combined',      # Use combined strategy
+    'schedule': 'linear',         # Linear progression
+    'start_threshold': 0.2,
+    'end_threshold': 1.0,
+    'num_epochs': 10,
+    'warmup_epochs': 2,
+    # Strategy weights
+    'morphological_weight': 0.5,
+    'length_weight': 0.3,
+    'frequency_weight': 0.2
+}
+
+manager = CurriculumTrainingManager(
+    strategy_type='combined',
+    schedule_type='linear',
+    config=curriculum_config
+)
+
+# 2. Training loop with curriculum
+for epoch in range(num_epochs):
+    # Prepare curriculum dataloader for this epoch
+    train_loader = manager.prepare_epoch(
+        train_dataset,
+        batch_size=32,
+        epoch=epoch,
+        examples=train_examples,  # For difficulty computation
+        shuffle=True
+    )
+
+    # Train
+    train_loss = train_epoch(train_loader)
+
+    # Validate
+    val_loss = evaluate(val_loader)
+
+    # Report performance (for adaptive scheduling)
+    if curriculum_config['schedule'] == 'performance':
+        manager.report_performance(val_loss)
+
+    print(f"Epoch {epoch}: {len(train_loader.dataset)} examples")
+```
+
+**Output Example**:
+```
+Epoch 0: 2000 examples (threshold=0.2)
+Epoch 1: 2500 examples (threshold=0.3)
+Epoch 2: 3200 examples (threshold=0.4)
+...
+Epoch 9: 10000 examples (threshold=1.0)
+```
+
+---
+
+#### Curriculum vs. No Curriculum
+
+**Expected Benefits**:
+- ✅ Faster initial convergence
+- ✅ More stable training
+- ✅ Better final performance (especially for Hindi)
+- ✅ Reduced overfitting risk
+
+**Trade-offs**:
+- ❌ Slightly more complex setup
+- ❌ Additional hyperparameters to tune
+- ❌ Requires difficulty computation
+
+**Recommendation for Hindi BabyLM**: **Use combined strategy with linear schedule**
+- Reason: Balances morphological, length, and frequency factors
+- Expected improvement: 5-15% better perplexity
 
 ### 4. Learning Rate Finder
 

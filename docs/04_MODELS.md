@@ -630,6 +630,643 @@ next_token_probs = outputs['clm_logits']
 - ❌ Longer training time
 - ❌ May not excel at either task individually
 
+## 4. Position Encodings
+
+**Location**: `src/models/position_encodings.py`
+
+**Purpose**: Provide positional information to transformer models, which are inherently position-agnostic.
+
+### Overview
+
+Position encodings are crucial for transformers to understand token order. This module implements 5 different strategies, each with unique characteristics:
+
+| Type | Parameters | Extrapolation | Use Case |
+|------|-----------|---------------|----------|
+| **Sinusoidal** | None (fixed) | Good | Original Transformer |
+| **Learned** | Trainable | Poor | BERT, GPT-2 |
+| **RoPE** | None (fixed) | Excellent | GPT-Neo, LLaMA |
+| **ALiBi** | None (fixed) | Excellent | BLOOM |
+| **Relative** | Trainable | Good | T5 |
+
+### 4.1. Sinusoidal Position Encoding
+
+**Class**: `SinusoidalPositionEncoding` (`position_encodings.py:23-66`)
+
+**Description**: Original Transformer approach using sine and cosine functions of different frequencies.
+
+**Formula**:
+```
+PE(pos, 2i) = sin(pos / 10000^(2i/d_model))
+PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+```
+
+**Implementation**:
+```python
+from src.models.position_encodings import SinusoidalPositionEncoding
+
+# Initialize
+pos_enc = SinusoidalPositionEncoding(d_model=768, max_len=512)
+
+# Forward pass
+hidden_states = pos_enc(token_embeddings)  # Adds position info
+```
+
+**Features**:
+- ✅ No trainable parameters (zero cost)
+- ✅ Deterministic and reproducible
+- ✅ Good length extrapolation
+- ✅ Encodes absolute positions
+- ❌ Less flexible than learned embeddings
+
+**When to use**: Good baseline, especially for limited data regimes.
+
+---
+
+### 4.2. Learned Position Encoding
+
+**Class**: `LearnedPositionEncoding` (`position_encodings.py:68-107`)
+
+**Description**: Trainable position embeddings (BERT-style).
+
+**Implementation**:
+```python
+from src.models.position_encodings import LearnedPositionEncoding
+
+# Initialize
+pos_enc = LearnedPositionEncoding(d_model=768, max_len=512)
+
+# Forward pass
+hidden_states = pos_enc(token_embeddings)  # Adds learned position embeddings
+```
+
+**Features**:
+- ✅ Adapts to data during training
+- ✅ Good for shorter sequences
+- ✅ Standard in BERT, GPT-2
+- ❌ Fixed maximum length (512 in this case)
+- ❌ Poor extrapolation to longer sequences
+- ❌ Adds parameters: `max_len × d_model` (e.g., 512 × 768 = 393K)
+
+**When to use**: Standard baseline for fixed-length tasks.
+
+---
+
+### 4.3. Rotary Position Embedding (RoPE)
+
+**Class**: `RotaryPositionEncoding` (`position_encodings.py:109-199`)
+
+**Description**: Encodes relative positions by rotating query and key vectors. Used in GPT-Neo, LLaMA, GPT-J.
+
+**Theory**: Instead of adding position embeddings to inputs, RoPE rotates the query and key vectors in attention by an angle proportional to their position.
+
+**Rotation Formula**:
+```
+q'_m = R(m) q_m
+k'_n = R(n) k_n
+
+where R(θ) is a rotation matrix with θ = m * base^(-2i/d)
+```
+
+**Implementation**:
+```python
+from src.models.position_encodings import RotaryPositionEncoding
+
+# Initialize (per attention head)
+head_dim = hidden_size // num_heads  # e.g., 768 // 12 = 64
+rope = RotaryPositionEncoding(dim=head_dim, max_len=2048, base=10000)
+
+# Forward pass (in attention layer)
+# q, k: [batch, num_heads, seq_len, head_dim]
+q_rotated, k_rotated = rope(q, k)
+
+# Then compute attention with rotated q and k
+attn_scores = torch.matmul(q_rotated, k_rotated.transpose(-2, -1))
+```
+
+**Features**:
+- ✅ **Excellent length extrapolation** (key advantage)
+- ✅ Encodes relative positions naturally
+- ✅ No additional parameters
+- ✅ Works at the attention level (more principled)
+- ❌ Requires attention layer modification
+- ❌ Slightly more complex implementation
+
+**Configuration**:
+- `dim`: Head dimension (hidden_size / num_heads)
+- `max_len`: Maximum sequence length to cache (2048 typical)
+- `base`: Base for frequency calculation (10000 standard, higher for longer sequences)
+
+**When to use**: **Recommended for Hindi BabyLM** - excellent extrapolation and no parameters.
+
+---
+
+### 4.4. Attention with Linear Biases (ALiBi)
+
+**Class**: `ALiBiPositionBias` (`position_encodings.py:201-306`)
+
+**Description**: Adds linear biases to attention scores based on distance. Used in BLOOM.
+
+**Theory**: Instead of position embeddings, adds a bias to attention scores:
+```
+attention_score(q_i, k_j) = q_i · k_j + m * (i - j)
+```
+where `m` is a head-specific slope.
+
+**Slopes**: Different for each attention head, computed as:
+```
+m_h = (1/2)^(8h/H) where H is number of heads
+```
+
+**Implementation**:
+```python
+from src.models.position_encodings import ALiBiPositionBias
+
+# Initialize
+alibi = ALiBiPositionBias(num_heads=12, max_len=2048)
+
+# Forward pass (in attention layer)
+# attention_scores: [batch, num_heads, seq_len, seq_len]
+attention_scores_with_bias = alibi(attention_scores)
+
+# Then apply softmax
+attn_weights = F.softmax(attention_scores_with_bias, dim=-1)
+```
+
+**Features**:
+- ✅ **Best length extrapolation** (better than RoPE for very long sequences)
+- ✅ No position embeddings needed
+- ✅ No additional parameters
+- ✅ Simple and elegant
+- ❌ Requires attention layer modification
+- ❌ Adds computation to attention
+
+**When to use**: Best for tasks requiring strong length extrapolation (e.g., long document processing).
+
+---
+
+### 4.5. Relative Position Bias (T5-style)
+
+**Class**: `RelativePositionBias` (`position_encodings.py:308-396`)
+
+**Description**: Learned biases for relative positions using buckets. Used in T5.
+
+**Theory**: Maps relative positions to buckets, learns a bias for each bucket:
+```
+bias_table: [num_buckets, num_heads]
+relative_position = j - i
+bucket = bucket_function(relative_position)
+bias = bias_table[bucket]
+```
+
+**Bucketing**:
+- Close positions: exact buckets
+- Distant positions: logarithmic buckets
+
+**Implementation**:
+```python
+from src.models.position_encodings import RelativePositionBias
+
+# Initialize
+rel_bias = RelativePositionBias(
+    num_heads=12,
+    num_buckets=32,
+    max_distance=128,
+    bidirectional=False  # True for BERT-style, False for GPT-style
+)
+
+# Forward pass
+bias = rel_bias(seq_len=512, device=device)
+# Returns: [1, num_heads, seq_len, seq_len]
+
+# Add to attention scores
+attention_scores = attention_scores + bias
+```
+
+**Features**:
+- ✅ Learns relative position biases from data
+- ✅ Good generalization via bucketing
+- ✅ Flexible (bidirectional or causal)
+- ❌ Adds parameters: `num_buckets × num_heads` (e.g., 32 × 12 = 384)
+- ❌ More complex than ALiBi
+
+**When to use**: When you want learned relative positions (T5-style models).
+
+---
+
+### Factory Function
+
+**Function**: `create_position_encoding()` (`position_encodings.py:398-440`)
+
+**Purpose**: Convenient factory for creating position encodings.
+
+**Usage**:
+```python
+from src.models.position_encodings import create_position_encoding
+
+# Sinusoidal
+pos_enc = create_position_encoding('sinusoidal', d_model=768, max_len=512)
+
+# Learned
+pos_enc = create_position_encoding('learned', d_model=768, max_len=512)
+
+# RoPE (requires num_heads)
+pos_enc = create_position_encoding('rope', d_model=768, num_heads=12, max_len=2048, base=10000)
+
+# ALiBi (requires num_heads)
+pos_enc = create_position_encoding('alibi', d_model=768, num_heads=12, max_len=2048)
+
+# Relative (requires num_heads)
+pos_enc = create_position_encoding('relative', d_model=768, num_heads=12, max_len=512,
+                                   num_buckets=32, max_distance=128, bidirectional=False)
+```
+
+---
+
+### Position Encoding Comparison
+
+**For Hindi BabyLM**:
+
+| Criterion | Sinusoidal | Learned | RoPE | ALiBi | Relative |
+|-----------|-----------|---------|------|-------|----------|
+| **Parameters** | 0 | 393K | 0 | 0 | 384 |
+| **Extrapolation** | Good | Poor | Excellent | Excellent | Good |
+| **Data Efficiency** | Good | Moderate | Excellent | Excellent | Moderate |
+| **Implementation** | Simple | Simple | Moderate | Moderate | Complex |
+| **Training Speed** | Fast | Fast | Fast | Slightly slower | Fast |
+
+**Recommendation**: **RoPE** is the best choice for Hindi BabyLM:
+- Zero parameters (important for limited data)
+- Excellent length extrapolation
+- Modern architecture (used in LLaMA, GPT-Neo)
+- Good for low-resource languages
+
+**Alternative**: **Sinusoidal** for a simpler baseline.
+
+---
+
+## 5. Enhanced GPT Model
+
+**Location**: `src/models/enhanced_gpt.py`
+
+**Purpose**: Advanced GPT implementation with configurable position encodings, model sizes, and efficiency features.
+
+### Overview
+
+The `EnhancedGPTModel` extends the basic GPT-2 model with:
+- **Multiple position encoding options** (RoPE, ALiBi, Sinusoidal, Learned)
+- **Three model size variants** (Tiny: 50M, Small: 110M, Medium: 350M)
+- **Gradient checkpointing** for memory efficiency
+- **Flash Attention support** (if available)
+- **RMS Norm** option (more efficient than LayerNorm)
+- **SwiGLU activation** option (better than GELU)
+
+### Model Size Variants
+
+**Configuration**: `EnhancedGPTConfig.MODEL_SIZES` (`enhanced_gpt.py:41-60`)
+
+| Variant | Hidden | Layers | Heads | FFN | Parameters |
+|---------|--------|--------|-------|-----|------------|
+| **Tiny** | 512 | 6 | 8 | 2048 | ~50M |
+| **Small** | 768 | 12 | 12 | 3072 | ~110M |
+| **Medium** | 1024 | 24 | 16 | 4096 | ~350M |
+
+**Usage**:
+```python
+from src.models.enhanced_gpt import create_enhanced_gpt_model
+
+# Create tiny model (for quick experiments)
+model_tiny = create_enhanced_gpt_model(vocab_size=32000, model_size='tiny')
+
+# Create small model (default, recommended for BabyLM)
+model_small = create_enhanced_gpt_model(vocab_size=32000, model_size='small')
+
+# Create medium model (if compute allows)
+model_medium = create_enhanced_gpt_model(vocab_size=32000, model_size='medium')
+```
+
+---
+
+### Enhanced GPT Configuration
+
+**Class**: `EnhancedGPTConfig` (`enhanced_gpt.py:37-113`)
+
+**Key Parameters**:
+
+```python
+config = EnhancedGPTConfig(
+    vocab_size=32000,
+    model_size='small',  # 'tiny', 'small', 'medium'
+
+    # Position encoding
+    position_encoding_type='rope',  # 'learned', 'sinusoidal', 'rope', 'alibi'
+    max_position_embeddings=512,
+
+    # Regularization
+    dropout=0.1,
+    attention_dropout=0.1,
+    residual_dropout=0.1,
+
+    # Normalization
+    use_rms_norm=False,  # Use RMS Norm instead of LayerNorm
+    layer_norm_eps=1e-5,
+
+    # Activation
+    activation='gelu',  # 'gelu', 'relu', 'swiglu'
+
+    # Efficiency
+    use_flash_attention=True,  # Use Flash Attention if available
+    gradient_checkpointing=False,  # Enable to save memory
+
+    # Attention
+    attention_bias=True,  # Bias in attention projections
+)
+```
+
+---
+
+### Position Encoding Integration
+
+**Configuration Examples**:
+
+**With RoPE** (recommended):
+```python
+model = create_enhanced_gpt_model(
+    vocab_size=32000,
+    model_size='small',
+    position_encoding_type='rope',
+    max_position_embeddings=2048  # Can handle long sequences
+)
+```
+
+**With ALiBi**:
+```python
+model = create_enhanced_gpt_model(
+    vocab_size=32000,
+    model_size='small',
+    position_encoding_type='alibi',
+    max_position_embeddings=2048
+)
+```
+
+**With Sinusoidal**:
+```python
+model = create_enhanced_gpt_model(
+    vocab_size=32000,
+    model_size='small',
+    position_encoding_type='sinusoidal',
+    max_position_embeddings=512
+)
+```
+
+**With Learned** (default GPT-2 style):
+```python
+model = create_enhanced_gpt_model(
+    vocab_size=32000,
+    model_size='small',
+    position_encoding_type='learned',
+    max_position_embeddings=512
+)
+```
+
+---
+
+### Gradient Checkpointing
+
+**Purpose**: Trade compute for memory - recompute activations during backward pass instead of storing them.
+
+**Memory Savings**: ~30-50% reduction
+
+**Speed Cost**: ~20-30% slower training
+
+**Configuration**:
+```python
+model = create_enhanced_gpt_model(
+    vocab_size=32000,
+    model_size='medium',  # Large model
+    gradient_checkpointing=True  # Enable to fit in GPU memory
+)
+```
+
+**Usage**: Automatically applied during training when enabled. No code changes needed.
+
+**When to use**:
+- Large models that don't fit in GPU memory
+- When batch size is constrained by memory
+- Training on consumer GPUs
+
+---
+
+### RMS Norm vs LayerNorm
+
+**RMS Norm**: Root Mean Square Layer Normalization
+
+**Class**: `RMSNorm` (`enhanced_gpt.py:115-126`)
+
+**Formula**:
+```
+RMSNorm(x) = (x / RMS(x)) * γ
+where RMS(x) = sqrt(mean(x²) + ε)
+```
+
+**Advantages over LayerNorm**:
+- ✅ ~10-15% faster (no mean subtraction)
+- ✅ Fewer operations
+- ✅ Used in modern models (LLaMA, PaLM)
+
+**Usage**:
+```python
+model = create_enhanced_gpt_model(
+    vocab_size=32000,
+    model_size='small',
+    use_rms_norm=True  # Use RMS Norm instead of LayerNorm
+)
+```
+
+---
+
+### Flash Attention
+
+**Description**: Optimized attention implementation that reduces memory and increases speed.
+
+**Benefits**:
+- ✅ 2-4x faster attention
+- ✅ Reduced memory usage
+- ✅ Exact (not approximate)
+
+**Requirements**:
+```bash
+pip install flash-attn  # Requires CUDA
+```
+
+**Usage**: Automatically used if available and `use_flash_attention=True` (default).
+
+**Fallback**: Falls back to standard attention if not available.
+
+---
+
+### Complete Configuration Example
+
+**Small Model with RoPE** (recommended for Hindi BabyLM):
+```yaml
+model:
+  model_type: "enhanced_gpt"
+  vocab_size: 32000
+  model_size: "small"
+
+  # Position encoding
+  position_encoding_type: "rope"
+  max_position_embeddings: 512
+
+  # Architecture
+  hidden_size: 768
+  num_layers: 12
+  num_heads: 12
+  intermediate_size: 3072
+
+  # Regularization
+  dropout: 0.1
+  attention_dropout: 0.1
+  residual_dropout: 0.1
+
+  # Normalization & Activation
+  use_rms_norm: false
+  activation: "gelu"
+
+  # Efficiency
+  use_flash_attention: true
+  gradient_checkpointing: false
+
+  # Initialization
+  initializer_range: 0.02
+```
+
+**Medium Model with ALiBi and Gradient Checkpointing**:
+```yaml
+model:
+  model_type: "enhanced_gpt"
+  vocab_size: 32000
+  model_size: "medium"
+
+  # Position encoding
+  position_encoding_type: "alibi"
+  max_position_embeddings: 1024
+
+  # Efficiency (needed for larger model)
+  gradient_checkpointing: true
+  use_flash_attention: true
+  use_rms_norm: true  # Faster than LayerNorm
+
+  # Activation
+  activation: "swiglu"  # Better than GELU
+```
+
+---
+
+### Training and Generation
+
+**Training**:
+```python
+from src.models.enhanced_gpt import create_enhanced_gpt_model
+
+# Create model
+model = create_enhanced_gpt_model(
+    vocab_size=32000,
+    model_size='small',
+    position_encoding_type='rope'
+)
+
+# Forward pass
+outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+loss = outputs['loss']
+logits = outputs['logits']
+
+# Backward
+loss.backward()
+```
+
+**Generation**:
+```python
+# Generate text
+model.eval()
+prompt_ids = tokenizer.encode("मैं एक")
+prompt_tensor = torch.tensor([prompt_ids])
+
+generated_ids = model.generate(
+    prompt_tensor,
+    max_new_tokens=50,
+    temperature=0.8,
+    top_k=50,
+    top_p=0.95
+)
+
+generated_text = tokenizer.decode(generated_ids[0])
+print(generated_text)
+# Output: "मैं एक विद्यार्थी हूँ जो विश्वविद्यालय में पढ़ता है..."
+```
+
+---
+
+### Parameter Counts
+
+**By Model Size** (vocab_size=32000):
+
+| Component | Tiny (50M) | Small (110M) | Medium (350M) |
+|-----------|-----------|--------------|---------------|
+| **Token Embeddings** | 16.4M | 24.6M | 32.8M |
+| **Position Embeddings** | 262K† | 393K† | 524K† |
+| **Transformer Blocks** | 32M | 84M | 315M |
+| **LM Head** | Tied | Tied | Tied |
+| **Total** | ~49M | ~109M | ~348M |
+
+† Only for learned position embeddings. RoPE and ALiBi have zero position encoding parameters.
+
+---
+
+### Memory Requirements
+
+**GPU Memory Estimates** (batch_size=32, seq_len=512):
+
+| Model | Position Encoding | Training (FP32) | Training (FP16) | Inference |
+|-------|------------------|-----------------|-----------------|-----------|
+| **Tiny** | Any | ~8 GB | ~4 GB | ~1 GB |
+| **Small** | Learned/Sinusoidal | ~18 GB | ~9 GB | ~2 GB |
+| **Small** | RoPE/ALiBi | ~17 GB | ~8.5 GB | ~2 GB |
+| **Small + GradChkpt** | RoPE | ~12 GB | ~6 GB | ~2 GB |
+| **Medium** | Any | ~36 GB | ~18 GB | ~4 GB |
+| **Medium + GradChkpt** | RoPE | ~24 GB | ~12 GB | ~4 GB |
+
+**Notes**:
+- Training includes model + gradients + optimizer states
+- FP16 mixed precision approximately halves memory
+- Gradient checkpointing saves ~30-40% memory
+- Inference is much more memory-efficient
+
+---
+
+### Best Practices
+
+**1. Position Encoding Selection**:
+- **Limited data**: Use RoPE or Sinusoidal (no parameters)
+- **Fixed lengths**: Learned is acceptable
+- **Long sequences**: Use RoPE or ALiBi
+- **Memory constrained**: Use RoPE or ALiBi (no position embedding parameters)
+
+**2. Model Size Selection**:
+- **10M token budget**: Small (110M) is recommended
+- **Quick experiments**: Tiny (50M)
+- **Maximum performance**: Medium (350M) if compute allows
+
+**3. Memory Optimization**:
+- Enable gradient checkpointing for large models
+- Use FP16 mixed precision
+- Use RMS Norm instead of LayerNorm
+- Use Flash Attention if available
+- Reduce batch size if needed
+
+**4. Initialization**:
+- Keep `initializer_range=0.02` (standard)
+- Consider smaller range (0.01) for very large models
+
 ## Model Selection Guide
 
 | Task Type | Recommended Model | Reason |
