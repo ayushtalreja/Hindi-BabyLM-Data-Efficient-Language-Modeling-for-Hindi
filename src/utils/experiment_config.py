@@ -86,7 +86,16 @@ class ExperimentConfig:
         if not any(key in config_dict for key in ['data', 'tokenization', 'training', 'model']):
             flat_config = config_dict
 
-        return cls(**flat_config)
+        # Filter out keys that are not defined on the dataclass to avoid
+        # TypeError: __init__() got an unexpected keyword argument '<key>' when
+        # the YAML contains extra/unexpected fields (for example 'sources').
+        if isinstance(flat_config, dict):
+            allowed_keys = set(cls.__dataclass_fields__.keys())
+            filtered_config = {k: v for k, v in flat_config.items() if k in allowed_keys}
+        else:
+            filtered_config = flat_config
+
+        return cls(**filtered_config)
 
 class ExperimentManager:
     def __init__(self, base_config: ExperimentConfig):
