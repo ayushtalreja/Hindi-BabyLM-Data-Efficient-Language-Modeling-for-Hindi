@@ -143,6 +143,8 @@ hindi-babylm/
 ├── data/                        # Data storage
 │   ├── raw/                     # Raw downloaded data
 │   └── processed/               # Processed datasets
+│   ├── splits/                  # Train/validation/test splits
+│   └── tokenized/               # Tokenized datasets
 │
 ├── tokenizers/                  # Trained tokenizers
 ├── models/                      # Model checkpoints
@@ -339,5 +341,4 @@ For detailed information on specific components, see:
 - [Training Pipeline Documentation](05_TRAINING.md)
 - [Evaluation Framework Documentation](06_EVALUATION.md)
 - [Configuration Guide](07_CONFIGURATION.md)
-- [API Reference](08_API_REFERENCE.md)
-- [Setup and Usage Guide](09_SETUP_AND_USAGE.md)
+

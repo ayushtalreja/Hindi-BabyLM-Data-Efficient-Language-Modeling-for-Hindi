@@ -7,6 +7,10 @@ This repository contains the complete implementation for creating a Hindi versio
 ```
 hindi-babylm/
 ├── data/                       # Dataset storage
+│   ├── raw/                    # Raw downloaded datasets
+│   ├── processed/              # Cleaned and processed datasets
+│   ├── splits/                 # Train/validation/test splits
+│   └── tokenized/              # Tokenized datasets
 ├── src/                        # Source code
 │   ├── data_processing/        # Data collection and preprocessing
 │   ├── tokenization/          # Tokenization experiments

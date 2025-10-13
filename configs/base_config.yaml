@@ -1,20 +1,435 @@
+# ==============================================================================
+# Hindi BabyLM - Comprehensive Base Configuration
+# ==============================================================================
+
+# Project Metadata
 project:
   name: "hindi-babylm"
-  description: "Hindi BabyLM Challenge Implementation"
-  
+  description: "Data-efficient language modeling for Hindi (BabyLM Challenge)"
+  version: "1.0.0"
+  track: "strict-small"  # 10M token limit
+
+# Directory Structure
+directories:
+  data_dir: "data"
+  model_dir: "models"
+  tokenizer_dir: "tokenizers"
+  results_dir: "results"
+  checkpoint_dir: "checkpoints"
+  logs_dir: "logs"
+
+# ==============================================================================
+# DATA CONFIGURATION
+# ==============================================================================
 data:
-  max_tokens: 10_000_000  # 10M tokens for strict-small track
+  # Token Budget (BabyLM Strict-Small Track)
+  max_tokens: 10_000_000  # 10M tokens
+
+  # Data Splits
   train_ratio: 0.8
   val_ratio: 0.1
   test_ratio: 0.1
-  
+
+  # Data Sources & Mixing Ratios
+  sources:
+    indiccorp:
+      enabled: true
+      ratio: 0.6  # 60% from news/web
+      max_samples: 50000
+    wikipedia:
+      enabled: true
+      ratio: 0.3  # 30% from encyclopedia
+      categories: ["विज्ञान", "इतिहास", "भूगोल", "साहित्य", "कला"]
+      max_articles: 5000
+    childrens_books:
+      enabled: true
+      ratio: 0.1  # 10% from children's literature
+      max_stories: 2000
+
+  # Quality Filtering
+  filtering:
+    min_length: 10  # characters
+    max_length: 10000
+    min_hindi_ratio: 0.8  # Devanagari character ratio
+    min_word_count: 5
+    max_word_count: 2000
+
+  # Deduplication
+  deduplication:
+    enabled: true
+    similarity_threshold: 0.8  # MinHash LSH threshold
+    num_permutations: 128
+
+  # Data Processing
+  processing:
+    unicode_normalization: "NFC"
+    remove_urls: true
+    remove_emails: true
+    normalize_whitespace: true
+    max_workers: 4  # Parallel processing
+
+  # Data Augmentation (Optional)
+  augmentation:
+    enabled: false
+    techniques:
+      - "none"  # Options: back_translation, paraphrase, morphological
+
+# ==============================================================================
+# TOKENIZATION CONFIGURATION
+# ==============================================================================
 tokenization:
+  # Tokenizer Type
+  type: "sentencepiece"  # Options: sentencepiece, wordpiece, bpe
+
+  # Vocabulary
   vocab_size: 32000
-  methods: ["sentencepiece", "wordpiece", "bpe"]
-  
+  character_coverage: 0.9995  # For SentencePiece
+
+  # Special Tokens
+  special_tokens:
+    pad_token: "<pad>"
+    unk_token: "<unk>"
+    bos_token: "<s>"
+    eos_token: "</s>"
+    mask_token: "<mask>"
+    sep_token: "<sep>"
+    cls_token: "<cls>"
+
+  # SentencePiece Specific
+  sentencepiece:
+    model_type: "unigram"  # Options: unigram, bpe
+    split_by_whitespace: true
+    split_by_unicode_script: true
+    byte_fallback: true
+    normalization_rule_name: "nfkc"
+    treat_whitespace_as_suffix: false
+    split_digits: true
+
+  # WordPiece Specific
+  wordpiece:
+    min_frequency: 2
+    limit_alphabet: 10000
+    continuing_subword_prefix: "##"
+
+  # BPE Specific
+  bpe:
+    min_frequency: 2
+    dropout: 0.0  # BPE dropout for regularization
+
+# ==============================================================================
+# MODEL ARCHITECTURE CONFIGURATION
+# ==============================================================================
+model:
+  # Model Type
+  type: "gpt"  # Options: gpt, bert, hybrid
+
+  # Core Architecture Hyperparameters
+  architecture:
+    hidden_size: 768
+    num_hidden_layers: 12
+    num_attention_heads: 12
+    intermediate_size: 3072  # FFN hidden size (typically 4 * hidden_size)
+    max_position_embeddings: 512
+
+  # Regularization
+  regularization:
+    hidden_dropout_prob: 0.1
+    attention_probs_dropout_prob: 0.1
+    layer_norm_eps: 1.0e-12
+    initializer_range: 0.02
+
+  # Activation Functions
+  activation: "gelu"  # Options: gelu, relu, swiglu, gelu_new
+
+  # Position Encoding
+  position_encoding:
+    type: "absolute"  # Options: absolute, relative, rope, alibi
+    max_length: 512
+
+  # Layer Normalization
+  layer_norm_type: "layernorm"  # Options: layernorm, rmsnorm
+
+  # Model-Specific Configurations
+  gpt:
+    use_cache: true
+    scale_attn_weights: true
+    reorder_and_upcast_attn: false
+
+  bert:
+    type_vocab_size: 2
+    use_cache: false
+    chunk_size_feed_forward: 0
+
+  hybrid:
+    bert_ratio: 0.5  # 50% BERT-style, 50% GPT-style training
+    alternate_objectives: true
+    shared_embeddings: true
+
+# ==============================================================================
+# TRAINING CONFIGURATION
+# ==============================================================================
 training:
+  # Basic Training Parameters
   batch_size: 32
-  learning_rate: 3e-4
-  max_epochs: 10
-  save_steps: 1000
-  eval_steps: 500
+  gradient_accumulation_steps: 1  # Effective batch = batch_size * grad_accum
+  num_epochs: 10
+  max_steps: -1  # -1 for epoch-based, or set specific step count
+
+  # Optimization
+  optimizer:
+    type: "adamw"  # Options: adamw, adam, sgd, adafactor
+    learning_rate: 3.0e-4
+    weight_decay: 0.01
+    beta1: 0.9
+    beta2: 0.999
+    epsilon: 1.0e-8
+    amsgrad: false
+
+  # Learning Rate Scheduling
+  lr_scheduler:
+    type: "cosine_with_warmup"  # Options: linear, cosine, constant, polynomial
+    warmup_steps: 1000
+    warmup_ratio: 0.1  # Alternative to warmup_steps (ratio of total steps)
+    num_cycles: 0.5  # For cosine schedule
+    min_lr_ratio: 0.0  # Minimum LR as ratio of initial LR
+
+  # Gradient Management
+  gradient:
+    max_grad_norm: 1.0  # Gradient clipping
+    gradient_checkpointing: false  # Memory-efficient training
+
+  # Mixed Precision Training
+  mixed_precision:
+    enabled: true
+    dtype: "fp16"  # Options: fp16, bf16
+    opt_level: "O1"  # For apex mixed precision
+
+  # Checkpointing
+  checkpointing:
+    save_strategy: "steps"  # Options: steps, epoch, no
+    save_steps: 1000
+    save_total_limit: 3  # Keep only last 3 checkpoints
+    load_best_model_at_end: true
+    metric_for_best_model: "eval_loss"
+    greater_is_better: false
+
+  # Evaluation
+  evaluation:
+    eval_strategy: "steps"  # Options: steps, epoch, no
+    eval_steps: 500
+    per_device_eval_batch_size: 32
+    eval_accumulation_steps: null
+
+  # Logging
+  logging:
+    log_level: "info"  # Options: debug, info, warning, error
+    log_steps: 100
+    report_to: ["wandb", "tensorboard"]  # Options: wandb, tensorboard, none
+
+  # Early Stopping
+  early_stopping:
+    enabled: true
+    patience: 3  # Epochs without improvement
+    threshold: 0.001  # Minimum change to qualify as improvement
+
+  # Distributed Training
+  distributed:
+    strategy: "ddp"  # Options: ddp, fsdp, deepspeed
+    find_unused_parameters: false
+    gradient_as_bucket_view: true
+
+  # Reproducibility
+  seed: 42
+  deterministic: true
+  cuda_deterministic_algorithms: false  # May reduce performance
+
+# ==============================================================================
+# CURRICULUM LEARNING CONFIGURATION
+# ==============================================================================
+curriculum:
+  # Enable Curriculum Learning
+  enabled: false
+
+  # Strategy
+  strategy: "morphological"  # Options: morphological, length, word_length, random
+
+  # Progression
+  num_stages: 3
+  stage_ratios: [0.33, 0.33, 0.34]  # Proportion of data in each stage
+
+  # Scheduling
+  stage_duration_epochs: [3, 3, 4]  # Epochs per stage
+  transition: "smooth"  # Options: smooth, abrupt
+
+  # Morphological Complexity (if strategy="morphological")
+  morphological:
+    metrics: ["inflection_density", "avg_word_length", "rare_morpheme_ratio"]
+    weights: [0.5, 0.3, 0.2]
+
+# ==============================================================================
+# EVALUATION CONFIGURATION
+# ==============================================================================
+evaluation:
+  # Evaluation Benchmarks
+  benchmarks:
+    indicglue:
+      enabled: true
+      tasks: ["IndicNews", "IndicHeadline", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
+      batch_size: 32
+      max_samples_per_task: 1000  # For quick evaluation
+
+    multiblimp:
+      enabled: true
+      phenomena: ["agreement", "case_marking", "word_order", "binding", "control"]
+      n_examples_per_phenomenon: 100
+
+    morphological_probes:
+      enabled: true
+      probes: ["case", "number", "gender", "tense", "person", "honorific"]
+      layers_to_probe: [6, 12]  # Which transformer layers to probe
+
+  # Perplexity Evaluation
+  perplexity:
+    enabled: true
+    split: "test"
+    report_per_source: true  # Report PPL per data source
+
+  # Zero-shot Evaluation
+  zero_shot:
+    enabled: false
+    tasks: ["text_classification", "ner", "pos_tagging"]
+
+  # Generation Quality
+  generation:
+    enabled: false
+    prompts_file: "evaluation/generation_prompts.txt"
+    max_length: 100
+    num_samples: 50
+    metrics: ["bleu", "rouge", "bertscore"]
+
+# ==============================================================================
+# EXPERIMENT TRACKING
+# ==============================================================================
+experiment_tracking:
+  # Weights & Biases
+  wandb:
+    enabled: true
+    project: "hindi-babylm"
+    entity: null  # Your wandb username/team
+    tags: ["babylm", "hindi", "10m-tokens"]
+    notes: "Baseline experiment"
+    mode: "online"  # Options: online, offline, disabled
+    log_model: "checkpoint"  # Options: checkpoint, end, false
+
+  # TensorBoard
+  tensorboard:
+    enabled: true
+    log_dir: "logs/tensorboard"
+
+  # MLflow
+  mlflow:
+    enabled: false
+    tracking_uri: null
+    experiment_name: "hindi-babylm"
+
+# ==============================================================================
+# RESOURCE MANAGEMENT
+# ==============================================================================
+resources:
+  # Device Configuration
+  device: "cuda"  # Options: cuda, cpu, mps (for Apple Silicon)
+  gpu_ids: [0]  # List of GPU IDs to use
+  num_workers: 4  # DataLoader workers
+
+  # Memory Management
+  pin_memory: true
+  prefetch_factor: 2  # DataLoader prefetch
+
+  # Limits
+  max_memory_per_gpu: null  # GB, null for unlimited
+  cpu_memory_limit: null  # GB
+
+# ==============================================================================
+# ANALYSIS & VISUALIZATION
+# ==============================================================================
+analysis:
+  # Corpus Analysis
+  corpus_statistics:
+    enabled: true
+    compute_vocab_stats: true
+    compute_length_distribution: true
+    compute_morphological_stats: true
+
+  # Training Analysis
+  training_analysis:
+    plot_learning_curves: true
+    plot_gradient_norms: true
+    plot_attention_weights: false  # Expensive
+
+  # Tokenization Analysis
+  tokenization_analysis:
+    compare_tokenizers: true
+    analyze_morphological_boundaries: true
+    coverage_analysis: true
+
+  # Evaluation Analysis
+  evaluation_analysis:
+    generate_confusion_matrices: true
+    error_analysis: true
+    statistical_significance_tests: true
+
+# ==============================================================================
+# REPRODUCIBILITY & DEBUGGING
+# ==============================================================================
+reproducibility:
+  # Seed Management
+  seed: 42
+  set_deterministic: true
+
+  # Git Tracking
+  track_git_commit: true
+  save_git_diff: true
+
+  # Environment
+  save_environment: true  # Save pip freeze output
+  save_system_info: true  # Save hardware/OS info
+
+debugging:
+  # Debug Mode
+  debug_mode: false
+
+  # Profiling
+  profile_training: false
+  profile_evaluation: false
+
+  # Validation
+  validate_data_loader: true
+  check_data_distribution: true
+  detect_anomalies: false  # PyTorch anomaly detection (slow)
+
+  # Testing
+  overfit_small_batch: false  # Test with 1-2 batches
+  fast_dev_run: false  # Run 1 batch per epoch for testing
+
+# ==============================================================================
+# ADVANCED FEATURES (OPTIONAL)
+# ==============================================================================
+advanced:
+  # Knowledge Distillation
+  distillation:
+    enabled: false
+    teacher_model_path: null
+    temperature: 2.0
+    alpha: 0.5  # KD loss weight
+
+  # Model Compression
+  compression:
+    quantization: false
+    pruning: false
+    low_rank_adaptation: false
+
+  # Data Filtering
+  data_filtering:
+    use_perplexity_filter: false
+    perplexity_threshold: 1000
+    use_quality_classifier: false

@@ -1,0 +1,132 @@
+═══════════════════════════════════════════════════════════════
+  CHILDREN'S BOOKS MODULE - QUICK REFERENCE
+═══════════════════════════════════════════════════════════════
+
+FILE: src/data_processing/childrens_books.py
+
+┌─────────────────────────────────────────────────────────────┐
+│ MAIN ENTRY POINT                                             │
+└─────────────────────────────────────────────────────────────┘
+
+  collect_childrens_stories() -> List[str]
+    ↓
+    Returns: List of Hindi children's story texts
+    Called by: corpus_builder.py:100
+
+┌─────────────────────────────────────────────────────────────┐
+│ MAIN CLASS                                                   │
+└─────────────────────────────────────────────────────────────┘
+
+  ChildrensStoryCollector(max_stories=2000, rate_limit_delay=2.0)
+
+  Key Methods:
+    • collect_all_stories()          - Main orchestrator
+    • scrape_storyweaver_api()       - StoryWeaver collection
+    • scrape_freekidsbooks()         - Free Kids Books scraping
+    • filter_stories()               - Quality filtering
+    • is_hindi_text()                - Hindi validation
+    • is_age_appropriate()           - Age filtering
+
+┌─────────────────────────────────────────────────────────────┐
+│ DATA SOURCES                                                 │
+└─────────────────────────────────────────────────────────────┘
+
+  1. StoryWeaver (Primary)
+     • API: storyweaver.org.in/api/v1/stories
+     • Reading Levels: 1, 2, 3 (early readers)
+     • Expected: 500-1000 stories
+     • License: CC-BY (open)
+
+  2. Free Kids Books (Secondary)
+     • URL: freekidsbooks.org/hindi-stories/
+     • Method: Web scraping + link following
+     • Expected: 100-500 stories
+     • License: Open educational resources
+
+┌─────────────────────────────────────────────────────────────┐
+│ QUALITY FILTERS                                              │
+└─────────────────────────────────────────────────────────────┘
+
+  Length:      100 - 10,000 characters
+  Words:       20 - 2,000 words
+  Hindi Ratio: > 50% Devanagari
+  Word Length: Average < 10 characters
+  Complexity:  No adult/technical vocabulary
+
+┌─────────────────────────────────────────────────────────────┐
+│ USAGE EXAMPLES                                               │
+└─────────────────────────────────────────────────────────────┘
+
+  # Basic usage (called by corpus_builder)
+  from src.data_processing.childrens_books import collect_childrens_stories
+  stories = collect_childrens_stories()
+  print(f"Collected {len(stories)} stories")
+
+  # Custom configuration
+  from src.data_processing.childrens_books import ChildrensStoryCollector
+  collector = ChildrensStoryCollector(max_stories=500, rate_limit_delay=3.0)
+  stories = collector.collect_all_stories()
+
+  # Testing
+  python3 test_childrens_books.py --full-test
+
+┌─────────────────────────────────────────────────────────────┐
+│ INTEGRATION STATUS                                           │
+└─────────────────────────────────────────────────────────────┘
+
+  ✓ Function signature matches corpus_builder.py
+  ✓ Import path correct: from .childrens_books import ...
+  ✓ Returns correct type: List[str]
+  ✓ Error handling comprehensive
+  ✓ Rate limiting implemented
+  ✓ Logging configured
+  ✓ Type hints complete
+  ✓ Documentation included
+  ✓ Test script provided
+
+┌─────────────────────────────────────────────────────────────┐
+│ DEPENDENCIES                                                 │
+└─────────────────────────────────────────────────────────────┘
+
+  pip install requests beautifulsoup4
+
+┌─────────────────────────────────────────────────────────────┐
+│ FILES CREATED/MODIFIED                                       │
+└─────────────────────────────────────────────────────────────┘
+
+  ✓ src/data_processing/childrens_books.py (586 lines)
+  ✓ test_childrens_books.py (test script)
+  ✓ CHILDRENS_BOOKS_IMPLEMENTATION.md (documentation)
+  ✓ childrens_books_quick_reference.txt (this file)
+
+┌─────────────────────────────────────────────────────────────┐
+│ KEY FEATURES                                                 │
+└─────────────────────────────────────────────────────────────┘
+
+  • StoryWeaver API integration with fallback
+  • Multi-source collection (StoryWeaver + Free Kids Books)
+  • Link discovery and following
+  • Hindi text validation (Devanagari detection)
+  • Age-appropriateness filtering
+  • Text cleaning and normalization
+  • Duplicate prevention (URL tracking)
+  • Rate limiting (2s delays)
+  • Comprehensive error handling
+  • Detailed logging
+  • Type annotations
+  • Backward compatibility
+
+┌─────────────────────────────────────────────────────────────┐
+│ EXPECTED OUTPUT                                              │
+└─────────────────────────────────────────────────────────────┘
+
+  Target:    500-2,000 children's stories
+  Quality:   High - clean, age-appropriate Hindi text
+  Format:    List[str] - pure text content
+  Diversity: Multiple reading levels, topics, styles
+
+═══════════════════════════════════════════════════════════════
+  STATUS: ✓ COMPLETE AND READY FOR INTEGRATION
+═══════════════════════════════════════════════════════════════
+
+For full documentation, see: CHILDRENS_BOOKS_IMPLEMENTATION.md
