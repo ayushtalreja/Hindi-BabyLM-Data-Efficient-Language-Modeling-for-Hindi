@@ -21,7 +21,6 @@ Usage:
 
 import argparse
 import sys
-import os
 import json
 import logging
 from pathlib import Path
@@ -45,7 +44,7 @@ from src.utils.seed_manager import set_global_seed
 
 
 # Configure logging
-def setup_logging(experiment_dir: Path, experiment_name: str):
+def setup_logging(experiment_dir: Path):
     """Setup logging to both file and console"""
     log_file = experiment_dir / 'experiment.log'
 
@@ -411,7 +410,7 @@ Examples:
     experiment_dir.mkdir(parents=True, exist_ok=True)
 
     # Setup logging
-    logger = setup_logging(experiment_dir, experiment_name)
+    setup_logging(experiment_dir)
 
     # Print header
     print_banner("HINDI BABYLM: DATA-EFFICIENT LANGUAGE MODELING", "=")
@@ -428,7 +427,7 @@ Examples:
     logging.info(f"   Seed: {seed}")
     logging.info(f"   Deterministic: {deterministic}")
 
-    seed_manager = set_global_seed(seed=seed, deterministic=deterministic)
+    set_global_seed(seed=seed, deterministic=deterministic)
 
     # Device setup
     if args.device == 'auto':
@@ -483,7 +482,7 @@ Examples:
                 corpus_builder = CorpusBuilder(config)
                 splits = corpus_builder.load_splits()
 
-            results = stage_evaluation(
+            stage_evaluation(
                 config,
                 model,
                 tokenizer,

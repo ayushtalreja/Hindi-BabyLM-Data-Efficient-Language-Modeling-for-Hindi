@@ -190,56 +190,106 @@ pip install -e .
 
 ### Basic Usage
 
-#### 1. Download and Process Data
+#### 1. Complete Pipeline (Recommended for First Run)
 
 ```bash
-# Download IndicCorp Hindi (100K samples ≈ 6M tokens)
+# Run complete pipeline: data → training → evaluation
+python main.py \
+    --config configs/base_config.yaml \
+    --experiment_name my_first_experiment
+```
+
+This single command will:
+- Download and process data from all sources (IndicCorp, Wikipedia, children's books)
+- Create train/val/test splits in `data/splits/`
+- Train a language model with your configuration
+- Run comprehensive evaluation (IndicGLUE, MultiBLiMP, Morphological Probes)
+- Save all results to `results/my_first_experiment/`
+
+#### 2. Stage-by-Stage Execution
+
+**Data Processing Only:**
+```bash
+# Download IndicCorp Hindi (100K samples ≈ 6M tokens) - standalone
 python src/data_processing/indiccorp_downloader.py \
     --output-dir data/raw \
     --num-samples 100000 \
     --format both
 
-# Build complete corpus with all sources
-python experiments/run_experiment.py \
+# Or build complete corpus with all sources via main pipeline
+python main.py \
     --config configs/base_config.yaml \
     --stage data \
-    --name my_first_experiment
+    --experiment_name data_processing_only
 ```
 
-#### 2. Train a Model
-
+**Training Only** (requires existing data):
 ```bash
 # Train Tiny model (50M params) - good for testing
-python experiments/run_experiment.py \
+python main.py \
     --config configs/tiny_model.yaml \
     --stage train \
-    --name tiny_baseline
+    --experiment_name tiny_baseline
 
 # Train Small model (110M params) with curriculum learning
-python experiments/run_experiment.py \
+python main.py \
     --config configs/curriculum_learning.yaml \
     --stage train \
-    --name small_curriculum
+    --experiment_name small_curriculum
 ```
 
-#### 3. Run Evaluation
-
+**Evaluation Only** (requires trained model):
 ```bash
 # Evaluate on all benchmarks (IndicGLUE, MultiBLiMP, Probes)
-python experiments/run_experiment.py \
+python main.py \
     --config configs/base_config.yaml \
     --stage eval \
-    --name tiny_baseline
+    --experiment_name tiny_baseline
 ```
 
-#### 4. Complete Pipeline
+#### 3. Advanced Options
 
+**Resume Training from Checkpoint:**
 ```bash
-# Run data processing → training → evaluation
-python experiments/run_experiment.py \
+python main.py \
+    --config configs/base_config.yaml \
+    --stage train \
+    --experiment_name resumed_training \
+    --resume results/previous_exp/checkpoints/checkpoint_epoch_5.pt
+```
+
+**Force Reprocess Data:**
+```bash
+# Useful when you've updated data sources or filtering parameters
+python main.py \
     --config configs/base_config.yaml \
     --stage all \
-    --name complete_pipeline
+    --experiment_name fresh_run \
+    --force-reprocess
+```
+
+**Custom Random Seed:**
+```bash
+# Override config seed for reproducibility experiments
+python main.py \
+    --config configs/base_config.yaml \
+    --experiment_name seed_experiment \
+    --seed 42
+```
+
+**Specify Device:**
+```bash
+# Force CPU usage (useful for debugging)
+python main.py \
+    --config configs/base_config.yaml \
+    --experiment_name cpu_run \
+    --device cpu
+
+# Force GPU usage
+python main.py \
+    --config configs/base_config.yaml \
+    --experiment_name gpu_run \
+    --device cuda
 ```
 
 ### Advanced Usage
@@ -248,31 +298,65 @@ python experiments/run_experiment.py \
 
 ```bash
 # Train with RoPE (Rotary Position Embeddings)
-python experiments/run_experiment.py \
+python main.py \
     --config configs/position_encodings.yaml \
-    --name rope_experiment
+    --experiment_name rope_experiment
 
-# Compare all 5 position encoding types
+# Train with ALiBi (Attention with Linear Biases)
+python main.py \
+    --config configs/position_encodings.yaml \
+    --experiment_name alibi_experiment
+
+# Compare all 5 position encoding types (automated suite)
 python experiments/run_architecture_experiments.py
 ```
 
 #### Curriculum Learning Experiments
 
 ```bash
-# Run all curriculum learning strategies
-python experiments/run_curriculum_experiments.py
-
-# Specific curriculum strategy
-python experiments/run_experiment.py \
+# Specific curriculum strategy with morphological ordering
+python main.py \
     --config configs/curriculum_learning.yaml \
-    --name morphological_curriculum
+    --experiment_name morphological_curriculum
+
+# Length-based curriculum learning
+python main.py \
+    --config configs/curriculum_learning.yaml \
+    --experiment_name length_curriculum
+
+# Run all 25 curriculum learning configurations (automated suite)
+python experiments/run_curriculum_experiments.py
 ```
 
 #### Tokenization Comparison
 
 ```bash
-# Compare SentencePiece, WordPiece, BPE
+# Train with SentencePiece tokenization
+python main.py \
+    --config configs/sentencepiece_config.yaml \
+    --experiment_name sentencepiece_exp
+
+# Compare SentencePiece, WordPiece, BPE (automated suite)
 python experiments/run_tokenization_experiments.py
+```
+
+#### Model Size Experiments
+
+```bash
+# Tiny model (50M parameters) - fast training
+python main.py \
+    --config configs/tiny_model.yaml \
+    --experiment_name tiny_50m
+
+# Small model (110M parameters) - balanced
+python main.py \
+    --config configs/small_model.yaml \
+    --experiment_name small_110m
+
+# Medium model (350M parameters) - best performance
+python main.py \
+    --config configs/medium_model.yaml \
+    --experiment_name medium_350m
 ```
 
 ## 📊 Data Processing Pipeline
@@ -547,7 +631,26 @@ python experiments/run_curriculum_experiments.py
 python experiments/run_model_size_experiments.py
 ```
 
-### Custom Experiment
+### Custom Experiment with main.py
+
+```bash
+# Complete pipeline with custom configuration
+python main.py \
+    --config configs/my_custom_config.yaml \
+    --experiment_name my_custom_experiment
+
+# With all advanced options
+python main.py \
+    --config configs/my_custom_config.yaml \
+    --experiment_name my_experiment \
+    --seed 42 \
+    --device cuda \
+    --force-reprocess
+```
+
+### Programmatic Usage (Advanced)
+
+For more complex orchestration, use the ExperimentOrchestrator:
 
 ```python
 from experiments.run_experiment import ExperimentOrchestrator
@@ -561,7 +664,7 @@ orchestrator = ExperimentOrchestrator(
 # Run complete pipeline
 result = orchestrator.run_full_pipeline()
 
-# Or run specific stages
+# Or run specific stages with more control
 splits = orchestrator.run_data_processing()
 model, tokenizer = orchestrator.run_training(splits)
 results = orchestrator.run_evaluation(model, tokenizer, splits)
@@ -570,12 +673,19 @@ results = orchestrator.run_evaluation(model, tokenizer, splits)
 ### Resume Training
 
 ```bash
-# Resume from checkpoint
-python experiments/run_experiment.py \
+# Resume from checkpoint using main.py
+python main.py \
     --config configs/base_config.yaml \
     --stage train \
-    --resume checkpoints/checkpoint_epoch_5.pt \
-    --name resumed_training
+    --experiment_name resumed_training \
+    --resume results/previous_exp/checkpoints/checkpoint_epoch_5.pt
+
+# Resume with different config (transfer learning)
+python main.py \
+    --config configs/fine_tuning_config.yaml \
+    --stage train \
+    --experiment_name fine_tuned \
+    --resume results/base_model/checkpoints/checkpoint_best.pt
 ```
 
 ## 🔬 Key Research Questions
