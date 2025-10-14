@@ -147,8 +147,20 @@ hindi-babylm/
 │   ├── multiblimp_results.tex
 │   └── probes_results.tex
 │
-└── reports/                          # Markdown Reports
-    └── [experiment_name]_report.md
+├── reports/                          # Markdown Reports
+│   └── [experiment_name]_report.md
+│
+├── slurm_scripts/                    # HPC/LRZ Job Scripts
+│   ├── README_LRZ.md                 # Complete LRZ setup guide
+│   ├── QUICK_REFERENCE.md            # Command cheatsheet
+│   ├── run_complete_pipeline.sh      # Full pipeline (24h, 1 GPU)
+│   ├── run_data_processing.sh        # Data only (4h, CPU)
+│   ├── run_training.sh               # Training only (48h, 1 GPU)
+│   ├── run_evaluation.sh             # Evaluation only (8h, 1 GPU)
+│   ├── run_tiny_model.sh             # Quick test (12h, 1 GPU)
+│   └── run_curriculum_learning.sh    # Curriculum learning (48h, 1 GPU)
+│
+└── logs/                             # SLURM job logs (created automatically)
 
 ```
 
@@ -162,7 +174,50 @@ hindi-babylm/
 - 16GB+ RAM recommended
 - 50GB+ disk space for data and models
 
-### Installation
+### Running on HPC Systems (LRZ, etc.)
+
+**For LRZ users**, we provide ready-to-use SLURM scripts in `slurm_scripts/`. See the complete [LRZ Setup Guide](slurm_scripts/README_LRZ.md) for detailed instructions.
+
+**Quick Start on LRZ:**
+
+```bash
+# 1. Setup (one-time)
+module load python/3.10
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+mkdir -p logs
+
+# 2. Update email in scripts
+sed -i 's/your.email@tum.de/YOUR_EMAIL@tum.de/g' slurm_scripts/*.sh
+
+# 3. Submit complete pipeline job
+sbatch slurm_scripts/run_complete_pipeline.sh
+
+# 4. Monitor job
+squeue -u $USER
+tail -f logs/pipeline_*.out
+```
+
+Available SLURM scripts:
+- `run_complete_pipeline.sh` - Full pipeline (24h, 1 GPU)
+- `run_data_processing.sh` - Data only (4h, CPU)
+- `run_training.sh` - Training only (48h, 1 GPU)
+- `run_evaluation.sh` - Evaluation only (8h, 1 GPU)
+- `run_tiny_model.sh` - Quick test (12h, 1 GPU)
+- `run_curriculum_learning.sh` - Curriculum learning (48h, 1 GPU)
+
+**Key Features:**
+- ✅ GPU auto-detection and setup
+- ✅ Module loading (Python, CUDA, cuDNN)
+- ✅ Automatic logging to `logs/` directory
+- ✅ Email notifications on completion
+- ✅ Resource optimization for LRZ partitions
+- ✅ Checkpoint resumption support
+
+See [slurm_scripts/README_LRZ.md](slurm_scripts/README_LRZ.md) for troubleshooting and advanced usage.
+
+### Installation (Local Machine)
 
 1. **Clone the repository**
 ```bash

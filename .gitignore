@@ -1,2 +1,169 @@
 # Claude Code agents and configuration
 .claude/
+
+# Scripts directory (user-specific execution scripts)
+scripts/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Data directories (large files)
+data/raw/
+data/splits/*.pkl
+data/splits/*.txt
+data/tokenized/
+
+# Keep directory structure but ignore contents
+!data/raw/.gitkeep
+!data/splits/.gitkeep
+!data/tokenized/.gitkeep
+
+# Results and outputs
+results/
+outputs/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# Logs
+logs/
+*.log
+*.out
+*.err
+
+# Figures (optional - uncomment if you don't want to track)
+# figures/
+# *.png
+# *.jpg
+# *.pdf
+
+# Model files
+models/
+*.model
+*.pkl
+*.pickle
+
+# Weights & Biases
+wandb/
+
+# Cache
+.cache/
+*.cache
+__pycache__/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~
+
+# HuggingFace cache (can be very large)
+.cache/huggingface/
+
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Profiling
+*.prof
+
+# SLURM specific (if you want to ignore job outputs)
+# Uncomment the lines below if you don't want to track SLURM logs in git
+# slurm-*.out
+# slurm-*.err
+
+# Keep slurm_scripts directory but ignore generated logs
+# logs/ already ignored above
+
+# Exclude large data files
+*.h5
+*.hdf5
+*.npy
+*.npz
+
+# LaTeX auxiliary files (if generating LaTeX locally)
+*.aux
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Keep important directories
+!slurm_scripts/
+!configs/
+!docs/
+!notebooks/
+!src/
+!experiments/
