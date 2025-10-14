@@ -563,6 +563,100 @@ After processing, the following metrics are tracked:
 **Cause**: Large corpus processing in memory
 **Solution**: Implement streaming processing or batch processing
 
+## Interactive Corpus Analysis (Phase 2)
+
+For detailed interactive analysis of the processed corpus, use the **Data Exploration Notebook**:
+
+**Notebook**: `notebooks/01_data_exploration.ipynb`
+
+**Features**:
+1. **Basic Statistics**:
+   - Total tokens, unique tokens, type-token ratio
+   - Average/median sentence lengths
+   - Corpus size by split (train/val/test)
+
+2. **Length Distribution Analysis**:
+   - Word count histograms
+   - Character count distributions
+   - Statistical summaries (mean, median, std)
+
+3. **Character Analysis**:
+   - Top 30 Devanagari characters
+   - Hindi ratio (Devanagari / total characters)
+   - Character frequency visualization
+
+4. **Word Frequency Analysis**:
+   - Top 30 most frequent words
+   - Vocabulary distribution
+   - Function word analysis
+
+5. **Morphological Complexity**:
+   - Case marker frequency (ने, को, से, में, पर, का, की, के)
+   - Morphological richness assessment
+   - Agreement marker distribution
+
+6. **Data Quality Assessment**:
+   - Quality distribution (clean vs. filtered)
+   - Rejection reasons breakdown
+   - Quality metrics visualization
+
+**Generated Outputs**:
+- `figures/length_distributions.png` - Sentence length histograms
+- `figures/character_distribution.png` - Top Devanagari characters
+- `figures/word_frequency.png` - Most frequent words
+- `figures/case_markers.png` - Hindi case marker distribution
+- `figures/data_quality.png` - Quality assessment pie chart
+- `data/corpus_statistics.json` - Comprehensive statistics
+
+**Usage**:
+```bash
+# Launch Jupyter Lab
+jupyter lab notebooks/01_data_exploration.ipynb
+
+# Or run non-interactively
+jupyter nbconvert --execute --to notebook \
+    --inplace notebooks/01_data_exploration.ipynb
+```
+
+**Key Statistics Example**:
+```python
+# From corpus_statistics.json
+{
+  "dataset_statistics": {
+    "total_words": 10234567,
+    "unique_words": 234567,
+    "type_token_ratio": 0.0229,
+    "avg_sentence_length": 15.3,
+    "median_sentence_length": 12.0
+  },
+  "quality_assessment": {
+    "clean": 87.5%,
+    "too_short": 5.2%,
+    "too_long": 2.1%,
+    "low_hindi_ratio": 3.8%,
+    "has_urls": 1.4%
+  },
+  "case_markers": {
+    "का": 145234,
+    "की": 98765,
+    "के": 87654,
+    "को": 76543,
+    "ने": 65432,
+    "से": 54321,
+    "में": 43210,
+    "पर": 32109
+  }
+}
+```
+
+This interactive analysis complements the automated pipeline by providing:
+- Visual insights into corpus characteristics
+- Statistical validation of data quality
+- Publication-ready figures for thesis
+- Reproducible analysis workflow
+
+For more details, see [Jupyter Notebooks Documentation](09_JUPYTER_NOTEBOOKS.md).
+
 ## Future Improvements
 
 1. **Streaming Processing**: Process data in chunks for memory efficiency
@@ -581,4 +675,5 @@ After processing, the following metrics are tracked:
 
 - [Tokenization Documentation](03_TOKENIZATION.md)
 - [Configuration Guide](07_CONFIGURATION.md)
-- [API Reference](08_API_REFERENCE.md)
+- [Jupyter Notebooks Documentation](09_JUPYTER_NOTEBOOKS.md) - Interactive corpus analysis
+- [Project Overview](01_PROJECT_OVERVIEW.md) - Complete pipeline architecture

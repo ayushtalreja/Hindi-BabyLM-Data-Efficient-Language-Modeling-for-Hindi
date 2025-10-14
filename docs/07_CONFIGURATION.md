@@ -292,7 +292,7 @@ training:
 
 **Use Case**: Multi-task learning, versatile model
 
-### 5. Curriculum Learning
+### 5. Curriculum Learning (Enhanced - Phase 1)
 
 **File**: `configs/curriculum.yaml`
 
@@ -302,17 +302,51 @@ experiment_name: "curriculum_learning"
 data:
   max_tokens: 10_000_000
 
+# Enhanced Curriculum Learning (Phase 1)
 curriculum:
   use_curriculum: true
-  curriculum_strategy: "morphological"  # Options: morphological, length, random
+
+  # Strategy: morphological, length, frequency, combined, dynamic
+  curriculum_strategy: "morphological"
+
+  # Schedule: linear, root, exponential, step, performance_based
+  curriculum_schedule: "linear"
+
+  # Progression parameters
+  initial_threshold: 0.0     # Start with easiest 0% of data
+  final_threshold: 1.0       # End with all data
+  warmup_epochs: 5           # Epochs to reach full dataset
+
+  # Combined strategy weights (if strategy='combined')
+  morphological_weight: 0.4
+  length_weight: 0.3
+  frequency_weight: 0.3
+
+  # Dynamic strategy parameters (if strategy='dynamic')
+  difficulty_window: 5       # Epochs to track performance
+  adjustment_rate: 0.1       # Rate of difficulty adjustment
 
 training:
   batch_size: 32
   learning_rate: 3e-4
-  num_epochs: 12                # More epochs for curriculum
+  num_epochs: 12              # More epochs for curriculum
 ```
 
-**Use Case**: Developmental training progression
+**Use Case**: Developmental training progression with fine-grained control
+
+**Curriculum Strategies**:
+- **morphological**: Rank by case marker density
+- **length**: Start with shorter sentences
+- **frequency**: Start with common words
+- **combined**: Weighted combination of multiple factors
+- **dynamic**: Adjust difficulty based on performance
+
+**Curriculum Schedules**:
+- **linear**: Uniform increase in difficulty
+- **root**: Fast initial increase, slower later (sqrt progression)
+- **exponential**: Slow initial increase, faster later
+- **step**: Sudden jumps at specific epochs
+- **performance_based**: Adjust based on validation loss
 
 ### 6. Large Model
 
@@ -341,6 +375,219 @@ training:
 **Use Case**: Maximum performance (if compute available)
 
 **Training Time**: ~12+ hours on V100
+
+### 7. Enhanced GPT with Position Encodings (Phase 1)
+
+**File**: `configs/enhanced_gpt.yaml`
+
+```yaml
+experiment_name: "enhanced_gpt_rope"
+
+tokenization:
+  tokenizer_type: "sentencepiece"
+  vocab_size: 32000
+
+model:
+  model_type: "enhanced_gpt"    # Enhanced GPT model (Phase 1)
+
+  # Model size: tiny, small, medium
+  model_size: "small"           # 110M parameters
+
+  # Position Encoding Type (Phase 1)
+  # Options: sinusoidal, learned, rope, alibi, relative
+  position_encoding_type: "rope"
+
+  # Position encoding parameters
+  max_position_embeddings: 2048
+  rope_base: 10000              # RoPE base (if using rope)
+  alibi_num_heads: 12           # ALiBi heads (if using alibi)
+
+  # Advanced features
+  use_gradient_checkpointing: true    # Save memory
+  use_flash_attention: false          # Requires flash-attn package
+  norm_type: "rmsnorm"                # rmsnorm or layernorm
+  activation_function: "gelu"         # gelu, relu, swiglu
+
+  # Standard parameters
+  dropout: 0.1
+  attention_dropout: 0.1
+  residual_dropout: 0.1
+
+training:
+  batch_size: 32
+  learning_rate: 3e-4
+  num_epochs: 50
+```
+
+**Use Case**: State-of-the-art position encodings for better long-range dependencies
+
+**Position Encoding Options**:
+- **sinusoidal**: Original Transformer (Vaswani et al., 2017)
+- **learned**: Learnable embeddings (GPT-2 style)
+- **rope**: Rotary Position Embedding (Su et al., 2021) - Best for extrapolation
+- **alibi**: Attention with Linear Biases (Press et al., 2021) - No position embeddings
+- **relative**: Relative position bias (T5 style) - Good for variable lengths
+
+**Model Sizes**:
+- **tiny**: 50M parameters (6 layers, 512 hidden, 8 heads)
+- **small**: 110M parameters (12 layers, 768 hidden, 12 heads)
+- **medium**: 350M parameters (24 layers, 1024 hidden, 16 heads)
+
+### 8. Enhanced Training Configuration (Phase 1)
+
+**File**: `configs/enhanced_training.yaml`
+
+```yaml
+experiment_name: "enhanced_training"
+
+model:
+  model_type: "enhanced_gpt"
+  model_size: "small"
+  position_encoding_type: "rope"
+
+# Enhanced Training Configuration (Phase 1)
+training:
+  # Optimizer options
+  optimizer: "adamw"            # adamw, adam, sgd
+  learning_rate: 3e-4
+  weight_decay: 0.01
+
+  # AdamW-specific parameters
+  betas: [0.9, 0.999]
+  epsilon: 1e-8
+
+  # SGD-specific parameters (if optimizer='sgd')
+  momentum: 0.9
+  nesterov: true
+
+  # Learning rate schedule
+  # Options: linear_warmup, cosine_warmup, constant_warmup
+  lr_schedule: "linear_warmup"
+  warmup_steps: 1000
+  warmup_ratio: 0.1             # Alternative to warmup_steps
+
+  # For cosine schedule
+  num_training_steps: 50000     # Total training steps
+  num_cycles: 0.5               # Cosine cycles
+
+  # Mixed precision training (Phase 1)
+  use_amp: true                 # Automatic Mixed Precision
+  amp_dtype: "float16"          # float16 or bfloat16
+  gradient_clipping: 1.0        # Max gradient norm
+
+  # Gradient accumulation
+  gradient_accumulation_steps: 4   # Effective batch = batch_size * this
+
+  # Training parameters
+  batch_size: 32
+  num_epochs: 50
+  eval_steps: 500
+  save_steps: 1000
+
+  # Early stopping
+  early_stopping: true
+  early_stopping_patience: 5    # Epochs without improvement
+  early_stopping_threshold: 0.001  # Minimum improvement
+
+  # Checkpointing
+  save_total_limit: 3           # Keep only 3 best checkpoints
+  save_best_only: true          # Only save when validation improves
+
+  # Logging
+  logging_steps: 100
+  log_level: "info"             # debug, info, warning, error
+```
+
+**Use Case**: Full control over training dynamics with state-of-the-art techniques
+
+**Optimizer Comparison**:
+- **AdamW**: Best for transformers, includes weight decay fix
+- **Adam**: Standard adaptive optimizer
+- **SGD**: Simple, requires careful LR tuning
+
+**LR Schedule Comparison**:
+- **linear_warmup**: Linear increase then linear decay
+- **cosine_warmup**: Linear warmup then cosine decay (smooth)
+- **constant_warmup**: Linear warmup then constant LR
+
+**Mixed Precision Benefits**:
+- 2x faster training
+- ~50% memory reduction
+- **float16**: Broader hardware support
+- **bfloat16**: Better numeric stability (if available)
+
+### 9. Complete Enhanced Configuration (Phase 1)
+
+**File**: `configs/complete_enhanced.yaml`
+
+Combines all Phase 1 enhancements:
+
+```yaml
+experiment_name: "complete_enhanced"
+
+data:
+  max_tokens: 10_000_000
+
+tokenization:
+  tokenizer_type: "sentencepiece"
+  vocab_size: 32000
+
+# Enhanced Model (Phase 1)
+model:
+  model_type: "enhanced_gpt"
+  model_size: "small"
+  position_encoding_type: "rope"
+  use_gradient_checkpointing: true
+  use_flash_attention: false
+  norm_type: "rmsnorm"
+  activation_function: "gelu"
+
+# Curriculum Learning (Phase 1)
+curriculum:
+  use_curriculum: true
+  curriculum_strategy: "combined"
+  curriculum_schedule: "linear"
+  morphological_weight: 0.4
+  length_weight: 0.3
+  frequency_weight: 0.3
+
+# Enhanced Training (Phase 1)
+training:
+  # Optimization
+  optimizer: "adamw"
+  learning_rate: 3e-4
+  weight_decay: 0.01
+  lr_schedule: "cosine_warmup"
+  warmup_steps: 1000
+
+  # Mixed precision
+  use_amp: true
+  amp_dtype: "float16"
+  gradient_clipping: 1.0
+  gradient_accumulation_steps: 4
+
+  # Training dynamics
+  batch_size: 32
+  num_epochs: 50
+  eval_steps: 500
+  save_steps: 1000
+
+  # Early stopping
+  early_stopping: true
+  early_stopping_patience: 5
+
+  # Checkpointing
+  save_total_limit: 3
+  save_best_only: true
+```
+
+**Use Case**: Combining all Phase 1 improvements for maximum performance
+
+**Expected Improvements over Baseline**:
+- Position encodings (RoPE): +2-4% on long sequences
+- Curriculum learning: +1-3% overall, +3-5% on morphology
+- Enhanced training: Faster convergence, better stability
+- Combined: +3-7% overall improvement
 
 ## Experiment Manager
 
