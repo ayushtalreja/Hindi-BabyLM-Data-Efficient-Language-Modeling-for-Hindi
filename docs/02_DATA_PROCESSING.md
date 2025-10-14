@@ -16,30 +16,206 @@ Raw Data Sources → Collection → Cleaning → Quality Filtering → Deduplica
 
 **Description**: Large-scale corpus of Hindi text from news articles and web crawls.
 
-**Implementation**: `src/data_processing/indiccorp_downloader.py:14`
+**Implementation**: `src/data_processing/indiccorp_downloader.py`
 
-**Key Function**:
+**Dataset Information**:
+- **Source**: AI4Bharat/HuggingFace (`ai4bharat/IndicCorpusV2`)
+- **Language**: Hindi (hi)
+- **Size**: ~3.5GB (billions of tokens)
+- **License**: CC0-1.0 (Public Domain)
+- **Content**: Web-crawled text, news articles, blogs
+
+#### Main Class: `IndicCorpDownloader`
+
+**Location**: `src/data_processing/indiccorp_downloader.py:46`
+
+A comprehensive downloader class for IndicCorp Hindi dataset with full feature set:
+
+**Key Methods**:
+
+**`download()`** (line 80) - Download dataset from HuggingFace:
 ```python
-def download_indiccorp_hindi():
-    """Download IndicCorp Hindi dataset from HuggingFace"""
-    # Uses HuggingFace datasets library
-    # Returns dataset with 'text' field
+def download(
+    self,
+    num_samples: Optional[int] = None,
+    streaming: bool = False,
+    split: str = 'train'
+) -> Union[Dataset, IterableDataset]:
+    """
+    Download IndicCorp Hindi dataset.
+
+    Args:
+        num_samples: Number of samples to download (None for all)
+        streaming: Whether to use streaming mode (memory-efficient)
+        split: Dataset split ('train', 'validation', 'test')
+
+    Returns:
+        HuggingFace Dataset or IterableDataset
+    """
 ```
 
+**`save_to_text()`** (line 132) - Save as text file:
+```python
+def save_to_text(
+    self,
+    dataset: Union[Dataset, IterableDataset],
+    output_filename: str = 'indiccorp_hindi.txt',
+    text_field: str = 'sentence'
+) -> Path:
+    """Save dataset to text file (one sentence per line)"""
+```
+
+**`save_to_pickle()`** (line 176) - Save as pickle file:
+```python
+def save_to_pickle(
+    self,
+    dataset: Union[Dataset, IterableDataset],
+    output_filename: str = 'indiccorp_hindi.pkl',
+    text_field: str = 'sentence'
+) -> Path:
+    """Save dataset to pickle file (list of strings)"""
+```
+
+**`get_statistics()`** (line 220) - Calculate dataset statistics:
+```python
+def get_statistics(
+    self,
+    dataset: Union[Dataset, IterableDataset],
+    num_samples: int = 10000,
+    text_field: str = 'sentence'
+) -> Dict:
+    """
+    Calculate comprehensive statistics:
+    - Total/average characters and words
+    - Min/max length
+    - Empty sample detection
+    """
+```
+
+#### Convenience Function
+
+**`download_indiccorp_hindi()`** (line 371) - One-line download:
+
+```python
+from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
+
+# Download 100K samples for BabyLM (60% of 10M tokens ≈ 6M tokens)
+paths = download_indiccorp_hindi(
+    output_dir='data/raw',
+    num_samples=100000,
+    streaming=False,
+    save_format='both'  # 'text', 'pickle', or 'both'
+)
+
+# Returns dictionary with paths:
+# {
+#     'text': Path('data/raw/indiccorp_hindi.txt'),
+#     'pickle': Path('data/raw/indiccorp_hindi.pkl'),
+#     'statistics': Path('data/raw/indiccorp_statistics.json'),
+#     'metadata': Path('data/raw/indiccorp_metadata.json')
+# }
+```
+
+#### Command Line Usage
+
+```bash
+# Download 100K samples
+python src/data_processing/indiccorp_downloader.py \
+    --output-dir data/raw \
+    --num-samples 100000 \
+    --format both
+
+# Streaming mode (memory-efficient)
+python src/data_processing/indiccorp_downloader.py \
+    --output-dir data/raw \
+    --num-samples 100000 \
+    --streaming \
+    --format pickle
+```
+
+#### Advanced Usage
+
+```python
+from src.data_processing.indiccorp_downloader import IndicCorpDownloader
+
+# Initialize downloader
+downloader = IndicCorpDownloader(
+    output_dir='data/raw',
+    cache_dir='/custom/cache'  # Optional custom cache
+)
+
+# Download with full control
+dataset = downloader.download(
+    num_samples=100000,
+    streaming=False,
+    split='train'
+)
+
+# Get statistics (samples 10K for efficiency)
+stats = downloader.get_statistics(dataset, num_samples=10000)
+print(f"Avg words/sample: {stats['avg_words_per_sample']:.1f}")
+print(f"Avg chars/sample: {stats['avg_chars_per_sample']:.1f}")
+
+# Save in preferred format
+text_path = downloader.save_to_text(dataset)
+pickle_path = downloader.save_to_pickle(dataset)
+stats_path = downloader.save_statistics(stats)
+metadata_path = downloader.save_metadata(dataset, stats)
+```
+
+#### Loading from Cache
+
+```python
+from src.data_processing.indiccorp_downloader import load_indiccorp_from_cache
+
+# Load previously downloaded data
+texts = load_indiccorp_from_cache(
+    'data/raw/indiccorp_hindi.pkl',
+    file_format='pickle'  # or 'text'
+)
+
+print(f"Loaded {len(texts)} samples from cache")
+```
+
+#### Output Files
+
+1. **`indiccorp_hindi.txt`** - Plain text file (one sentence per line)
+2. **`indiccorp_hindi.pkl`** - Python pickle file (list of strings)
+3. **`indiccorp_statistics.json`** - Dataset statistics:
+   ```json
+   {
+     "dataset_name": "ai4bharat/IndicCorpusV2",
+     "language": "hi",
+     "samples_analyzed": 10000,
+     "total_words": 156789,
+     "avg_words_per_sample": 15.7,
+     "avg_chars_per_sample": 89.3,
+     "min_length": 12,
+     "max_length": 458,
+     "empty_samples": 23
+   }
+   ```
+4. **`indiccorp_metadata.json`** - Download metadata with timestamp
+
 **Characteristics**:
-- Source: News articles, web content
-- Size: Large (filtered to match token budget)
-- Quality: Generally high, formal register
-- Language: Modern Standard Hindi
+- **Source**: News articles, web content, blogs
+- **Size**: Configurable (100K samples ≈ 6M tokens for BabyLM)
+- **Quality**: High, formal register
+- **Language**: Modern Standard Hindi
+- **Streaming Support**: Memory-efficient for large downloads
 
 **Pros**:
-- Large scale
+- Large scale, high quality
 - Formal, well-edited text
-- Diverse topics
+- Diverse topics (news, web, blogs)
+- HuggingFace integration (automatic caching)
+- Memory-efficient streaming mode
+- Comprehensive statistics and metadata
 
 **Cons**:
-- May contain some noise from web scraping
 - Formal register may not match child language
+- May contain some web scraping noise
+- Requires internet connection for initial download
 
 ### 2. Hindi Wikipedia (`wiki_scraper.py`)
 
