@@ -1,0 +1,17 @@
+!/bin/bash
+SBATCH --job-name=baseline_experiment
+SBATCH --output=output_%j.log
+SBATCH --partition=gpu
+SBATCH --gres=gpu:1                  # Request 1 GPU
+SBATCH --cpus-per-task=4             # Adjust as needed
+SBATCH --mem=32G                     # Adjust as needed
+SBATCH --time=12:00:00               # Job time limit (adjust)
+
+# Load your modules or activate environment
+conda activate hindi_babylm
+cd Hindi-BabyLM-Data-Efficient-Language-Modeling-for-Hindi/
+
+# Run your command
+python main.py \
+    --config configs/base_config.yaml \
+    --experiment_name baseline_experiment 
