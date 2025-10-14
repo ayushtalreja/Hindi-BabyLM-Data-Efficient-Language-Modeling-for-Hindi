@@ -55,7 +55,7 @@ Loads train/validation/test splits from the processed data directory:
 
 ```python
 # Load corpus files
-data_dir = Path('../data/processed')
+data_dir = Path('../data/splits')
 
 with open(data_dir / 'train.txt', 'r', encoding='utf-8') as f:
     train_texts = f.readlines()
@@ -811,7 +811,7 @@ pip install matplotlib seaborn pandas numpy scipy
 # Always use Path for cross-platform compatibility
 from pathlib import Path
 
-data_dir = Path('../data/processed')
+data_dir = Path('../data/splits')
 fig_dir = Path('../figures')
 fig_dir.mkdir(exist_ok=True)
 ```

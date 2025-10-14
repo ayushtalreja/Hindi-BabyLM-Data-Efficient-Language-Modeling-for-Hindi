@@ -63,7 +63,7 @@ class CorpusBuilder:
         # Create directories
         os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(os.path.join(self.data_dir, 'raw'), exist_ok=True)
-        os.makedirs(os.path.join(self.data_dir, 'processed'), exist_ok=True)
+        os.makedirs(os.path.join(self.data_dir, 'splits'), exist_ok=True)
 
     def collect_all_data(self) -> Dict[str, List[str]]:
         """Collect data from all sources"""
@@ -201,12 +201,12 @@ class CorpusBuilder:
 
         for split_name, texts in splits.items():
             # Save as pickle
-            pkl_path = os.path.join(self.data_dir, 'processed', f'{split_name}.pkl')
+            pkl_path = os.path.join(self.data_dir, 'splits', f'{split_name}.pkl')
             with open(pkl_path, 'wb') as f:
                 pickle.dump(texts, f)
 
             # Also save as text file for inspection
-            txt_path = os.path.join(self.data_dir, 'processed', f'{split_name}.txt')
+            txt_path = os.path.join(self.data_dir, 'splits', f'{split_name}.txt')
             with open(txt_path, 'w', encoding='utf-8') as f:
                 for text in texts[:100]:  # Save first 100 samples as text
                     f.write(text + '\n' + '='*80 + '\n')
@@ -224,7 +224,7 @@ class CorpusBuilder:
             'max_tokens': self.max_tokens
         }
 
-        metadata_path = os.path.join(self.data_dir, 'processed', 'metadata.json')
+        metadata_path = os.path.join(self.data_dir, 'splits', 'metadata.json')
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
 
@@ -236,7 +236,7 @@ class CorpusBuilder:
 
         splits = {}
         for split_name in ['train', 'val', 'test']:
-            pkl_path = os.path.join(self.data_dir, 'processed', f'{split_name}.pkl')
+            pkl_path = os.path.join(self.data_dir, 'splits', f'{split_name}.pkl')
 
             if not os.path.exists(pkl_path):
                 raise FileNotFoundError(f"Split file not found: {pkl_path}")

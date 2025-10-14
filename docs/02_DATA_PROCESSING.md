@@ -369,13 +369,13 @@ def create_splits(self, processed_data: List[str]) -> Dict[str, List[str]]:
 Saves processed splits to disk.
 
 **Outputs**:
-- `data/processed/train.pkl` - Training data (pickle)
-- `data/processed/val.pkl` - Validation data (pickle)
-- `data/processed/test.pkl` - Test data (pickle)
-- `data/processed/train.txt` - First 100 samples as text (for inspection)
-- `data/processed/val.txt` - First 100 samples as text
-- `data/processed/test.txt` - First 100 samples as text
-- `data/processed/metadata.json` - Metadata about splits
+- `data/splits/train.pkl` - Training data (pickle)
+- `data/splits/val.pkl` - Validation data (pickle)
+- `data/splits/test.pkl` - Test data (pickle)
+- `data/splits/train.txt` - First 100 samples as text (for inspection)
+- `data/splits/val.txt` - First 100 samples as text
+- `data/splits/test.txt` - First 100 samples as text
+- `data/splits/metadata.json` - Metadata about splits
 
 #### `load_splits()` (line 233)
 Loads processed splits from disk.
@@ -672,8 +672,8 @@ splits = corpus_builder.create_splits(processed_data)
 
 # Step 4: Save splits
 corpus_builder.save_splits(splits)
-# Output: data/processed/{train,val,test}.pkl
-#         data/processed/metadata.json
+# Output: data/splits/{train,val,test}.pkl
+#         data/splits/metadata.json
 
 # Later: Load splits
 splits = corpus_builder.load_splits()

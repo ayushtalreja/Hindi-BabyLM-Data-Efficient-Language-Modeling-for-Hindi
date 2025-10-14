@@ -245,7 +245,7 @@ class ExperimentOrchestrator:
 
         # Check if processed data exists
         data_dir = Path(self.config.get('directories.data_dir', 'data'))
-        splits_exist = (data_dir / 'train.txt').exists()
+        splits_exist = (data_dir / 'splits' / 'train.txt').exists()
 
         if splits_exist and not self.config.get('force_reprocess', False):
             logger.info("Loading existing processed data...")
