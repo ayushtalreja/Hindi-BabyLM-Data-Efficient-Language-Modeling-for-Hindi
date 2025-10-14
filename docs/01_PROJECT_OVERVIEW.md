@@ -100,7 +100,9 @@ hindi-babylm/
 ├── README.md                    # Quick start guide
 │
 ├── configs/                     # Configuration files
-│   └── base_config.yaml         # Base configuration
+│   ├── base_config.yaml         # Base configuration
+│   ├── curriculum_config.yaml   # Curriculum learning configurations
+│   └── enhanced_model_config.yaml  # Enhanced model configurations
 │
 ├── src/                         # Source code
 │   ├── data_processing/         # Data collection & processing
@@ -123,34 +125,76 @@ hindi-babylm/
 │   ├── models/                  # Model architectures
 │   │   ├── model_factory.py            # Factory for creating models
 │   │   ├── gpt_model.py                # GPT-2 style model
+│   │   ├── enhanced_gpt.py             # Enhanced GPT with advanced features (Phase 1)
+│   │   ├── position_encodings.py       # Position encoding implementations (Phase 1)
 │   │   ├── bert_model.py               # BERT style model
 │   │   └── hybrid_model.py             # Hybrid architecture
 │   │
 │   ├── training/                # Training pipeline
-│   │   ├── trainer.py                  # Main training loop
+│   │   ├── trainer.py                  # Enhanced training loop (Phase 1)
+│   │   ├── curriculum_strategies.py    # Curriculum learning strategies (Phase 1)
+│   │   ├── curriculum_scheduler.py     # Curriculum progression schedules (Phase 1)
 │   │   └── data_loader.py              # Data loading utilities
 │   │
 │   ├── evaluation/              # Evaluation framework
 │   │   ├── evaluation_manager.py       # Evaluation orchestration
 │   │   ├── indicglue_evaluator.py      # IndicGLUE benchmarks
-│   │   ├── multiblimp_evaluator.py     # MultiBLiMP syntax tests
-│   │   └── morphological_probes.py     # Morphological probing
+│   │   ├── multiblimp_evaluator.py     # MultiBLiMP syntax tests (14 phenomena)
+│   │   └── morphological_probes.py     # Morphological probing (10 tasks, layer-wise)
+│   │
+│   ├── analysis/                # Results analysis tools (Phase 2)
+│   │   ├── results_analyzer.py         # Statistical analysis & LaTeX tables
+│   │   └── visualization_utils.py      # Publication-quality plotting
 │   │
 │   └── utils/                   # Utility functions
 │       ├── experiment_config.py        # Configuration management
-│       └── results_analyzer.py         # Results analysis
+│       └── logging_utils.py            # Logging utilities
 │
 ├── data/                        # Data storage
 │   ├── raw/                     # Raw downloaded data
-│   └── processed/               # Processed datasets
+│   ├── processed/               # Processed datasets
 │   ├── splits/                  # Train/validation/test splits
-│   └── tokenized/               # Tokenized datasets
+│   └── corpus_statistics.json  # Corpus analysis results (Phase 2)
 │
 ├── tokenizers/                  # Trained tokenizers
 ├── models/                      # Model checkpoints
 ├── results/                     # Experiment results
-├── notebooks/                   # Jupyter notebooks for analysis
+│   └── [experiment_name]/
+│       ├── metadata.json               # Experiment metadata
+│       ├── config.yaml                 # Configuration snapshot
+│       ├── training_summary.json       # Training metrics
+│       ├── evaluation_results.json     # Evaluation results
+│       └── checkpoints/                # Model checkpoints
+│
+├── notebooks/                   # Jupyter notebooks (Phase 2)
+│   ├── 01_data_exploration.ipynb       # Corpus analysis
+│   └── 02_results_analysis.ipynb       # Results visualization
+│
+├── figures/                     # Generated figures (Phase 2)
+│   ├── training_curves.png
+│   ├── indicglue_comparison.png
+│   ├── multiblimp_comparison.png
+│   └── morphological_probes_comparison.png
+│
+├── tables/                      # LaTeX tables (Phase 2)
+│   ├── indicglue_results.tex
+│   ├── multiblimp_results.tex
+│   └── probes_results.tex
+│
+├── reports/                     # Generated reports (Phase 2)
+│   └── [experiment_name]_report.md
+│
 └── docs/                        # Documentation (this directory)
+    ├── 01_PROJECT_OVERVIEW.md
+    ├── 02_DATA_PROCESSING.md
+    ├── 03_TOKENIZATION.md
+    ├── 04_MODELS.md
+    ├── 05_TRAINING.md
+    ├── 06_EVALUATION.md
+    ├── 07_CONFIGURATION.md
+    ├── 08_ANALYSIS_AND_VISUALIZATION.md    # Phase 2
+    ├── 09_JUPYTER_NOTEBOOKS.md             # Phase 2
+    └── 10_THESIS_INTEGRATION.md            # Phase 2
 ```
 
 ## Core Components
@@ -163,6 +207,7 @@ Handles all data collection, cleaning, filtering, and preparation tasks.
 - `QualityFilter`: Applies quality checks to text
 - `TextDeduplicator`: Removes duplicate content
 - `DataMixer`: Combines multiple data sources
+- `CorpusAnalyzer`: Statistical analysis of corpus (Phase 2)
 
 ### 2. Tokenization Module (`src/tokenization/`)
 Implements and compares different tokenization strategies for Hindi.
@@ -171,34 +216,107 @@ Implements and compares different tokenization strategies for Hindi.
 - `TokenizerFactory`: Creates tokenizers based on configuration
 - `HindiSentencePieceTokenizer`: SentencePiece wrapper
 - `TokenizerComparison`: Benchmarking tools
+- `MorphologicalEvaluator`: Morphological preservation analysis
 
 ### 3. Model Architectures (`src/models/`)
-Implements various transformer-based model architectures.
+Implements various transformer-based model architectures with advanced features.
 
 **Key Classes:**
 - `ModelFactory`: Creates models based on configuration
 - `HindiGPTModel`: GPT-2 style autoregressive model
+- **`EnhancedGPT`** (Phase 1): Advanced GPT with configurable position encodings
+- **`PositionEncodings`** (Phase 1): Multiple position encoding types
+  - Sinusoidal (original Transformer)
+  - Learned (GPT-2 style)
+  - RoPE (Rotary Position Embedding)
+  - ALiBi (Attention with Linear Biases)
+  - Relative Position Bias (T5-style)
 - `HindiBERTModel`: BERT style masked language model
 - `HybridGPTBERTModel`: Combined architecture
 
+**Model Sizes Available** (Phase 1):
+- Tiny: 50M parameters (6 layers, 512 hidden)
+- Small: 110M parameters (12 layers, 768 hidden)
+- Medium: 350M parameters (24 layers, 1024 hidden)
+
 ### 4. Training Pipeline (`src/training/`)
-Manages model training with various optimization strategies.
+Enhanced training pipeline with curriculum learning and advanced optimization.
 
 **Key Classes:**
-- `HindiLanguageModelTrainer`: Main training loop
-- PyTorch DataLoader integration
-- Wandb logging support
+- **`HindiLanguageModelTrainer`** (Enhanced Phase 1): Main training loop with:
+  - Multiple optimizer support (AdamW, Adam, SGD)
+  - LR schedulers (Linear warmup, Cosine, Constant)
+  - Mixed precision training (FP16/BF16)
+  - Gradient accumulation
+  - Early stopping
+  - Comprehensive checkpointing
+- **`CurriculumStrategies`** (Phase 1): 5 curriculum learning strategies
+  - Morphological complexity-based
+  - Length-based
+  - Frequency-based
+  - Combined multi-factor
+  - Dynamic difficulty
+- **`CurriculumScheduler`** (Phase 1): 5 progression schedules
+  - Linear
+  - Square root (sqrt)
+  - Exponential
+  - Step-wise
+  - Performance-based
+- `DataLoader`: Data loading utilities with curriculum support
 
 ### 5. Evaluation Framework (`src/evaluation/`)
-Comprehensive evaluation across multiple dimensions.
+Comprehensive multi-dimensional evaluation with detailed linguistic analysis.
 
 **Key Classes:**
 - `EvaluationManager`: Orchestrates all evaluations
-- `IndicGLUEEvaluator`: NLP task benchmarking
-- `MultiBLiMPEvaluator`: Syntactic competence testing
-- `MorphologicalProbe`: Morphological understanding tests
+- `IndicGLUEEvaluator`: NLP task benchmarking (6 tasks)
+- **`MultiBLiMPEvaluator`** (Enhanced): Syntactic competence testing
+  - **14 linguistic phenomena** (updated)
+  - Agreement: number, person, gender, honorific
+  - Case marking: ergative, accusative, dative
+  - Structural: word order, negation, binding, control
+  - **70+ minimal pairs** with perplexity-based evaluation
+- **`MorphologicalProbe`** (Enhanced): Morphological understanding tests
+  - **10 probe tasks** (updated)
+  - Case, number, gender, tense, person
+  - Aspect, mood, voice, honorific, definiteness
+  - **Layer-wise probing** (all 12 layers + embedding)
+  - Linear classifier methodology for interpretability
 
-### 6. Configuration System (`src/utils/`)
+### 6. Analysis and Visualization (`src/analysis/`) - **Phase 2**
+Publication-ready analysis tools for thesis integration.
+
+**Key Classes:**
+- **`ResultsAnalyzer`**: Statistical analysis and comparison
+  - Multi-experiment loading
+  - Statistical testing (t-test, Wilcoxon, effect size, bootstrap CI)
+  - Training curve visualization
+  - Evaluation comparison plots
+  - **LaTeX table generation** for thesis
+  - Markdown report generation
+- **`ThesisPlotter`**: Publication-quality visualizations
+  - Consistent thesis formatting
+  - 10+ specialized plot types
+  - Layer-wise probe visualization
+  - Curriculum progression plots
+  - High-resolution export (300 DPI)
+  - Multiple format support (PNG, PDF, SVG)
+
+### 7. Jupyter Notebooks (`notebooks/`) - **Phase 2**
+Interactive data exploration and results analysis.
+
+**Notebooks:**
+- **`01_data_exploration.ipynb`**: Corpus analysis
+  - Length distributions, character analysis
+  - Word frequency, morphological markers
+  - Data quality assessment
+- **`02_results_analysis.ipynb`**: Results visualization
+  - Training curve comparison
+  - Evaluation metric analysis
+  - Statistical significance testing
+  - Thesis figure generation
+
+### 8. Configuration System (`src/utils/`)
 Flexible configuration management for experiments.
 
 **Key Classes:**
@@ -332,13 +450,123 @@ python main.py --config configs/base_config.yaml --stage eval --experiment_name 
 2. Add to `EvaluationManager`
 3. Update result compilation
 
+## Project Phases
+
+### Phase 1: Advanced Training and Evaluation (Completed)
+
+**Objectives**: Enhance model architectures and training strategies for better Hindi language learning.
+
+**Key Additions**:
+1. **Enhanced Model Architectures**:
+   - 5 position encoding types (Sinusoidal, Learned, RoPE, ALiBi, Relative)
+   - 3 model size configurations (50M, 110M, 350M parameters)
+   - Advanced features: Gradient checkpointing, RMS Norm, Flash Attention, SwiGLU
+
+2. **Curriculum Learning Framework**:
+   - 5 curriculum strategies (morphological, length, frequency, combined, dynamic)
+   - 5 progression schedules (linear, root, exponential, step, performance-based)
+   - Automatic difficulty scoring and sample ranking
+
+3. **Enhanced Training Pipeline**:
+   - Multiple optimizer options (AdamW, Adam, SGD)
+   - 3 LR schedulers with warmup (Linear, Cosine, Constant)
+   - Mixed precision training (FP16/BF16)
+   - Gradient accumulation for larger effective batch sizes
+   - Early stopping with configurable patience
+
+4. **Comprehensive Evaluation**:
+   - **MultiBLiMP**: Expanded to 14 linguistic phenomena (70+ minimal pairs)
+   - **Morphological Probes**: 10 probe tasks with layer-wise analysis
+   - Perplexity-based syntactic evaluation
+   - Linear probing for morphological competence
+
+**Files Added**:
+- `src/models/enhanced_gpt.py` (526 lines)
+- `src/models/position_encodings.py` (440 lines)
+- `src/training/curriculum_strategies.py` (502 lines)
+- `src/training/curriculum_scheduler.py` (485 lines)
+- Enhanced `src/training/trainer.py` (586 lines)
+- Enhanced `src/evaluation/multiblimp_evaluator.py` (474 lines)
+- Enhanced `src/evaluation/morphological_probes.py` (668 lines)
+
+### Phase 2: Analysis and Thesis Integration (Completed)
+
+**Objectives**: Provide comprehensive analysis tools and thesis-ready outputs.
+
+**Key Additions**:
+1. **Results Analysis Framework**:
+   - Multi-experiment loading and comparison
+   - Statistical significance testing (t-test, Wilcoxon, effect size, bootstrap CI)
+   - Training curve visualization
+   - Evaluation comparison plots
+   - LaTeX table generation for thesis
+   - Markdown report generation
+
+2. **Publication-Quality Visualization**:
+   - ThesisPlotter with consistent formatting
+   - 10+ specialized plot types
+   - Layer-wise probe visualization
+   - Curriculum progression plots
+   - High-resolution export (300 DPI)
+   - Multiple formats (PNG, PDF, SVG)
+
+3. **Interactive Jupyter Notebooks**:
+   - Data exploration notebook (corpus statistics, distributions, quality)
+   - Results analysis notebook (comparisons, significance testing, figure generation)
+
+4. **Thesis Integration Workflow**:
+   - Automated LaTeX table generation
+   - Figure generation with thesis formatting
+   - Comprehensive experiment reports
+   - Direct .tex and .pdf output for thesis inclusion
+
+**Files Added**:
+- `src/analysis/results_analyzer.py` (571 lines)
+- `src/analysis/visualization_utils.py` (487 lines)
+- `notebooks/01_data_exploration.ipynb`
+- `notebooks/02_results_analysis.ipynb`
+
+**Output Directories**:
+- `figures/` - PNG/PDF figures ready for thesis
+- `tables/` - LaTeX .tex tables
+- `reports/` - Markdown experiment reports
+
+### Implementation Statistics
+
+**Total Lines of Code**:
+- Phase 1: ~3,500 lines of production code
+- Phase 2: ~2,000 lines of analysis code
+- Documentation: ~6,000 lines across 10 markdown files
+
+**Testing Coverage**:
+- Unit tests for curriculum strategies
+- Integration tests for evaluation pipelines
+- Manual validation of all probe tasks
+
 ## Next Steps
+
+### For Users
+
+1. **Run Complete Pipeline**: Follow README.md for quickstart
+2. **Explore Notebooks**: Use Jupyter notebooks for interactive analysis
+3. **Generate Thesis Outputs**: Use ResultsAnalyzer for LaTeX tables and figures
+
+### For Developers
+
+1. **Add New Curriculum Strategies**: Extend `CurriculumStrategies` class
+2. **Add New Position Encodings**: Implement in `position_encodings.py`
+3. **Add New Probe Tasks**: Extend `MorphologicalProbe` class
+
+### Detailed Documentation
 
 For detailed information on specific components, see:
 - [Data Processing Documentation](02_DATA_PROCESSING.md)
 - [Tokenization Documentation](03_TOKENIZATION.md)
-- [Model Architecture Documentation](04_MODELS.md)
-- [Training Pipeline Documentation](05_TRAINING.md)
-- [Evaluation Framework Documentation](06_EVALUATION.md)
+- [Model Architecture Documentation](04_MODELS.md) - **Updated with Phase 1**
+- [Training Pipeline Documentation](05_TRAINING.md) - **Updated with Phase 1**
+- [Evaluation Framework Documentation](06_EVALUATION.md) - **Updated with Phase 1**
 - [Configuration Guide](07_CONFIGURATION.md)
+- [Analysis and Visualization Documentation](08_ANALYSIS_AND_VISUALIZATION.md) - **Phase 2**
+- [Jupyter Notebooks Documentation](09_JUPYTER_NOTEBOOKS.md) - **Phase 2**
+- [Thesis Integration Guide](10_THESIS_INTEGRATION.md) - **Phase 2**
 
