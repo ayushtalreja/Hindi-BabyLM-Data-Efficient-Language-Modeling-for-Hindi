@@ -2,15 +2,15 @@
 #SBATCH --job-name=hindi_babylm_pipeline
 #SBATCH --output=logs/pipeline_%j.out
 #SBATCH --error=logs/pipeline_%j.err
-#SBATCH --time=24:00:00
-#SBATCH --partition=gpu_4
+#SBATCH --time=14:00:00
+#SBATCH --partition=lrz-v100x2*
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64GB
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=your.email@tum.de
+#SBATCH --mail-user=ayush1.kumar@tum.de
 
 # Hindi BabyLM Complete Pipeline on LRZ
 # This script runs the complete pipeline: data processing -> training -> evaluation
