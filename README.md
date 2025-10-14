@@ -8,7 +8,6 @@ A comprehensive implementation of data-efficient language modeling for Hindi, de
 
 ## 🌟 Key Features
 
-### Phase 1: Core Implementation
 - **5 Position Encoding Variants**: Sinusoidal, Learned, RoPE (Rotary Position Embeddings), ALiBi, Relative Position Bias
 - **Enhanced GPT Architecture**: 3 model sizes (Tiny: 50M, Small: 110M, Medium: 350M parameters)
 - **Curriculum Learning**: 5 training strategies × 5 scheduling approaches (25 combinations)
@@ -16,15 +15,11 @@ A comprehensive implementation of data-efficient language modeling for Hindi, de
 - **Comprehensive Tokenization**: SentencePiece, WordPiece, BPE with morphological preservation analysis
 - **MultiBLiMP Evaluation**: 14 Hindi linguistic phenomena with 70+ minimal pairs
 - **Morphological Probes**: 10 probe tasks for layer-wise linguistic feature analysis
-
-### Phase 2: Analysis & Visualization
 - **Statistical Analysis**: Paired t-tests, Wilcoxon tests, effect sizes, bootstrap confidence intervals
 - **Publication-Ready Figures**: 10+ plot types using ThesisPlotter with consistent styling
 - **LaTeX Integration**: Automatic generation of thesis-ready tables and figures
 - **Interactive Notebooks**: 2 comprehensive Jupyter notebooks for data exploration and results analysis
 - **Experiment Tracking**: Automatic logging with Weights & Biases integration
-
-### Data Processing
 - **IndicCorp V2 Integration**: Automated download from AI4Bharat/HuggingFace with streaming support
 - **Multi-Source Corpus**: IndicCorp, Hindi Wikipedia, children's literature
 - **Advanced Quality Filtering**: Length-based, language detection (Devanagari ratio), deduplication (MinHash LSH)
