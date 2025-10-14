@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=baseline_experiment
 #SBATCH --output=../results/output_%j.log
-#SBATCH --partition=gpu
+#SBATCH --partition=lrz-hgx-a100-80x4
 #SBATCH --gres=gpu:1                  # Request 1 GPU
 #SBATCH --cpus-per-task=4             # Adjust as needed
 #SBATCH --mem=32G                     # Adjust as needed
