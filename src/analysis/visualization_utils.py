@@ -6,7 +6,6 @@ Specialized plotting functions for thesis-quality figures:
 - Gradient norm tracking
 - Attention weights visualization
 - Token distribution analysis
-- Curriculum progression visualization
 - Model size comparison
 """
 
@@ -118,48 +117,6 @@ class ThesisPlotter:
         ax.legend()
         ax.grid(True, alpha=0.3, linestyle='--')
 
-        plt.tight_layout()
-
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            logger.info(f"Saved plot to {save_path}")
-
-        return fig
-
-    def plot_curriculum_progression(self, epochs: List[int], thresholds: List[float],
-                                   dataset_sizes: List[int],
-                                   title: str = "Curriculum Learning Progression",
-                                   save_path: Optional[str] = None) -> plt.Figure:
-        """
-        Plot curriculum learning progression
-
-        Args:
-            epochs: Epoch numbers
-            thresholds: Difficulty thresholds
-            dataset_sizes: Number of examples at each epoch
-            title: Plot title
-            save_path: Save path
-
-        Returns:
-            Figure object
-        """
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-
-        # Difficulty threshold
-        ax1.plot(epochs, thresholds, linewidth=2, color='#F18F01', marker='o', markersize=5)
-        ax1.set_ylabel('Difficulty Threshold', fontsize=12)
-        ax1.set_title('Curriculum Difficulty Progression', fontsize=12, fontweight='bold')
-        ax1.grid(True, alpha=0.3, linestyle='--')
-        ax1.set_ylim([0, 1.05])
-
-        # Dataset size
-        ax2.plot(epochs, dataset_sizes, linewidth=2, color='#6A994E', marker='s', markersize=5)
-        ax2.set_xlabel('Epoch', fontsize=12)
-        ax2.set_ylabel('Training Examples', fontsize=12)
-        ax2.set_title('Dataset Size Progression', fontsize=12, fontweight='bold')
-        ax2.grid(True, alpha=0.3, linestyle='--')
-
-        fig.suptitle(title, fontsize=14, fontweight='bold', y=0.995)
         plt.tight_layout()
 
         if save_path:

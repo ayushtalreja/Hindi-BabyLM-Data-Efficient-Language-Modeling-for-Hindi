@@ -141,11 +141,6 @@ model:
   # Activation Functions
   activation: "gelu"  # Options: gelu, relu, swiglu, gelu_new
 
-  # Position Encoding
-  position_encoding:
-    type: "absolute"  # Options: absolute, relative, rope, alibi
-    max_length: 512
-
   # Layer Normalization
   layer_norm_type: "layernorm"  # Options: layernorm, rmsnorm
 
@@ -242,54 +237,6 @@ training:
   seed: 42
   deterministic: true
   cuda_deterministic_algorithms: false  # May reduce performance
-
-# ==============================================================================
-# CURRICULUM LEARNING CONFIGURATION
-# ==============================================================================
-curriculum:
-  # Enable Curriculum Learning
-  enabled: false
-
-  # Strategy
-  # Options: morphological, length, frequency, combined, dynamic, anti
-  strategy: "combined"
-
-  # Base Strategy for Dynamic (if strategy="dynamic")
-  base_strategy: "combined"
-
-  # Schedule Type
-  # Options: linear, exponential, step, root, performance
-  schedule: "linear"
-
-  # Threshold Parameters
-  start_threshold: 0.2  # Start with easiest 20% of examples
-  end_threshold: 1.0    # End with all examples
-  num_epochs: 10        # Total epochs for curriculum progression
-  warmup_epochs: 0      # Epochs before curriculum starts
-
-  # Step Schedule (if schedule="step")
-  step_epochs: [3, 6, 9]
-  step_thresholds: [0.4, 0.7, 1.0]
-
-  # Performance-Based Schedule (if schedule="performance")
-  adaptation_rate: 0.05
-  performance_window: 5
-  min_threshold: 0.1
-  max_threshold: 1.0
-
-  # Strategy Weights (for combined strategy)
-  morphological_weight: 0.5
-  length_weight: 0.3
-  frequency_weight: 0.2
-
-  # Morphological Complexity Strategy
-  case_weight: 1.0
-  verb_weight: 1.5
-  compound_weight: 1.0
-
-  # Length-Based Strategy
-  min_length: 5
-  max_length: 50
 
 # ==============================================================================
 # EVALUATION CONFIGURATION

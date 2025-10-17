@@ -112,52 +112,17 @@ class ResultsAnalyzer:
         plt.tight_layout()
         plt.savefig(os.path.join(save_path, 'architecture_comparison.png'), dpi=300, bbox_inches='tight')
         plt.close()
-    
-    def plot_curriculum_comparison(self, df: pd.DataFrame, save_path: str):
-        """Plot comparison of curriculum learning strategies"""
-        curriculum_df = df[df['experiment'].str.contains('curriculum')]
-        
-        if len(curriculum_df) == 0:
-            return
-        
-        curriculum_df['strategy'] = curriculum_df['experiment'].str.replace('curriculum_', '')
-        
-        # Create radar chart for curriculum comparison
-        metrics = ['indicglue_avg', 'multiblimp_accuracy', 'morphological_avg']
-        
-        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
-        
-        angles = np.linspace(0, 2 * np.pi, len(metrics), endpoint=False).tolist()
-        angles += angles[:1]  # Complete the circle
-        
-        for _, row in curriculum_df.iterrows():
-            values = [row[metric] for metric in metrics]
-            values += values[:1]  # Complete the circle
-            
-            ax.plot(angles, values, 'o-', linewidth=2, label=row['strategy'])
-            ax.fill(angles, values, alpha=0.25)
-        
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels([m.replace('_', ' ').title() for m in metrics])
-        ax.set_ylim(0, 1)
-        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
-        ax.set_title('Curriculum Learning Strategy Comparison', y=1.08)
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(save_path, 'curriculum_comparison.png'), dpi=300, bbox_inches='tight')
-        plt.close()
-    
+
     def generate_detailed_report(self, save_path: str):
         """Generate comprehensive analysis report"""
         df = self.create_comparison_dataframe()
         
         # Create visualizations
         os.makedirs(save_path, exist_ok=True)
-        
+
         self.plot_tokenization_comparison(df, save_path)
         self.plot_architecture_comparison(df, save_path)
-        self.plot_curriculum_comparison(df, save_path)
-        
+
         # Generate summary statistics
         summary_stats = df.describe()
         summary_stats.to_csv(os.path.join(save_path, 'summary_statistics.csv'))

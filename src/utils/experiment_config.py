@@ -41,10 +41,6 @@ class ExperimentConfig:
     weight_decay: float = 0.01
     warmup_steps: int = 1000
 
-    # Curriculum learning
-    use_curriculum: bool = False
-    curriculum_strategy: str = "morphological"  # morphological, length, random
-
     # Evaluation configuration
     eval_steps: int = 500
     save_steps: int = 1000
@@ -119,25 +115,11 @@ class ExperimentManager:
         """Create experiments for different model architectures"""
         architectures = ["gpt", "bert", "hybrid"]
         experiments = []
-        
+
         for arch in architectures:
             config = self.base_config.__class__(**self.base_config.__dict__)
             config.model_type = arch
             config.experiment_name = f"architecture_{arch}"
             experiments.append(config)
-        
-        return experiments
-    
-    def create_curriculum_experiments(self) -> List[ExperimentConfig]:
-        """Create experiments for curriculum learning strategies"""
-        strategies = ["morphological", "length", "random", "none"]
-        experiments = []
-        
-        for strategy in strategies:
-            config = self.base_config.__class__(**self.base_config.__dict__)
-            config.use_curriculum = strategy != "none"
-            config.curriculum_strategy = strategy
-            config.experiment_name = f"curriculum_{strategy}"
-            experiments.append(config)
-        
+
         return experiments
