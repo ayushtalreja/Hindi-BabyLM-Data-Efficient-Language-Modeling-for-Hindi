@@ -70,7 +70,7 @@ class IndicCorpDownloader:
         self.cache_dir = cache_dir
 
         # IndicCorp V2 dataset identifier
-        self.dataset_name = "ai4bharat/IndicCorpusV2"
+        self.dataset_name = "ai4bharat/IndicCorpV2"
         self.language_code = "hi"  # Hindi
 
         logger.info(f"Initialized IndicCorp downloader")
@@ -101,14 +101,20 @@ class IndicCorpDownloader:
 
         try:
             # Load dataset from HuggingFace
+            # IndicCorpV2 uses 'indiccorp_v2' as config, then filter by language
             dataset = load_dataset(
                 self.dataset_name,
-                self.language_code,
+                name='indiccorp_v2',
                 split=split,
                 streaming=streaming,
-                cache_dir=self.cache_dir,
-                trust_remote_code=True
+                cache_dir=self.cache_dir
             )
+
+            # Filter for Hindi language only
+            if streaming:
+                dataset = dataset.filter(lambda x: x.get('language') == self.language_code)
+            else:
+                dataset = dataset.filter(lambda x: x['language'] == self.language_code)
 
             logger.info(f"✓ Successfully loaded IndicCorp Hindi dataset")
 
