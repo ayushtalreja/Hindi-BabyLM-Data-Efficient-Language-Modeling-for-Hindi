@@ -18,16 +18,16 @@ Dataset Information:
 Usage:
     from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
 
-    # Download all three Hindi files by default
+    # Download single Hindi file (hi-1.txt) by default
     paths = download_indiccorp_hindi(
         output_dir='data/raw',
         num_samples=100000  # Limit samples for BabyLM
     )
 
-    # Or specify which files to download
+    # Or specify which files to download (for multiple files)
     paths = download_indiccorp_hindi(
         output_dir='data/raw',
-        files=['hi-1.txt', 'hi-2.txt'],  # Download only 2 files
+        files=['hi-1.txt', 'hi-2.txt', 'hi-3.txt'],  # Download all three files
         num_samples=100000
     )
 """
@@ -99,14 +99,14 @@ class IndicCorpDownloader:
 
         Args:
             files: List of filenames to download (e.g., ['hi-1.txt', 'hi-2.txt', 'hi-3.txt'])
-                  If None, downloads all three Hindi files by default
+                  If None, downloads only hi-1.txt by default
 
         Returns:
             Dictionary mapping filename to local file path
         """
-        # Default to all three Hindi files
+        # Default to only hi-1.txt (single file)
         if files is None:
-            files = ["hi-1.txt", "hi-2.txt", "hi-3.txt"]
+            files = ["hi-1.txt"]
 
         # Validate file names
         for filename in files:
@@ -388,7 +388,7 @@ def download_indiccorp_hindi(
 
     Args:
         output_dir: Directory to save data
-        files: List of files to download (default: ['hi-1.txt', 'hi-2.txt', 'hi-3.txt'])
+        files: List of files to download (default: ['hi-1.txt'] - single file only)
         num_samples: Number of lines to sample from each file (None for all)
         save_format: 'text', 'pickle', or 'both'
         cache_dir: HuggingFace Hub cache directory
@@ -397,16 +397,16 @@ def download_indiccorp_hindi(
         Dictionary with paths to saved files and statistics
 
     Example:
-        # Download all three Hindi files with sampling
+        # Download single Hindi file (hi-1.txt) with sampling
         paths = download_indiccorp_hindi(
             output_dir='data/raw',
             num_samples=100000
         )
 
-        # Download only hi-1.txt and hi-2.txt
+        # Download all three files if needed
         paths = download_indiccorp_hindi(
             output_dir='data/raw',
-            files=['hi-1.txt', 'hi-2.txt'],
+            files=['hi-1.txt', 'hi-2.txt', 'hi-3.txt'],
             num_samples=100000
         )
     """
@@ -543,14 +543,14 @@ if __name__ == '__main__':
     """
     Example usage:
 
-    # Download all three Hindi files (default)
+    # Download single Hindi file (hi-1.txt) - default behavior
     python src/data_processing/indiccorp_downloader.py --output-dir data/raw
 
     # Download with sampling
     python src/data_processing/indiccorp_downloader.py --num-samples 100000
 
-    # Download only hi-1.txt
-    python src/data_processing/indiccorp_downloader.py --files hi-1.txt
+    # Download all three files
+    python src/data_processing/indiccorp_downloader.py --files hi-1.txt hi-2.txt hi-3.txt
 
     # Download only hi-1.txt and hi-2.txt
     python src/data_processing/indiccorp_downloader.py --files hi-1.txt hi-2.txt
@@ -564,7 +564,7 @@ if __name__ == '__main__':
     parser.add_argument('--output-dir', type=str, default='data/raw',
                        help='Output directory (default: data/raw)')
     parser.add_argument('--files', type=str, nargs='+', default=None,
-                       help='Hindi files to download (default: all three - hi-1.txt hi-2.txt hi-3.txt)')
+                       help='Hindi files to download (default: hi-1.txt only)')
     parser.add_argument('--num-samples', type=int, default=None,
                        help='Number of lines to sample from each file (default: all)')
     parser.add_argument('--format', type=str, default='text',
@@ -580,7 +580,7 @@ if __name__ == '__main__':
     print("IndicCorp Hindi Downloader")
     print("=" * 60)
     print(f"Output directory: {args.output_dir}")
-    print(f"Files to download: {args.files or ['hi-1.txt', 'hi-2.txt', 'hi-3.txt']}")
+    print(f"Files to download: {args.files or ['hi-1.txt']}")
     print(f"Sampling: {args.num_samples if args.num_samples else 'No (downloading all)'}")
     print(f"Format: {args.format}")
     print("=" * 60 + "\n")

@@ -99,19 +99,25 @@ def get_statistics(
 ```python
 from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
 
-# Download 100K samples for BabyLM (60% of 10M tokens ≈ 6M tokens)
+# Download single file (hi-1.txt ~26.7GB) - default for efficiency
 paths = download_indiccorp_hindi(
     output_dir='data/raw',
     num_samples=100000,
-    streaming=False,
     save_format='both'  # 'text', 'pickle', or 'both'
+)
+
+# Download all three files if needed (~80GB total)
+paths = download_indiccorp_hindi(
+    output_dir='data/raw',
+    files=['hi-1.txt', 'hi-2.txt', 'hi-3.txt'],
+    num_samples=100000,
+    save_format='both'
 )
 
 # Returns dictionary with paths:
 # {
-#     'text': Path('data/raw/indiccorp_hindi.txt'),
-#     'pickle': Path('data/raw/indiccorp_hindi.pkl'),
-#     'statistics': Path('data/raw/indiccorp_statistics.json'),
+#     'hi-1.txt': Path('data/raw/hi-1_sampled.txt'),
+#     'hi-1.txt_pickle': Path('data/raw/hi-1_sampled.pkl'),
 #     'metadata': Path('data/raw/indiccorp_metadata.json')
 # }
 ```
@@ -119,17 +125,17 @@ paths = download_indiccorp_hindi(
 #### Command Line Usage
 
 ```bash
-# Download 100K samples
+# Download 100K samples (downloads hi-1.txt by default)
 python src/data_processing/indiccorp_downloader.py \
     --output-dir data/raw \
     --num-samples 100000 \
     --format both
 
-# Streaming mode (memory-efficient)
+# Download all three files
 python src/data_processing/indiccorp_downloader.py \
     --output-dir data/raw \
+    --files hi-1.txt hi-2.txt hi-3.txt \
     --num-samples 100000 \
-    --streaming \
     --format pickle
 ```
 

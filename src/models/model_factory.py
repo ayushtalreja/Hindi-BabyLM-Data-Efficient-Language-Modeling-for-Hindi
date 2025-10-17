@@ -4,7 +4,6 @@ from typing import Optional, Dict, Any
 
 from .gpt_model import HindiGPTModel
 from .bert_model import HindiBERTModel
-from .hybrid_model import HybridGPTBERTModel
 
 
 class ModelFactory:

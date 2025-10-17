@@ -415,26 +415,33 @@ The project includes a fully implemented IndicCorp downloader:
 ```python
 from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
 
-# Simple download
+# Simple download (downloads hi-1.txt by default - ~26.7GB)
 paths = download_indiccorp_hindi(
     output_dir='data/raw',
     num_samples=100000,
-    streaming=False,
     save_format='both'
 )
 
-# Returns:
+# Download all three files if needed (~80GB total)
+paths = download_indiccorp_hindi(
+    output_dir='data/raw',
+    files=['hi-1.txt', 'hi-2.txt', 'hi-3.txt'],
+    num_samples=100000,
+    save_format='both'
+)
+
+# Returns dictionary with paths:
 # {
-#     'text': Path('data/raw/indiccorp_hindi.txt'),
-#     'pickle': Path('data/raw/indiccorp_hindi.pkl'),
-#     'statistics': Path('data/raw/indiccorp_statistics.json'),
+#     'hi-1.txt': Path('data/raw/hi-1_sampled.txt'),
+#     'hi-1.txt_pickle': Path('data/raw/hi-1_sampled.pkl'),
 #     'metadata': Path('data/raw/indiccorp_metadata.json')
 # }
 ```
 
 **Features**:
+- Downloads single file (hi-1.txt ~26.7GB) by default for efficiency
+- Optional download of all 3 files (~80GB total) when specified
 - HuggingFace integration with automatic caching
-- Streaming mode for memory efficiency
 - Comprehensive statistics and metadata
 - Command-line interface
 - Progress tracking with tqdm

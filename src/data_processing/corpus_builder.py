@@ -75,11 +75,20 @@ class CorpusBuilder:
             'childrens_books': []
         }
 
-        # Download IndicCorp Hindi
+        # Download IndicCorp Hindi (downloads hi-1.txt by default)
         print("\n1. Downloading IndicCorp Hindi...")
         try:
-            indiccorp_dataset = download_indiccorp_hindi()
-            all_data['indiccorp'] = [item['text'] for item in indiccorp_dataset['train']]
+            # download_indiccorp_hindi returns paths to downloaded/processed files
+            indiccorp_paths = download_indiccorp_hindi(
+                output_dir=os.path.join(self.data_dir, 'raw')
+            )
+            # Load the processed text from the downloaded file(s)
+            indiccorp_texts = []
+            for filename, file_path in indiccorp_paths.items():
+                if filename != 'metadata' and not filename.endswith('_pickle'):
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        indiccorp_texts.extend([line.strip() for line in f if line.strip()])
+            all_data['indiccorp'] = indiccorp_texts
             print(f"   Downloaded {len(all_data['indiccorp'])} IndicCorp samples")
         except Exception as e:
             print(f"   Error downloading IndicCorp: {e}")
