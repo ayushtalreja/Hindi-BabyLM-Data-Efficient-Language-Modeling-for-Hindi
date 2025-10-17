@@ -10,29 +10,38 @@ containing high-quality text from diverse sources including news, blogs, and web
 Dataset Information:
 - Source: AI4Bharat (https://huggingface.co/datasets/ai4bharat/IndicCorpusV2)
 - Language: Hindi (hi)
-- Size: ~3.5GB (billions of tokens)
+- Files: hi-1.txt (26.7 GB), hi-2.txt (26.7 GB), hi-3.txt (26.7 GB)
+- Total Size: ~80.1 GB for all three files
 - License: CC0-1.0 (Public Domain)
 - Content: Web-crawled text, news articles, blogs
 
 Usage:
     from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
 
-    dataset = download_indiccorp_hindi(
+    # Download all three Hindi files by default
+    paths = download_indiccorp_hindi(
         output_dir='data/raw',
-        num_samples=100000,  # Limit samples for BabyLM
-        streaming=False
+        num_samples=100000  # Limit samples for BabyLM
+    )
+
+    # Or specify which files to download
+    paths = download_indiccorp_hindi(
+        output_dir='data/raw',
+        files=['hi-1.txt', 'hi-2.txt'],  # Download only 2 files
+        num_samples=100000
     )
 """
 
 import os
 import json
 import pickle
+import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 from datetime import datetime
 import logging
 
-from datasets import load_dataset, Dataset, IterableDataset
+from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
 # Configure logging
@@ -45,10 +54,10 @@ logger = logging.getLogger(__name__)
 
 class IndicCorpDownloader:
     """
-    Downloader for IndicCorp Hindi dataset.
+    Downloader for IndicCorp Hindi dataset files.
 
-    Handles downloading, caching, and basic preprocessing of the
-    IndicCorp V2 Hindi dataset from HuggingFace.
+    Downloads specific Hindi text files (hi-1.txt, hi-2.txt) from
+    IndicCorp V2 dataset on HuggingFace Hub.
     """
 
     def __init__(
@@ -61,8 +70,8 @@ class IndicCorpDownloader:
 
         Args:
             output_dir: Directory to save downloaded data
-            cache_dir: Directory for HuggingFace datasets cache
-                      (defaults to ~/.cache/huggingface/datasets)
+            cache_dir: Directory for HuggingFace Hub cache
+                      (defaults to ~/.cache/huggingface/hub)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -70,242 +79,237 @@ class IndicCorpDownloader:
         self.cache_dir = cache_dir
 
         # IndicCorp V2 dataset identifier
-        self.dataset_name = "ai4bharat/IndicCorpV2"
-        self.language_code = "hi"  # Hindi
+        self.repo_id = "ai4bharat/IndicCorpV2"
+        self.repo_type = "dataset"
+
+        # Available Hindi files
+        self.available_hindi_files = ["hi-1.txt", "hi-2.txt", "hi-3.txt"]
 
         logger.info(f"Initialized IndicCorp downloader")
         logger.info(f"Output directory: {self.output_dir}")
-        logger.info(f"Cache directory: {self.cache_dir or 'default'}")
+        logger.info(f"Cache directory: {self.cache_dir or 'default (~/.cache/huggingface/hub)'}")
+        logger.info(f"Available Hindi files: {self.available_hindi_files}")
 
     def download(
         self,
-        num_samples: Optional[int] = None,
-        streaming: bool = False,
-        split: str = 'train'
-    ) -> Union[Dataset, IterableDataset]:
+        files: Optional[List[str]] = None
+    ) -> Dict[str, Path]:
         """
-        Download IndicCorp Hindi dataset.
+        Download specific Hindi files from IndicCorp V2 repository.
 
         Args:
-            num_samples: Number of samples to download (None for all)
-            streaming: Whether to use streaming mode (memory-efficient)
-            split: Dataset split to download ('train', 'validation', 'test')
+            files: List of filenames to download (e.g., ['hi-1.txt', 'hi-2.txt', 'hi-3.txt'])
+                  If None, downloads all three Hindi files by default
 
         Returns:
-            Dataset or IterableDataset object
+            Dictionary mapping filename to local file path
         """
-        logger.info(f"Downloading IndicCorp Hindi dataset...")
-        logger.info(f"  Streaming: {streaming}")
-        logger.info(f"  Split: {split}")
-        logger.info(f"  Samples: {num_samples or 'all'}")
+        # Default to all three Hindi files
+        if files is None:
+            files = ["hi-1.txt", "hi-2.txt", "hi-3.txt"]
 
-        try:
-            # Load dataset from HuggingFace
-            # IndicCorpV2 uses 'indiccorp_v2' as config, then filter by language
-            dataset = load_dataset(
-                self.dataset_name,
-                name='indiccorp_v2',
-                split=split,
-                streaming=streaming,
-                cache_dir=self.cache_dir
-            )
+        # Validate file names
+        for filename in files:
+            if filename not in self.available_hindi_files:
+                logger.warning(f"File {filename} not in available Hindi files: {self.available_hindi_files}")
 
-            # Filter for Hindi language only
-            if streaming:
-                dataset = dataset.filter(lambda x: x.get('language') == self.language_code)
-            else:
-                dataset = dataset.filter(lambda x: x['language'] == self.language_code)
+        logger.info(f"Downloading Hindi files from IndicCorp V2...")
+        logger.info(f"  Files to download: {files}")
+        logger.info(f"  Repository: {self.repo_id}")
 
-            logger.info(f"✓ Successfully loaded IndicCorp Hindi dataset")
+        downloaded_files = {}
 
-            # If limiting samples
-            if num_samples is not None:
-                logger.info(f"Limiting to {num_samples} samples...")
-                if streaming:
-                    # For streaming datasets, use take()
-                    dataset = dataset.take(num_samples)
+        for filename in files:
+            try:
+                logger.info(f"\nDownloading {filename}...")
+
+                # Download file from HuggingFace Hub
+                file_path = hf_hub_download(
+                    repo_id=self.repo_id,
+                    filename=f"data/{filename}",
+                    repo_type=self.repo_type,
+                    cache_dir=self.cache_dir,
+                    resume_download=True  # Resume if interrupted
+                )
+
+                logger.info(f"✓ Downloaded {filename} to cache: {file_path}")
+
+                # Copy to output directory for easier access
+                output_path = self.output_dir / filename
+                if not output_path.exists() or output_path.stat().st_size == 0:
+                    logger.info(f"Copying {filename} to {output_path}...")
+                    shutil.copy2(file_path, output_path)
+                    logger.info(f"✓ Copied to {output_path}")
                 else:
-                    # For regular datasets, use select()
-                    dataset = dataset.select(range(min(num_samples, len(dataset))))
-                logger.info(f"✓ Limited to {num_samples} samples")
+                    logger.info(f"File already exists in output directory: {output_path}")
 
-            return dataset
+                downloaded_files[filename] = output_path
 
-        except Exception as e:
-            logger.error(f"Failed to download IndicCorp dataset: {e}")
-            raise
+            except Exception as e:
+                logger.error(f"Failed to download {filename}: {e}")
+                raise
 
-    def save_to_text(
+        logger.info(f"\n✓ Successfully downloaded {len(downloaded_files)} files")
+        return downloaded_files
+
+    def read_and_sample(
         self,
-        dataset: Union[Dataset, IterableDataset],
-        output_filename: str = 'indiccorp_hindi.txt',
-        text_field: str = 'sentence'
+        file_path: Path,
+        num_samples: Optional[int] = None,
+        output_filename: Optional[str] = None
     ) -> Path:
         """
-        Save dataset to a text file (one sentence per line).
+        Read a downloaded file and optionally sample lines from it.
 
         Args:
-            dataset: HuggingFace dataset
-            output_filename: Output filename
-            text_field: Field name containing text (default: 'sentence')
+            file_path: Path to the downloaded file
+            num_samples: Number of lines to sample (None for all)
+            output_filename: Output filename for sampled data (if None, uses input filename)
 
         Returns:
-            Path to saved file
+            Path to output file (sampled or original)
         """
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        # If no sampling needed, return original file
+        if num_samples is None:
+            logger.info(f"No sampling requested, using full file: {file_path}")
+            return file_path
+
+        # Create output filename
+        if output_filename is None:
+            output_filename = f"{file_path.stem}_sampled_{num_samples}.txt"
+
         output_path = self.output_dir / output_filename
 
-        logger.info(f"Saving dataset to {output_path}...")
+        logger.info(f"Sampling {num_samples} lines from {file_path.name}...")
 
-        # Determine if streaming
-        is_streaming = isinstance(dataset, IterableDataset)
-
-        with open(output_path, 'w', encoding='utf-8') as f:
-            if is_streaming:
-                # Streaming dataset - iterate without length
-                count = 0
-                for example in tqdm(dataset, desc="Saving"):
-                    text = example.get(text_field, '')
-                    if text and text.strip():  # Skip empty lines
-                        f.write(text.strip() + '\n')
+        count = 0
+        with open(file_path, 'r', encoding='utf-8') as f_in:
+            with open(output_path, 'w', encoding='utf-8') as f_out:
+                for line in tqdm(f_in, desc=f"Sampling {file_path.name}"):
+                    if count >= num_samples:
+                        break
+                    if line.strip():  # Skip empty lines
+                        f_out.write(line)
                         count += 1
-                logger.info(f"✓ Saved {count} samples")
-            else:
-                # Regular dataset - can show progress
-                for example in tqdm(dataset, desc="Saving"):
-                    text = example.get(text_field, '')
-                    if text and text.strip():  # Skip empty lines
-                        f.write(text.strip() + '\n')
-                logger.info(f"✓ Saved {len(dataset)} samples")
 
+        logger.info(f"✓ Saved {count} samples to {output_path}")
         return output_path
 
-    def save_to_pickle(
+    def convert_to_pickle(
         self,
-        dataset: Union[Dataset, IterableDataset],
-        output_filename: str = 'indiccorp_hindi.pkl',
-        text_field: str = 'sentence'
+        file_path: Path,
+        output_filename: Optional[str] = None
     ) -> Path:
         """
-        Save dataset to pickle file (list of strings).
+        Convert text file to pickle format (list of strings).
 
         Args:
-            dataset: HuggingFace dataset
-            output_filename: Output filename
-            text_field: Field name containing text
+            file_path: Path to text file
+            output_filename: Output pickle filename (if None, uses input filename)
 
         Returns:
-            Path to saved file
+            Path to saved pickle file
         """
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        # Create output filename
+        if output_filename is None:
+            output_filename = f"{file_path.stem}.pkl"
+
         output_path = self.output_dir / output_filename
 
-        logger.info(f"Saving dataset to {output_path}...")
+        logger.info(f"Converting {file_path.name} to pickle format...")
 
-        # Extract text samples
+        # Read all lines
         texts = []
-        is_streaming = isinstance(dataset, IterableDataset)
-
-        if is_streaming:
-            for example in tqdm(dataset, desc="Extracting text"):
-                text = example.get(text_field, '')
-                if text and text.strip():
-                    texts.append(text.strip())
-        else:
-            for example in tqdm(dataset, desc="Extracting text"):
-                text = example.get(text_field, '')
-                if text and text.strip():
-                    texts.append(text.strip())
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in tqdm(f, desc="Reading lines"):
+                if line.strip():
+                    texts.append(line.strip())
 
         # Save as pickle
         with open(output_path, 'wb') as f:
             pickle.dump(texts, f)
 
-        logger.info(f"✓ Saved {len(texts)} samples to pickle")
+        logger.info(f"✓ Saved {len(texts)} lines to {output_path}")
 
         return output_path
 
     def get_statistics(
         self,
-        dataset: Union[Dataset, IterableDataset],
-        num_samples: int = 10000,
-        text_field: str = 'sentence'
+        file_path: Path,
+        num_samples: int = 10000
     ) -> Dict:
         """
-        Calculate statistics from dataset.
+        Calculate statistics from a text file.
 
         Args:
-            dataset: HuggingFace dataset
-            num_samples: Number of samples to analyze (for efficiency)
-            text_field: Field name containing text
+            file_path: Path to text file
+            num_samples: Number of lines to analyze (for large files)
 
         Returns:
-            Dictionary with dataset statistics
+            Dictionary with file statistics
         """
-        logger.info(f"Calculating dataset statistics (sampling {num_samples} texts)...")
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        logger.info(f"Calculating statistics for {file_path.name} (sampling {num_samples} lines)...")
 
         stats = {
-            'dataset_name': self.dataset_name,
-            'language': self.language_code,
+            'filename': file_path.name,
+            'repo_id': self.repo_id,
+            'language': 'Hindi',
             'timestamp': datetime.now().isoformat(),
-            'samples_analyzed': 0,
+            'lines_analyzed': 0,
             'total_characters': 0,
             'total_words': 0,
-            'avg_chars_per_sample': 0.0,
-            'avg_words_per_sample': 0.0,
+            'avg_chars_per_line': 0.0,
+            'avg_words_per_line': 0.0,
             'min_length': float('inf'),
             'max_length': 0,
-            'empty_samples': 0
+            'empty_lines': 0
         }
 
-        is_streaming = isinstance(dataset, IterableDataset)
-
-        # Collect samples for analysis
-        sample_texts = []
-
-        if is_streaming:
-            # Streaming - take first num_samples
-            for i, example in enumerate(dataset):
-                if i >= num_samples:
+        # Read and analyze samples
+        count = 0
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in tqdm(f, desc="Analyzing", total=num_samples):
+                if count >= num_samples:
                     break
-                text = example.get(text_field, '')
-                sample_texts.append(text)
-        else:
-            # Regular dataset - sample uniformly
-            total_size = len(dataset)
-            sample_size = min(num_samples, total_size)
-            indices = range(0, total_size, max(1, total_size // sample_size))[:sample_size]
 
-            for idx in tqdm(indices, desc="Sampling for statistics"):
-                text = dataset[int(idx)].get(text_field, '')
-                sample_texts.append(text)
+                if not line.strip():
+                    stats['empty_lines'] += 1
+                    count += 1
+                    continue
 
-        # Analyze samples
-        for text in tqdm(sample_texts, desc="Analyzing"):
-            if not text or not text.strip():
-                stats['empty_samples'] += 1
-                continue
+                char_count = len(line.strip())
+                word_count = len(line.strip().split())
 
-            char_count = len(text)
-            word_count = len(text.split())
+                stats['total_characters'] += char_count
+                stats['total_words'] += word_count
+                stats['lines_analyzed'] += 1
+                stats['min_length'] = min(stats['min_length'], char_count)
+                stats['max_length'] = max(stats['max_length'], char_count)
 
-            stats['total_characters'] += char_count
-            stats['total_words'] += word_count
-            stats['samples_analyzed'] += 1
-            stats['min_length'] = min(stats['min_length'], char_count)
-            stats['max_length'] = max(stats['max_length'], char_count)
+                count += 1
 
         # Calculate averages
-        if stats['samples_analyzed'] > 0:
-            stats['avg_chars_per_sample'] = stats['total_characters'] / stats['samples_analyzed']
-            stats['avg_words_per_sample'] = stats['total_words'] / stats['samples_analyzed']
+        if stats['lines_analyzed'] > 0:
+            stats['avg_chars_per_line'] = stats['total_characters'] / stats['lines_analyzed']
+            stats['avg_words_per_line'] = stats['total_words'] / stats['lines_analyzed']
 
         # Fix infinity for min_length if no valid samples
         if stats['min_length'] == float('inf'):
             stats['min_length'] = 0
 
         logger.info(f"✓ Statistics calculated")
-        logger.info(f"  Samples analyzed: {stats['samples_analyzed']}")
-        logger.info(f"  Avg words/sample: {stats['avg_words_per_sample']:.1f}")
-        logger.info(f"  Avg chars/sample: {stats['avg_chars_per_sample']:.1f}")
+        logger.info(f"  Lines analyzed: {stats['lines_analyzed']}")
+        logger.info(f"  Avg words/line: {stats['avg_words_per_line']:.1f}")
+        logger.info(f"  Avg chars/line: {stats['avg_chars_per_line']:.1f}")
 
         return stats
 
@@ -335,16 +339,16 @@ class IndicCorpDownloader:
 
     def save_metadata(
         self,
-        dataset: Union[Dataset, IterableDataset],
-        stats: Dict,
+        downloaded_files: Dict[str, Path],
+        stats_per_file: Dict[str, Dict],
         output_filename: str = 'indiccorp_metadata.json'
     ) -> Path:
         """
-        Save comprehensive metadata about the downloaded dataset.
+        Save comprehensive metadata about the downloaded files.
 
         Args:
-            dataset: HuggingFace dataset
-            stats: Statistics dictionary
+            downloaded_files: Dictionary mapping filename to path
+            stats_per_file: Dictionary mapping filename to statistics
             output_filename: Output filename
 
         Returns:
@@ -352,16 +356,14 @@ class IndicCorpDownloader:
         """
         output_path = self.output_dir / output_filename
 
-        is_streaming = isinstance(dataset, IterableDataset)
-
         metadata = {
-            'source': self.dataset_name,
-            'language': self.language_code,
+            'source': self.repo_id,
+            'language': 'Hindi',
             'download_timestamp': datetime.now().isoformat(),
-            'streaming_mode': is_streaming,
-            'statistics': stats,
+            'downloaded_files': {name: str(path) for name, path in downloaded_files.items()},
+            'statistics_per_file': stats_per_file,
             'output_directory': str(self.output_dir),
-            'dataset_features': list(dataset.features.keys()) if not is_streaming else ['sentence']
+            'cache_directory': str(self.cache_dir) if self.cache_dir else 'default'
         }
 
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -376,55 +378,89 @@ class IndicCorpDownloader:
 
 def download_indiccorp_hindi(
     output_dir: str = 'data/raw',
+    files: Optional[List[str]] = None,
     num_samples: Optional[int] = None,
-    streaming: bool = False,
-    save_format: str = 'both'
+    save_format: str = 'text',
+    cache_dir: Optional[str] = None
 ) -> Dict:
     """
-    Download IndicCorp Hindi dataset (convenience function).
+    Download IndicCorp Hindi files (convenience function).
 
     Args:
         output_dir: Directory to save data
-        num_samples: Number of samples to download (None for all)
-        streaming: Use streaming mode (memory-efficient)
+        files: List of files to download (default: ['hi-1.txt', 'hi-2.txt', 'hi-3.txt'])
+        num_samples: Number of lines to sample from each file (None for all)
         save_format: 'text', 'pickle', or 'both'
+        cache_dir: HuggingFace Hub cache directory
 
     Returns:
         Dictionary with paths to saved files and statistics
+
+    Example:
+        # Download all three Hindi files with sampling
+        paths = download_indiccorp_hindi(
+            output_dir='data/raw',
+            num_samples=100000
+        )
+
+        # Download only hi-1.txt and hi-2.txt
+        paths = download_indiccorp_hindi(
+            output_dir='data/raw',
+            files=['hi-1.txt', 'hi-2.txt'],
+            num_samples=100000
+        )
     """
-    downloader = IndicCorpDownloader(output_dir=output_dir)
+    downloader = IndicCorpDownloader(output_dir=output_dir, cache_dir=cache_dir)
 
-    # Download dataset
-    dataset = downloader.download(
-        num_samples=num_samples,
-        streaming=streaming
-    )
+    # Download files from HuggingFace Hub
+    logger.info("=" * 60)
+    logger.info("Starting IndicCorp Hindi download...")
+    logger.info("=" * 60)
 
-    # Calculate statistics
-    stats = downloader.get_statistics(dataset, num_samples=min(10000, num_samples or 10000))
+    downloaded_files = downloader.download(files=files)
 
-    # Save statistics
-    stats_path = downloader.save_statistics(stats)
+    # Process each file
+    paths = {}
+    stats_per_file = {}
 
-    # Save dataset
-    paths = {'statistics': stats_path}
+    for filename, file_path in downloaded_files.items():
+        logger.info(f"\nProcessing {filename}...")
 
-    if save_format in ['text', 'both']:
-        text_path = downloader.save_to_text(dataset)
-        paths['text'] = text_path
+        # Sample lines if requested
+        if num_samples is not None:
+            processed_path = downloader.read_and_sample(
+                file_path,
+                num_samples=num_samples,
+                output_filename=f"{Path(filename).stem}_sampled.txt"
+            )
+        else:
+            processed_path = file_path
 
-    if save_format in ['pickle', 'both']:
-        pickle_path = downloader.save_to_pickle(dataset)
-        paths['pickle'] = pickle_path
+        paths[filename] = processed_path
 
-    # Save metadata
-    metadata_path = downloader.save_metadata(dataset, stats)
+        # Calculate statistics
+        stats = downloader.get_statistics(processed_path, num_samples=min(10000, num_samples or 10000))
+        stats_per_file[filename] = stats
+
+        # Save statistics for this file
+        stats_filename = f"{Path(filename).stem}_statistics.json"
+        downloader.save_statistics(stats, stats_filename)
+
+        # Convert to pickle if requested
+        if save_format in ['pickle', 'both']:
+            pickle_path = downloader.convert_to_pickle(processed_path)
+            paths[f"{filename}_pickle"] = pickle_path
+
+    # Save overall metadata
+    metadata_path = downloader.save_metadata(downloaded_files, stats_per_file)
     paths['metadata'] = metadata_path
 
-    logger.info("=" * 60)
+    logger.info("\n" + "=" * 60)
     logger.info("IndicCorp Hindi download complete!")
-    logger.info(f"  Samples: {stats['samples_analyzed']}")
-    logger.info(f"  Output: {output_dir}")
+    logger.info(f"  Files downloaded: {len(downloaded_files)}")
+    logger.info(f"  Output directory: {output_dir}")
+    for filename, stats in stats_per_file.items():
+        logger.info(f"  {filename}: {stats['lines_analyzed']} lines")
     logger.info("=" * 60)
 
     return paths
@@ -465,69 +501,96 @@ def load_indiccorp_from_cache(
     return texts
 
 
-# Alias for backwards compatibility
-def save_raw_data(dataset, output_path):
+# Utility function to merge multiple Hindi files
+def merge_hindi_files(
+    input_files: List[Path],
+    output_file: Path,
+    max_lines: Optional[int] = None
+) -> Path:
     """
-    Save raw data to disk (legacy function).
+    Merge multiple Hindi text files into one.
 
     Args:
-        dataset: HuggingFace dataset
-        output_path: Output file path
-    """
-    output_path = Path(output_path)
-    output_dir = output_path.parent
-
-    downloader = IndicCorpDownloader(output_dir=str(output_dir))
-
-    if output_path.suffix == '.txt':
-        return downloader.save_to_text(dataset, output_path.name)
-    elif output_path.suffix == '.pkl':
-        return downloader.save_to_pickle(dataset, output_path.name)
-    else:
-        raise ValueError(f"Unsupported format: {output_path.suffix}")
-
-
-def get_dataset_statistics(dataset):
-    """
-    Calculate basic statistics (legacy function).
-
-    Args:
-        dataset: HuggingFace dataset
+        input_files: List of input file paths
+        output_file: Output file path
+        max_lines: Maximum number of lines to include (None for all)
 
     Returns:
-        Statistics dictionary
+        Path to merged file
     """
-    downloader = IndicCorpDownloader()
-    return downloader.get_statistics(dataset)
+    logger.info(f"Merging {len(input_files)} files into {output_file}...")
+
+    line_count = 0
+    with open(output_file, 'w', encoding='utf-8') as f_out:
+        for input_file in input_files:
+            logger.info(f"  Reading {input_file.name}...")
+            with open(input_file, 'r', encoding='utf-8') as f_in:
+                for line in f_in:
+                    if max_lines and line_count >= max_lines:
+                        break
+                    if line.strip():
+                        f_out.write(line)
+                        line_count += 1
+
+            if max_lines and line_count >= max_lines:
+                break
+
+    logger.info(f"✓ Merged {line_count} lines to {output_file}")
+    return output_file
 
 
 if __name__ == '__main__':
     """
     Example usage:
 
-    python src/data_processing/indiccorp_downloader.py
+    # Download all three Hindi files (default)
+    python src/data_processing/indiccorp_downloader.py --output-dir data/raw
+
+    # Download with sampling
+    python src/data_processing/indiccorp_downloader.py --num-samples 100000
+
+    # Download only hi-1.txt
+    python src/data_processing/indiccorp_downloader.py --files hi-1.txt
+
+    # Download only hi-1.txt and hi-2.txt
+    python src/data_processing/indiccorp_downloader.py --files hi-1.txt hi-2.txt
     """
     import argparse
 
-    parser = argparse.ArgumentParser(description='Download IndicCorp Hindi dataset')
+    parser = argparse.ArgumentParser(
+        description='Download IndicCorp Hindi text files from HuggingFace',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument('--output-dir', type=str, default='data/raw',
-                       help='Output directory')
+                       help='Output directory (default: data/raw)')
+    parser.add_argument('--files', type=str, nargs='+', default=None,
+                       help='Hindi files to download (default: all three - hi-1.txt hi-2.txt hi-3.txt)')
     parser.add_argument('--num-samples', type=int, default=None,
-                       help='Number of samples to download (default: all)')
-    parser.add_argument('--streaming', action='store_true',
-                       help='Use streaming mode')
-    parser.add_argument('--format', type=str, default='both',
+                       help='Number of lines to sample from each file (default: all)')
+    parser.add_argument('--format', type=str, default='text',
                        choices=['text', 'pickle', 'both'],
-                       help='Save format')
+                       help='Save format (default: text)')
+    parser.add_argument('--cache-dir', type=str, default=None,
+                       help='HuggingFace Hub cache directory (default: ~/.cache/huggingface/hub)')
 
     args = parser.parse_args()
 
-    # Download dataset
+    # Download files
+    print("\n" + "=" * 60)
+    print("IndicCorp Hindi Downloader")
+    print("=" * 60)
+    print(f"Output directory: {args.output_dir}")
+    print(f"Files to download: {args.files or ['hi-1.txt', 'hi-2.txt', 'hi-3.txt']}")
+    print(f"Sampling: {args.num_samples if args.num_samples else 'No (downloading all)'}")
+    print(f"Format: {args.format}")
+    print("=" * 60 + "\n")
+
     paths = download_indiccorp_hindi(
         output_dir=args.output_dir,
+        files=args.files,
         num_samples=args.num_samples,
-        streaming=args.streaming,
-        save_format=args.format
+        save_format=args.format,
+        cache_dir=args.cache_dir
     )
 
     print("\n" + "=" * 60)
