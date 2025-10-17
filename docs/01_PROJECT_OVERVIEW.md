@@ -126,9 +126,7 @@ hindi-babylm/
 │   │   ├── model_factory.py            # Factory for creating models
 │   │   ├── gpt_model.py                # GPT-2 style model
 │   │   ├── enhanced_gpt.py             # Enhanced GPT with advanced features (Phase 1)
-│   │   ├── position_encodings.py       # Position encoding implementations (Phase 1)
-│   │   ├── bert_model.py               # BERT style model
-│   │   └── hybrid_model.py             # Hybrid architecture
+│   │   └── bert_model.py               # BERT style model
 │   │
 │   ├── training/                # Training pipeline
 │   │   ├── trainer.py                  # Enhanced training loop (Phase 1)

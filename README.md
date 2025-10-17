@@ -8,7 +8,6 @@ A comprehensive implementation of data-efficient language modeling for Hindi, de
 
 ## 🌟 Key Features
 
-- **5 Position Encoding Variants**: Sinusoidal, Learned, RoPE (Rotary Position Embeddings), ALiBi, Relative Position Bias
 - **Enhanced GPT Architecture**: 3 model sizes (Tiny: 50M, Small: 110M, Medium: 350M parameters)
 - **Curriculum Learning**: 5 training strategies × 5 scheduling approaches (25 combinations)
 - **Advanced Training Pipeline**: Multiple optimizers (AdamW, Adam, SGD), LR schedulers, mixed precision (FP16/BF16)
@@ -64,14 +63,7 @@ hindi-babylm/
 │   ├── models/
 │   │   ├── model_factory.py          # Model creation hub
 │   │   ├── enhanced_gpt.py           # Enhanced GPT (50M/110M/350M)
-│   │   ├── position_encodings/       # 5 position encoding types
-│   │   │   ├── sinusoidal.py
-│   │   │   ├── learned.py
-│   │   │   ├── rope.py               # Rotary Position Embeddings
-│   │   │   ├── alibi.py              # Attention with Linear Biases
-│   │   │   └── relative_bias.py      # Relative Position Bias
-│   │   ├── bert_model.py
-│   │   └── hybrid_model.py
+│   │   └── bert_model.py
 │   │
 │   ├── training/
 │   │   ├── trainer.py                # Enhanced trainer with curriculum learning
