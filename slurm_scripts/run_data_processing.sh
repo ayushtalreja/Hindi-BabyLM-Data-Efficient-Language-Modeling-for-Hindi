@@ -3,13 +3,13 @@
 #SBATCH --output=logs/data_%j.out
 #SBATCH --error=logs/data_%j.err
 #SBATCH --time=04:00:00
-#SBATCH --partition=serial_std
+#SBATCH --partition=lrz-cpu
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32GB
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=your.email@tum.de
+#SBATCH --mail-user=ayush1.kumar@tum.de
 
 # Hindi BabyLM Data Processing (CPU only - no GPU needed)
 # Downloads and processes data from IndicCorp, Wikipedia, and children's books
