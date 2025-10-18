@@ -109,13 +109,12 @@ class ChildrensStoryCollector:
         """
         stories = []
 
-        # StoryWeaver API endpoint for Hindi stories
-        api_base = "https://storyweaver.org.in/api/v1/stories"
+        # StoryWeaver API endpoint for Hindi stories (updated to books-search)
+        api_base = "https://storyweaver.org.in/api/v1/books-search"
 
         # Parameters for Hindi stories, sorted by reading level
         params = {
-            'languages': 'Hindi',
-            'reading_levels': '1,2,3',  # Early reader levels
+            'language': 'Hindi',
             'per_page': 24,
             'page': 1
         }
@@ -153,6 +152,10 @@ class ChildrensStoryCollector:
                 for story_item in story_list:
                     if stories_collected >= self.max_stories:
                         break
+
+                    # Filter for Hindi language stories (API language param doesn't filter properly)
+                    if story_item.get('language') != 'Hindi':
+                        continue
 
                     # Extract story details from API response
                     story_slug = story_item.get('slug', '')
@@ -193,8 +196,8 @@ class ChildrensStoryCollector:
         try:
             time.sleep(self.rate_limit_delay)
 
-            # Try API endpoint first
-            api_url = f"https://storyweaver.org.in/api/v1/stories/{slug}"
+            # Use the read API endpoint to get story pages
+            api_url = f"https://storyweaver.org.in/api/v1/stories/{slug}/read"
             response = requests.get(
                 api_url,
                 timeout=15,
@@ -212,9 +215,9 @@ class ChildrensStoryCollector:
                 if story_text:
                     return {
                         'source': 'storyweaver',
-                        'title': story_data.get('title', ''),
+                        'title': story_data.get('name', ''),
                         'text': story_text,
-                        'reading_level': story_data.get('reading_level', 'unknown'),
+                        'reading_level': story_data.get('level', 'unknown'),
                         'url': f"https://storyweaver.org.in/stories/{slug}"
                     }
 
@@ -238,17 +241,26 @@ class ChildrensStoryCollector:
         story_lines = []
 
         for page in pages:
-            # Skip cover page
-            if page.get('page_template') == 'cover_page':
+            # Skip front cover and back cover pages
+            page_type = page.get('pageType', '')
+            if page_type in ['FrontCoverPage', 'BackCoverPage', 'BackInnerCoverPage']:
                 continue
 
-            # Extract text content
-            content = page.get('content', '')
-            if content:
-                # Clean HTML if present
-                content = BeautifulSoup(content, 'html.parser').get_text(separator=' ', strip=True)
-                if content and len(content) > 10:
-                    story_lines.append(content)
+            # Extract HTML content
+            html_content = page.get('html', '')
+            if html_content:
+                # Parse HTML and extract text
+                soup = BeautifulSoup(html_content, 'html.parser')
+                # Remove script and style tags
+                for script in soup(['script', 'style']):
+                    script.decompose()
+
+                text = soup.get_text(separator=' ', strip=True)
+                # Remove page numbers and extra whitespace
+                text = ' '.join(text.split())
+
+                if text and len(text) > 10:
+                    story_lines.append(text)
 
         return ' '.join(story_lines)
 
