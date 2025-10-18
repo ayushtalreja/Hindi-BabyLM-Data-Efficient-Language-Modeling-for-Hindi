@@ -2,7 +2,7 @@
 #SBATCH --job-name=hindi_babylm_pipeline
 #SBATCH --output=logs/pipeline_%j.out
 #SBATCH --error=logs/pipeline_%j.err
-#SBATCH --time=14:00:00
+#SBATCH --time=2:00:00
 #SBATCH --partition=mcml-hgx-a100-80x4-mig 
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1

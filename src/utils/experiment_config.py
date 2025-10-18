@@ -26,13 +26,22 @@ class ExperimentConfig:
     vocab_size: int = 32000
 
     # Model configuration
-    model_type: str = "gpt"  # gpt, bert, hybrid
+    model_type: str = "gpt"  # gpt, deberta
+    model_size: str = "small"  # tiny, small, medium/base, large
     hidden_size: int = 768
     num_layers: int = 12
     num_heads: int = 12
     max_length: int = 512
     dropout: float = 0.1
     intermediate_size: int = 3072
+
+    # DeBERTa-specific configuration
+    position_buckets: int = 256
+    relative_attention: bool = True
+    max_relative_positions: int = -1
+    pooler_hidden_size: int = 768
+    pooler_dropout: float = 0.1
+    pooler_hidden_act: str = "gelu"
 
     # Training configuration
     batch_size: int = 32
@@ -76,7 +85,39 @@ class ExperimentConfig:
             if 'max_epochs' in training:
                 flat_config['num_epochs'] = training['max_epochs']
         if 'model' in config_dict:
-            flat_config.update(config_dict.get('model', {}))
+            model_config = config_dict.get('model', {})
+            # Add top-level model config
+            if 'type' in model_config:
+                flat_config['model_type'] = model_config['type']
+            if 'model_size' in model_config:
+                flat_config['model_size'] = model_config['model_size']
+            if 'activation' in model_config:
+                flat_config['activation'] = model_config['activation']
+
+            # Extract from nested architecture section
+            if 'architecture' in model_config:
+                arch = model_config['architecture']
+                flat_config.update(arch)
+                if 'num_hidden_layers' in arch:
+                    flat_config['num_layers'] = arch['num_hidden_layers']
+                if 'num_attention_heads' in arch:
+                    flat_config['num_heads'] = arch['num_attention_heads']
+                if 'max_position_embeddings' in arch:
+                    flat_config['max_length'] = arch['max_position_embeddings']
+
+            # Extract DeBERTa-specific config
+            if 'deberta' in model_config:
+                deberta_config = model_config['deberta']
+                for key in ['position_buckets', 'relative_attention', 'max_relative_positions',
+                           'pooler_hidden_size', 'pooler_dropout', 'pooler_hidden_act']:
+                    if key in deberta_config:
+                        flat_config[key] = deberta_config[key]
+
+            # Extract from regularization section
+            if 'regularization' in model_config:
+                reg = model_config['regularization']
+                if 'hidden_dropout_prob' in reg:
+                    flat_config['dropout'] = reg['hidden_dropout_prob']
 
         # If config_dict is already flat (not nested), use it directly
         if not any(key in config_dict for key in ['data', 'tokenization', 'training', 'model']):
@@ -113,7 +154,7 @@ class ExperimentManager:
     
     def create_model_architecture_experiments(self) -> List[ExperimentConfig]:
         """Create experiments for different model architectures"""
-        architectures = ["gpt", "bert", "hybrid"]
+        architectures = ["gpt", "deberta"]
         experiments = []
 
         for arch in architectures:

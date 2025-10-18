@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import pickle
 from typing import List, Dict, Tuple
@@ -7,13 +8,30 @@ import numpy as np
 from torch.utils.data import DataLoader, Dataset
 import torch
 
-from .indiccorp_downloader import download_indiccorp_hindi
-from .wiki_scraper import scrape_hindi_wikipedia
-from .childrens_books import collect_childrens_stories
-from .quality_filter import QualityFilter
-from .deduplicator import TextDeduplicator
-from .text_cleaner import clean_text
-from .data_mixer import DataMixer
+# Add project root to path for proper imports
+from pathlib import Path
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Import data processing modules
+try:
+    from .indiccorp_downloader import download_indiccorp_hindi
+    from .wiki_scraper import scrape_hindi_wikipedia
+    from .childrens_books import collect_childrens_stories
+    from .quality_filter import QualityFilter
+    from .deduplicator import TextDeduplicator
+    from .text_cleaner import clean_text
+    from .data_mixer import DataMixer
+except ImportError:
+    # Fallback for when script is run directly
+    from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
+    from src.data_processing.wiki_scraper import scrape_hindi_wikipedia
+    from src.data_processing.childrens_books import collect_childrens_stories
+    from src.data_processing.quality_filter import QualityFilter
+    from src.data_processing.deduplicator import TextDeduplicator
+    from src.data_processing.text_cleaner import clean_text
+    from src.data_processing.data_mixer import DataMixer
 
 
 class TextDataset(Dataset):

@@ -48,11 +48,11 @@ data:
 
   # Quality Filtering
   filtering:
-    min_length: 10  # characters
-    max_length: 10000
+    min_length: 0  # characters
+    max_length: 1000  # characters
     min_hindi_ratio: 0.8  # Devanagari character ratio
-    min_word_count: 5
-    max_word_count: 2000
+    min_word_count: 3 # (to filter out very short lines)
+    max_word_count: 10000  # (to control extremely long lines)
 
   # Deduplication
   deduplication:
@@ -67,12 +67,6 @@ data:
     remove_emails: true
     normalize_whitespace: true
     max_workers: 4  # Parallel processing
-
-  # Data Augmentation (Optional)
-  augmentation:
-    enabled: false
-    techniques:
-      - "none"  # Options: back_translation, paraphrase, morphological
 
 # ==============================================================================
 # TOKENIZATION CONFIGURATION
@@ -121,7 +115,12 @@ tokenization:
 # ==============================================================================
 model:
   # Model Type
-  type: "gpt"  # Options: gpt, bert, hybrid
+  type: "gpt"  # Options: gpt, deberta
+
+  # Model Size Preset (optional - overrides individual architecture params)
+  # GPT sizes: tiny (50M params), small (110M params), medium (350M params)
+  # DeBERTa sizes: tiny (22M params), small (86M params), base (86M params), large (304M params)
+  model_size: "small"  # Options: tiny, small, medium/base, large
 
   # Core Architecture Hyperparameters
   architecture:
@@ -150,15 +149,14 @@ model:
     scale_attn_weights: true
     reorder_and_upcast_attn: false
 
-  bert:
-    type_vocab_size: 2
-    use_cache: false
-    chunk_size_feed_forward: 0
-
-  hybrid:
-    bert_ratio: 0.5  # 50% BERT-style, 50% GPT-style training
-    alternate_objectives: true
-    shared_embeddings: true
+  deberta:
+    # DeBERTa uses disentangled attention with relative position encoding
+    position_buckets: 256
+    relative_attention: true
+    max_relative_positions: -1  # -1 means use max_position_embeddings
+    pooler_hidden_size: 768  # Size of pooler layer
+    pooler_dropout: 0.1
+    pooler_hidden_act: "gelu"
 
 # ==============================================================================
 # TRAINING CONFIGURATION
@@ -268,12 +266,12 @@ evaluation:
 
   # Zero-shot Evaluation
   zero_shot:
-    enabled: false
+    enabled: true
     tasks: ["text_classification", "ner", "pos_tagging"]
 
   # Generation Quality
   generation:
-    enabled: false
+    enabled: true
     prompts_file: "evaluation/generation_prompts.txt"
     max_length: 100
     num_samples: 50
@@ -287,7 +285,7 @@ experiment_tracking:
   wandb:
     enabled: true
     project: "hindi-babylm"
-    entity: null  # Your wandb username/team
+    entity: ayushtalreja1  # Your wandb username/team
     tags: ["babylm", "hindi", "10m-tokens"]
     notes: "Baseline experiment"
     mode: "online"  # Options: online, offline, disabled
@@ -310,7 +308,7 @@ experiment_tracking:
 resources:
   # Device Configuration
   device: "cuda"  # Options: cuda, cpu, mps (for Apple Silicon)
-  gpu_ids: [0]  # List of GPU IDs to use
+  gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]  # List of GPU IDs to use
   num_workers: 4  # DataLoader workers
 
   # Memory Management
@@ -382,26 +380,3 @@ debugging:
   # Testing
   overfit_small_batch: false  # Test with 1-2 batches
   fast_dev_run: false  # Run 1 batch per epoch for testing
-
-# ==============================================================================
-# ADVANCED FEATURES (OPTIONAL)
-# ==============================================================================
-advanced:
-  # Knowledge Distillation
-  distillation:
-    enabled: false
-    teacher_model_path: null
-    temperature: 2.0
-    alpha: 0.5  # KD loss weight
-
-  # Model Compression
-  compression:
-    quantization: false
-    pruning: false
-    low_rank_adaptation: false
-
-  # Data Filtering
-  data_filtering:
-    use_perplexity_filter: false
-    perplexity_threshold: 1000
-    use_quality_classifier: false

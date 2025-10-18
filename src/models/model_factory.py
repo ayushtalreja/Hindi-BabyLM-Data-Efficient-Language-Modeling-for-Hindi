@@ -3,7 +3,7 @@ import torch
 from typing import Optional, Dict, Any
 
 from .gpt_model import HindiGPTModel
-from .bert_model import HindiBERTModel
+from .deberta_model import HindiDeBERTaModel
 
 
 class ModelFactory:
@@ -21,7 +21,8 @@ class ModelFactory:
 
     def create_model(self, vocab_size: int):
         """Create a model based on config"""
-        print(f"\nCreating {self.model_type} model...")
+        model_size = self.config.__dict__.get('model_size', 'small')
+        print(f"\nCreating {self.model_type} model (size: {model_size})...")
         print(f"  Vocabulary size: {vocab_size}")
         print(f"  Hidden size: {self.config.hidden_size}")
         print(f"  Number of layers: {self.config.num_layers}")
@@ -29,53 +30,34 @@ class ModelFactory:
 
         # Prepare config dict for model
         model_config = {
+            'model_size': model_size,
             'hidden_size': self.config.hidden_size,
             'num_layers': self.config.num_layers,
             'num_heads': self.config.num_heads,
             'max_length': self.config.max_length,
             'dropout': self.config.__dict__.get('dropout', 0.1),
-            'intermediate_size': self.config.__dict__.get('intermediate_size', 3072)
+            'intermediate_size': self.config.__dict__.get('intermediate_size', 3072),
+            'activation': self.config.__dict__.get('activation', 'gelu'),
+            'use_cache': self.config.__dict__.get('use_cache', True),
         }
+
+        # Add DeBERTa-specific params
+        if self.model_type == 'deberta':
+            model_config.update({
+                'position_buckets': self.config.__dict__.get('position_buckets', 256),
+                'relative_attention': self.config.__dict__.get('relative_attention', True),
+                'max_relative_positions': self.config.__dict__.get('max_relative_positions', -1),
+                'pooler_hidden_size': self.config.__dict__.get('pooler_hidden_size', self.config.hidden_size),
+                'pooler_dropout': self.config.__dict__.get('pooler_dropout', 0.1),
+                'pooler_hidden_act': self.config.__dict__.get('pooler_hidden_act', 'gelu'),
+            })
 
         if self.model_type == "gpt":
             model = HindiGPTModel(vocab_size=vocab_size, config=model_config)
-        elif self.model_type == "bert":
-            model = HindiBERTModel(vocab_size=vocab_size, config=model_config)
-        elif self.model_type == "hybrid":
-            # For hybrid model, we need to create separate configs for BERT and GPT
-            from transformers import BertConfig, GPT2Config
-
-            bert_config = BertConfig(
-                vocab_size=vocab_size,
-                hidden_size=model_config['hidden_size'],
-                num_hidden_layers=model_config['num_layers'],
-                num_attention_heads=model_config['num_heads'],
-                intermediate_size=model_config['intermediate_size'],
-                max_position_embeddings=model_config['max_length'],
-                hidden_dropout_prob=model_config['dropout'],
-                attention_probs_dropout_prob=model_config['dropout']
-            )
-
-            gpt_config = GPT2Config(
-                vocab_size=vocab_size,
-                n_positions=model_config['max_length'],
-                n_embd=model_config['hidden_size'],
-                n_layer=model_config['num_layers'],
-                n_head=model_config['num_heads'],
-                resid_pdrop=model_config['dropout'],
-                embd_pdrop=model_config['dropout'],
-                attn_pdrop=model_config['dropout']
-            )
-
-            hybrid_config = {
-                **model_config,
-                'bert_config': bert_config,
-                'gpt_config': gpt_config
-            }
-
-            model = HybridGPTBERTModel(vocab_size=vocab_size, config=hybrid_config)
+        elif self.model_type == "deberta":
+            model = HindiDeBERTaModel(vocab_size=vocab_size, config=model_config)
         else:
-            raise ValueError(f"Unknown model type: {self.model_type}")
+            raise ValueError(f"Unknown model type: {self.model_type}. Must be 'gpt' or 'deberta'")
 
         # Count parameters
         num_params = sum(p.numel() for p in model.parameters())

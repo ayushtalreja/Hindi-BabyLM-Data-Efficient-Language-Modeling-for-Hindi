@@ -1,26 +1,31 @@
 """
-GPT Model for Hindi Language Modeling
+DeBERTa Model for Hindi Language Modeling
 
-This module provides a GPT-based language model using HuggingFace's GPT2LMHeadModel
-with support for different model sizes (tiny, small, medium).
+This module provides a DeBERTa-based masked language model using HuggingFace's
+DebertaV2ForMaskedLM with support for different model sizes.
+
+DeBERTa (Decoding-enhanced BERT with disentangled attention) improves upon BERT with:
+- Disentangled attention mechanism
+- Enhanced mask decoder
+- Relative position encoding
 """
 
 import torch
 import torch.nn as nn
-from transformers import GPT2Config, GPT2LMHeadModel
+from transformers import DebertaV2Config, DebertaV2ForMaskedLM
 from typing import Dict, Any, Optional
 
 
-class HindiGPTModel(nn.Module):
-    """GPT model for Hindi with configurable sizes"""
+class HindiDeBERTaModel(nn.Module):
+    """DeBERTa model for Hindi with configurable sizes"""
 
     # Model size presets
     MODEL_SIZES = {
         'tiny': {
-            'hidden_size': 512,
+            'hidden_size': 384,
             'num_layers': 6,
-            'num_heads': 8,
-            'intermediate_size': 2048,
+            'num_heads': 6,
+            'intermediate_size': 1536,
         },
         'small': {
             'hidden_size': 768,
@@ -28,7 +33,13 @@ class HindiGPTModel(nn.Module):
             'num_heads': 12,
             'intermediate_size': 3072,
         },
-        'medium': {
+        'base': {
+            'hidden_size': 768,
+            'num_layers': 12,
+            'num_heads': 12,
+            'intermediate_size': 3072,
+        },
+        'large': {
             'hidden_size': 1024,
             'num_layers': 24,
             'num_heads': 16,
@@ -38,7 +49,7 @@ class HindiGPTModel(nn.Module):
 
     def __init__(self, vocab_size: int, config: Dict[str, Any]):
         """
-        Initialize Hindi GPT model
+        Initialize Hindi DeBERTa model
 
         Args:
             vocab_size: Size of vocabulary
@@ -62,23 +73,32 @@ class HindiGPTModel(nn.Module):
             num_heads = config.get('num_heads', 12)
             intermediate_size = config.get('intermediate_size', 3072)
 
-        # Create HuggingFace GPT2 config
-        self.config = GPT2Config(
+        # Get DeBERTa-specific parameters
+        max_relative_positions = config.get('max_relative_positions', -1)
+        if max_relative_positions == -1:
+            max_relative_positions = config.get('max_length', 512)
+
+        # Create HuggingFace DeBERTaV2 config
+        self.config = DebertaV2Config(
             vocab_size=vocab_size,
-            n_positions=config.get('max_length', 512),
-            n_embd=hidden_size,
-            n_layer=num_layers,
-            n_head=num_heads,
-            n_inner=intermediate_size,
-            activation_function=config.get('activation', 'gelu'),
-            resid_pdrop=config.get('dropout', 0.1),
-            embd_pdrop=config.get('dropout', 0.1),
-            attn_pdrop=config.get('dropout', 0.1),
-            use_cache=config.get('use_cache', True),
+            hidden_size=hidden_size,
+            num_hidden_layers=num_layers,
+            num_attention_heads=num_heads,
+            intermediate_size=intermediate_size,
+            max_position_embeddings=config.get('max_length', 512),
+            hidden_dropout_prob=config.get('dropout', 0.1),
+            attention_probs_dropout_prob=config.get('dropout', 0.1),
+            # DeBERTa-specific parameters
+            position_buckets=config.get('position_buckets', 256),
+            relative_attention=config.get('relative_attention', True),
+            max_relative_positions=max_relative_positions,
+            pooler_hidden_size=config.get('pooler_hidden_size', hidden_size),
+            pooler_dropout=config.get('pooler_dropout', 0.1),
+            pooler_hidden_act=config.get('pooler_hidden_act', 'gelu'),
         )
 
         # Create the model
-        self.model = GPT2LMHeadModel(self.config)
+        self.model = DebertaV2ForMaskedLM(self.config)
 
     def forward(self, input_ids: torch.Tensor,
                 attention_mask: Optional[torch.Tensor] = None,
@@ -89,7 +109,7 @@ class HindiGPTModel(nn.Module):
         Args:
             input_ids: Input token IDs [batch, seq_len]
             attention_mask: Attention mask [batch, seq_len]
-            labels: Target labels for language modeling [batch, seq_len]
+            labels: Target labels for masked language modeling [batch, seq_len]
 
         Returns:
             Model outputs with logits and optional loss
@@ -98,37 +118,6 @@ class HindiGPTModel(nn.Module):
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels
-        )
-
-    def generate(self, input_ids: torch.Tensor,
-                max_length: int = 50,
-                temperature: float = 1.0,
-                top_k: Optional[int] = None,
-                top_p: Optional[float] = None,
-                **kwargs):
-        """
-        Generate text autoregressively
-
-        Args:
-            input_ids: Input token IDs [batch, seq_len]
-            max_length: Maximum total length (input + generated)
-            temperature: Sampling temperature
-            top_k: Top-k filtering
-            top_p: Top-p (nucleus) sampling
-            **kwargs: Additional generation parameters
-
-        Returns:
-            Generated token IDs [batch, total_length]
-        """
-        return self.model.generate(
-            input_ids=input_ids,
-            max_length=max_length,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            do_sample=True,
-            pad_token_id=self.config.pad_token_id,
-            **kwargs
         )
 
     def num_parameters(self, only_trainable: bool = False) -> int:
@@ -147,17 +136,17 @@ class HindiGPTModel(nn.Module):
 
 
 # Convenience function for creating model
-def create_gpt_model(vocab_size: int, model_size: str = 'small', **kwargs) -> HindiGPTModel:
+def create_deberta_model(vocab_size: int, model_size: str = 'small', **kwargs) -> HindiDeBERTaModel:
     """
-    Create a GPT model with specified size
+    Create a DeBERTa model with specified size
 
     Args:
         vocab_size: Vocabulary size
-        model_size: Model size ('tiny', 'small', 'medium')
+        model_size: Model size ('tiny', 'small', 'base', 'large')
         **kwargs: Additional config overrides
 
     Returns:
-        HindiGPTModel instance
+        HindiDeBERTaModel instance
     """
     config = {'model_size': model_size, **kwargs}
-    return HindiGPTModel(vocab_size, config)
+    return HindiDeBERTaModel(vocab_size, config)
