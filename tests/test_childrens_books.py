@@ -5,10 +5,15 @@ Run this after installing dependencies to verify the module works correctly
 """
 
 import sys
+import os
 sys.path.insert(0, '/Users/ayushkumartalreja/Downloads/Thesis_2/hindi-babylm')
 
+# Add src to path so we can import without full package
+src_path = os.path.join(os.path.dirname(__file__), '..', 'src')
+sys.path.insert(0, src_path)
+
 try:
-    from src.data_processing.childrens_books import (
+    from data_processing.childrens_books import (
         collect_childrens_stories,
         scrape_hindi_stories,
         ChildrensStoryCollector

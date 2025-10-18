@@ -1,13 +1,11 @@
 """
 Children's Books Data Collection Module
 
-This module collects Hindi children's stories from various openly-licensed sources
+This module collects Hindi children's stories from openly-licensed sources
 to create developmentally appropriate training data for the Hindi BabyLM project.
 
 Sources:
-- StoryWeaver (Pratham Books) - API-based collection
-- Free Kids Books - Web scraping with link following
-- Bal Sahitya resources
+- StoryWeaver (Pratham Books) - API-based collection with openly-licensed content
 
 All content is collected respecting copyright, robots.txt, and rate limits.
 """
@@ -17,12 +15,17 @@ from bs4 import BeautifulSoup
 import time
 import re
 from typing import List, Dict, Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 import logging
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Suppress verbose urllib3/requests connection logs
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+logging.getLogger('pdfminer').setLevel(logging.ERROR)  # Suppress pdfminer warnings
 
 
 class ChildrensStoryCollector:
@@ -44,11 +47,11 @@ class ChildrensStoryCollector:
 
     def collect_all_stories(self) -> List[str]:
         """
-        Main entry point: Collect stories from all sources
-        Returns empty list if all sources fail (non-blocking)
+        Main entry point: Collect stories from StoryWeaver
+        Returns empty list if collection fails (non-blocking)
 
         Returns:
-            List of story texts (strings), empty list if all sources fail
+            List of story texts (strings), empty list if collection fails
         """
         logger.info("Starting children's story collection...")
         all_stories_data = []
@@ -66,28 +69,14 @@ class ChildrensStoryCollector:
         except Exception as e:
             logger.warning(f"   Error collecting from StoryWeaver: {str(e)} - skipping this source")
 
-        # Collect from Free Kids Books
-        if len(all_stories_data) < self.max_stories:
-            logger.info("\n2. Collecting from Free Kids Books...")
-            try:
-                freekids_stories = self.scrape_freekidsbooks()
-                all_stories_data.extend(freekids_stories)
-                logger.info(f"   Collected {len(freekids_stories)} stories from Free Kids Books")
-            except requests.Timeout:
-                logger.warning("   Free Kids Books timed out - skipping this source")
-            except requests.RequestException as e:
-                logger.warning(f"   Free Kids Books request failed: {e} - skipping this source")
-            except Exception as e:
-                logger.warning(f"   Error collecting from Free Kids Books: {str(e)} - skipping this source")
-
         # If no stories collected, return empty list (don't crash pipeline)
         if not all_stories_data:
-            logger.warning("Could not collect any children's stories from any source")
+            logger.warning("Could not collect any children's stories from StoryWeaver")
             logger.warning("Continuing pipeline without children's stories data")
             return []
 
         # Filter for quality and age-appropriateness
-        logger.info("\n3. Filtering stories for quality and age-appropriateness...")
+        logger.info("\n2. Filtering stories for quality and age-appropriateness...")
         filtered_stories = self.filter_stories(all_stories_data)
         logger.info(f"   {len(filtered_stories)} stories passed quality filters")
 
@@ -315,126 +304,6 @@ class ChildrensStoryCollector:
             logger.debug(f"Error scraping StoryWeaver page {slug}: {str(e)}")
             return None
 
-    def scrape_freekidsbooks(self) -> List[Dict]:
-        """
-        Scrape Hindi stories from Free Kids Books
-
-        Returns:
-            List of story dictionaries
-        """
-        stories = []
-        base_url = "https://freekidsbooks.org"
-        hindi_page_url = f"{base_url}/subject/files/foreign-language/hindi-stories/"
-
-        try:
-            time.sleep(self.rate_limit_delay)
-
-            response = requests.get(
-                hindi_page_url,
-                timeout=15,
-                headers={'User-Agent': self.user_agent}
-            )
-
-            if response.status_code != 200:
-                logger.warning(f"Failed to fetch Free Kids Books page: {response.status_code}")
-                return stories
-
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Find all story links
-            story_links = []
-
-            # Look for book links (various possible patterns)
-            for link in soup.find_all('a', href=True):
-                href = link.get('href', '')
-
-                # Filter for story/book pages
-                if any(pattern in href for pattern in ['/book/', '/story/', 'hindi']):
-                    full_url = urljoin(base_url, href)
-
-                    if full_url not in self.seen_urls and full_url not in story_links:
-                        story_links.append(full_url)
-
-            logger.info(f"   Found {len(story_links)} potential story links")
-
-            # Fetch individual stories
-            for i, story_url in enumerate(story_links[:100]):  # Limit to 100 links
-                if len(stories) >= self.max_stories:
-                    break
-
-                story_data = self.scrape_freekidsbooks_story(story_url)
-
-                if story_data and story_data.get('text'):
-                    stories.append(story_data)
-                    self.seen_urls.add(story_url)
-
-                if (i + 1) % 10 == 0:
-                    logger.info(f"   Processed {i + 1}/{len(story_links)} links, collected {len(stories)} stories")
-
-        except Exception as e:
-            logger.error(f"Error scraping Free Kids Books: {str(e)}")
-
-        return stories
-
-    def scrape_freekidsbooks_story(self, url: str) -> Optional[Dict]:
-        """
-        Scrape individual story from Free Kids Books
-
-        Args:
-            url: Story page URL
-
-        Returns:
-            Story dictionary or None
-        """
-        try:
-            time.sleep(self.rate_limit_delay)
-
-            response = requests.get(
-                url,
-                timeout=15,
-                headers={'User-Agent': self.user_agent}
-            )
-
-            if response.status_code != 200:
-                return None
-
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Try multiple methods to extract story content
-            story_text = None
-
-            # Method 1: Look for main content div
-            content_div = soup.find('div', class_=['content', 'story-content', 'entry-content'])
-            if content_div:
-                story_text = content_div.get_text(separator=' ', strip=True)
-
-            # Method 2: Look for article tag
-            if not story_text or len(story_text) < 50:
-                article = soup.find('article')
-                if article:
-                    story_text = article.get_text(separator=' ', strip=True)
-
-            # Method 3: Get all paragraphs
-            if not story_text or len(story_text) < 50:
-                paragraphs = soup.find_all('p')
-                story_text = ' '.join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 20])
-
-            # Validate story text
-            if story_text and len(story_text) > 100:
-                # Check if it's actually Hindi text
-                if self.is_hindi_text(story_text):
-                    return {
-                        'source': 'freekidsbooks',
-                        'text': self.clean_story_text(story_text),
-                        'url': url
-                    }
-
-            return None
-
-        except Exception as e:
-            logger.debug(f"Error scraping story from {url}: {str(e)}")
-            return None
-
     def is_hindi_text(self, text: str) -> bool:
         """
         Check if text contains significant Hindi (Devanagari) content
@@ -456,7 +325,7 @@ class ChildrensStoryCollector:
             return False
 
         hindi_ratio = devanagari_count / total_chars
-        return hindi_ratio > 0.5  # At least 50% Devanagari
+        return hindi_ratio > 0.8  # At least 80% Devanagari
 
     def clean_story_text(self, text: str) -> str:
         """

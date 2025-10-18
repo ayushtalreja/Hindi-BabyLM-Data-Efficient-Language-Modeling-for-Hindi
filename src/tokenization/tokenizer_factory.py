@@ -25,6 +25,27 @@ class TokenizerFactory:
 
         if self.tokenizer_type == "sentencepiece":
             return self._create_sentencepiece_tokenizer(training_texts)
+        elif self.tokenizer_type == "deberta":
+            # Create a DeBERTa-compatible tokenizer. We prefer to train a
+            # SentencePiece model and then load it via AutoTokenizer if a
+            # pretrained DeBERTa tokenizer isn't specified.
+            print("Creating DeBERTa tokenizer using SentencePiece backend...")
+            # Reuse sentencepiece trainer logic
+            tokenizer = self._create_sentencepiece_tokenizer(training_texts)
+            # Wrap as an AutoTokenizer-compatible object by saving model files
+            sp_model_path = os.path.join(self.tokenizer_dir, 'sentencepiece.model')
+            # AutoTokenizer can load from a local directory containing sentencepiece model
+            local_dir = os.path.join(self.tokenizer_dir, 'deberta')
+            os.makedirs(local_dir, exist_ok=True)
+            # Copy sentencepiece model to local dir
+            try:
+                from shutil import copyfile
+                copyfile(sp_model_path, os.path.join(local_dir, 'sentencepiece.model'))
+            except Exception:
+                pass
+
+            # Return the sentencepiece tokenizer wrapper (compatible API)
+            return tokenizer
         elif self.tokenizer_type == "wordpiece":
             return self._create_wordpiece_tokenizer(training_texts)
         elif self.tokenizer_type == "bpe":
@@ -133,11 +154,27 @@ class TokenizerFactory:
 
     @staticmethod
     def load_tokenizer(experiment_name: str, tokenizer_dir: str = 'tokenizers'):
-        """Load a saved tokenizer"""
+        """Load a saved tokenizer
+
+        Args:
+            experiment_name: Either an experiment name (e.g., 'my_experiment') or
+                           a full directory path (e.g., 'results/my_experiment/tokenizer')
+            tokenizer_dir: Base directory for tokenizers (only used if experiment_name
+                         is not a full path). Defaults to 'tokenizers'.
+
+        Returns:
+            Loaded tokenizer instance
+        """
         print(f"Loading tokenizer for experiment: {experiment_name}")
 
-        # Try to load the tokenizer metadata
-        metadata_path = os.path.join(tokenizer_dir, f'{experiment_name}_metadata.pkl')
+        # Check if experiment_name is actually a directory path
+        if os.path.isdir(experiment_name):
+            # experiment_name is a full directory path
+            tokenizer_dir = experiment_name
+            metadata_path = os.path.join(tokenizer_dir, 'tokenizer_metadata.pkl')
+        else:
+            # experiment_name is just the name, use old format for backward compatibility
+            metadata_path = os.path.join(tokenizer_dir, f'{experiment_name}_metadata.pkl')
 
         if not os.path.exists(metadata_path):
             # Fallback: try to load from standard paths
@@ -195,15 +232,27 @@ class TokenizerFactory:
         else:
             raise ValueError(f"Unknown tokenizer type: {tokenizer_type}")
 
-    def save_tokenizer(self, tokenizer, experiment_name: str):
-        """Save tokenizer with metadata"""
+    def save_tokenizer(self, tokenizer, save_path: str):
+        """Save tokenizer with metadata
+
+        Args:
+            tokenizer: The tokenizer to save
+            save_path: Directory path where tokenizer should be saved
+                      (e.g., 'results/experiment_name/tokenizer')
+        """
+        # Ensure the save directory exists
+        os.makedirs(save_path, exist_ok=True)
+
+        # Extract experiment name from path (last directory component or use full path)
+        experiment_name = os.path.basename(save_path.rstrip('/'))
+
         metadata = {
             'tokenizer_type': self.tokenizer_type,
             'vocab_size': self.vocab_size,
             'experiment_name': experiment_name
         }
 
-        metadata_path = os.path.join(self.tokenizer_dir, f'{experiment_name}_metadata.pkl')
+        metadata_path = os.path.join(save_path, 'tokenizer_metadata.pkl')
         with open(metadata_path, 'wb') as f:
             pickle.dump(metadata, f)
 
