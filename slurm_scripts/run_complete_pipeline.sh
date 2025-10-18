@@ -4,7 +4,7 @@
 #SBATCH --error=logs/pipeline_%j.err
 #SBATCH --time=14:00:00
 #SBATCH --account=mcml
-#SBATCH --partition=lrz-dgx-a100
+#SBATCH --partition=lrz-dgx-a100-80x8
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
