@@ -45,21 +45,26 @@ class ChildrensStoryCollector:
     def collect_all_stories(self) -> List[str]:
         """
         Main entry point: Collect stories from all sources
+        Returns empty list if all sources fail (non-blocking)
 
         Returns:
-            List of story texts (strings)
+            List of story texts (strings), empty list if all sources fail
         """
         logger.info("Starting children's story collection...")
         all_stories_data = []
 
-        # Collect from StoryWeaver API
+        # Collect from StoryWeaver API with robust error handling
         logger.info("\n1. Collecting from StoryWeaver API...")
         try:
             storyweaver_stories = self.scrape_storyweaver_api()
             all_stories_data.extend(storyweaver_stories)
             logger.info(f"   Collected {len(storyweaver_stories)} stories from StoryWeaver")
+        except requests.Timeout:
+            logger.warning("   StoryWeaver API timed out - skipping this source")
+        except requests.RequestException as e:
+            logger.warning(f"   StoryWeaver API request failed: {e} - skipping this source")
         except Exception as e:
-            logger.error(f"   Error collecting from StoryWeaver: {str(e)}")
+            logger.warning(f"   Error collecting from StoryWeaver: {str(e)} - skipping this source")
 
         # Collect from Free Kids Books
         if len(all_stories_data) < self.max_stories:
@@ -68,8 +73,18 @@ class ChildrensStoryCollector:
                 freekids_stories = self.scrape_freekidsbooks()
                 all_stories_data.extend(freekids_stories)
                 logger.info(f"   Collected {len(freekids_stories)} stories from Free Kids Books")
+            except requests.Timeout:
+                logger.warning("   Free Kids Books timed out - skipping this source")
+            except requests.RequestException as e:
+                logger.warning(f"   Free Kids Books request failed: {e} - skipping this source")
             except Exception as e:
-                logger.error(f"   Error collecting from Free Kids Books: {str(e)}")
+                logger.warning(f"   Error collecting from Free Kids Books: {str(e)} - skipping this source")
+
+        # If no stories collected, return empty list (don't crash pipeline)
+        if not all_stories_data:
+            logger.warning("Could not collect any children's stories from any source")
+            logger.warning("Continuing pipeline without children's stories data")
+            return []
 
         # Filter for quality and age-appropriateness
         logger.info("\n3. Filtering stories for quality and age-appropriateness...")

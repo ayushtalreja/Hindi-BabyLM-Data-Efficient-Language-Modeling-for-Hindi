@@ -1,5 +1,9 @@
 import wikipediaapi
 import pandas as pd
+import os
+import json
+import pickle
+from pathlib import Path
 from typing import List, Dict
 
 def scrape_hindi_wikipedia(categories: List[str], max_articles: int = 10000):
@@ -77,3 +81,42 @@ def clean_wikipedia_text(text: str) -> str:
                      len(line.strip()) > 20]  # Filter very short lines
 
     return ' '.join(cleaned_lines)
+
+
+def save_wikipedia_data(articles: List[Dict], output_dir: str = 'data/raw') -> Path:
+    """
+    Save Wikipedia articles to separate files
+
+    Args:
+        articles: List of article dictionaries with 'title', 'text', 'category'
+        output_dir: Directory to save files
+
+    Returns:
+        Path to saved pickle file
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Extract text content
+    texts = [article['text'] for article in articles]
+
+    # Save to pickle for fast loading
+    pickle_path = output_dir / 'wikipedia.pkl'
+    with open(pickle_path, 'wb') as f:
+        pickle.dump(texts, f)
+
+    # Save metadata
+    metadata = {
+        'num_articles': len(articles),
+        'categories': list(set(article.get('category', 'unknown') for article in articles)),
+        'total_chars': sum(len(article['text']) for article in articles),
+        'titles': [article.get('title', '') for article in articles[:100]]  # Sample titles
+    }
+    metadata_path = output_dir / 'wikipedia_metadata.json'
+    with open(metadata_path, 'w', encoding='utf-8') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+    print(f"✓ Saved {len(texts)} Wikipedia articles to {pickle_path}")
+    print(f"✓ Saved metadata to {metadata_path}")
+
+    return pickle_path

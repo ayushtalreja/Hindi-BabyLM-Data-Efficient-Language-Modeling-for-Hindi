@@ -9,7 +9,6 @@ A comprehensive implementation of data-efficient language modeling for Hindi, de
 ## 🌟 Key Features
 
 - **Enhanced GPT Architecture**: 3 model sizes (Tiny: 50M, Small: 110M, Medium: 350M parameters)
-- **Curriculum Learning**: 5 training strategies × 5 scheduling approaches (25 combinations)
 - **Advanced Training Pipeline**: Multiple optimizers (AdamW, Adam, SGD), LR schedulers, mixed precision (FP16/BF16)
 - **Comprehensive Tokenization**: SentencePiece, WordPiece, BPE with morphological preservation analysis
 - **MultiBLiMP Evaluation**: 14 Hindi linguistic phenomena with 70+ minimal pairs
@@ -66,9 +65,7 @@ hindi-babylm/
 │   │   └── bert_model.py
 │   │
 │   ├── training/
-│   │   ├── trainer.py                # Enhanced trainer with curriculum learning
-│   │   ├── curriculum_learning.py    # 5 curriculum strategies
-│   │   ├── curriculum_schedule.py    # 5 scheduling approaches
+│   │   ├── trainer.py                # Enhanced trainer
 │   │   ├── optimizer_factory.py      # Multiple optimizer support
 │   │   ├── scheduler_factory.py      # LR scheduling strategies
 │   │   └── mixed_precision.py        # FP16/BF16 training
@@ -97,23 +94,20 @@ hindi-babylm/
 ├── experiments/
 │   ├── run_experiment.py             # Main experiment orchestrator
 │   ├── run_tokenization_experiments.py
-│   ├── run_architecture_experiments.py
-│   └── run_curriculum_experiments.py
+│   └── run_architecture_experiments.py
 │
 ├── configs/                          # Configuration Files
 │   ├── base_config.yaml              # Base configuration
 │   ├── tiny_model.yaml               # 50M parameter model
 │   ├── small_model.yaml              # 110M parameter model
-│   ├── medium_model.yaml             # 350M parameter model
-│   ├── curriculum_learning.yaml      # Curriculum learning configs
-│   └── position_encodings.yaml       # Position encoding variants
+│   └── medium_model.yaml             # 350M parameter model
 │
 ├── docs/                             # Comprehensive Documentation
 │   ├── 01_PROJECT_OVERVIEW.md        # Project architecture & phases
 │   ├── 02_DATA_PROCESSING.md         # Data pipeline & IndicCorp
 │   ├── 03_TOKENIZATION.md            # Tokenization strategies
-│   ├── 04_MODELS.md                  # Model architectures & position encodings
-│   ├── 05_TRAINING.md                # Training & curriculum learning
+│   ├── 04_MODELS.md                  # Model architectures
+│   ├── 05_TRAINING.md                # Training pipeline
 │   ├── 06_EVALUATION.md              # Evaluation frameworks
 │   ├── 07_CONFIGURATION.md           # Configuration guide
 │   ├── 08_ANALYSIS_AND_VISUALIZATION.md  # ResultsAnalyzer & ThesisPlotter
@@ -149,8 +143,7 @@ hindi-babylm/
 │   ├── run_data_processing.sh        # Data only (4h, CPU)
 │   ├── run_training.sh               # Training only (48h, 1 GPU)
 │   ├── run_evaluation.sh             # Evaluation only (8h, 1 GPU)
-│   ├── run_tiny_model.sh             # Quick test (12h, 1 GPU)
-│   └── run_curriculum_learning.sh    # Curriculum learning (48h, 1 GPU)
+│   └── run_tiny_model.sh             # Quick test (12h, 1 GPU)
 │
 └── logs/                             # SLURM job logs (created automatically)
 
@@ -197,7 +190,6 @@ Available SLURM scripts:
 - `run_training.sh` - Training only (48h, 1 GPU)
 - `run_evaluation.sh` - Evaluation only (8h, 1 GPU)
 - `run_tiny_model.sh` - Quick test (12h, 1 GPU)
-- `run_curriculum_learning.sh` - Curriculum learning (48h, 1 GPU)
 
 **Key Features:**
 - ✅ GPU auto-detection and setup
@@ -278,11 +270,11 @@ python main.py \
     --stage train \
     --experiment_name tiny_baseline
 
-# Train Small model (110M params) with curriculum learning
+# Train Small model (110M params)
 python main.py \
-    --config configs/curriculum_learning.yaml \
+    --config configs/small_model.yaml \
     --stage train \
-    --experiment_name small_curriculum
+    --experiment_name small_baseline
 ```
 
 **Evaluation Only** (requires trained model):
@@ -340,40 +332,6 @@ python main.py \
 ```
 
 ### Advanced Usage
-
-#### Experiment with Position Encodings
-
-```bash
-# Train with RoPE (Rotary Position Embeddings)
-python main.py \
-    --config configs/position_encodings.yaml \
-    --experiment_name rope_experiment
-
-# Train with ALiBi (Attention with Linear Biases)
-python main.py \
-    --config configs/position_encodings.yaml \
-    --experiment_name alibi_experiment
-
-# Compare all 5 position encoding types (automated suite)
-python experiments/run_architecture_experiments.py
-```
-
-#### Curriculum Learning Experiments
-
-```bash
-# Specific curriculum strategy with morphological ordering
-python main.py \
-    --config configs/curriculum_learning.yaml \
-    --experiment_name morphological_curriculum
-
-# Length-based curriculum learning
-python main.py \
-    --config configs/curriculum_learning.yaml \
-    --experiment_name length_curriculum
-
-# Run all 25 curriculum learning configurations (automated suite)
-python experiments/run_curriculum_experiments.py
-```
 
 #### Tokenization Comparison
 
@@ -482,7 +440,6 @@ tokenization:
 model:
   type: enhanced_gpt
   size: small            # tiny (50M), small (110M), medium (350M)
-  position_encoding: sinusoidal  # sinusoidal, learned, rope, alibi, relative_bias
   architecture:
     hidden_size: 768
     num_layers: 12
@@ -496,11 +453,6 @@ training:
   optimizer: adamw       # adamw, adam, sgd
   scheduler: cosine      # linear, cosine, constant
   mixed_precision: fp16  # fp16, bf16, fp32
-
-  curriculum:
-    use_curriculum: true
-    curriculum_strategy: morphological  # morphological, length, frequency, combined, dynamic
-    curriculum_schedule: linear         # linear, root, exponential, step, performance_based
 
 evaluation:
   benchmarks:
@@ -594,7 +546,7 @@ python src/analysis/results_analyzer.py \
 
 # Compare two specific experiments with statistical tests
 python src/analysis/results_analyzer.py \
-    --compare baseline_exp curriculum_exp \
+    --compare baseline_exp optimized_exp \
     --metric accuracy \
     --alpha 0.05
 ```
@@ -640,7 +592,7 @@ plotter = ThesisPlotter(style='thesis')  # Consistent IEEE/thesis styling
 
 # Training curves with confidence intervals
 fig = plotter.plot_training_curves_with_ci(
-    experiments=['baseline', 'curriculum'],
+    experiments=['baseline', 'optimized'],
     metrics=['loss', 'perplexity'],
     save_path='figures/training_comparison.png'
 )
@@ -657,8 +609,8 @@ Comprehensive documentation is available in the `docs/` directory:
 | [01_PROJECT_OVERVIEW.md](docs/01_PROJECT_OVERVIEW.md) | Project architecture, phases, and statistics |
 | [02_DATA_PROCESSING.md](docs/02_DATA_PROCESSING.md) | Data pipeline, IndicCorp downloader, quality filtering |
 | [03_TOKENIZATION.md](docs/03_TOKENIZATION.md) | Tokenization strategies and morphological analysis |
-| [04_MODELS.md](docs/04_MODELS.md) | Model architectures and 5 position encoding types |
-| [05_TRAINING.md](docs/05_TRAINING.md) | Training pipeline and curriculum learning (5×5 matrix) |
+| [04_MODELS.md](docs/04_MODELS.md) | Model architectures |
+| [05_TRAINING.md](docs/05_TRAINING.md) | Training pipeline |
 | [06_EVALUATION.md](docs/06_EVALUATION.md) | MultiBLiMP (14 phenomena), morphological probes (10 tasks) |
 | [07_CONFIGURATION.md](docs/07_CONFIGURATION.md) | Complete configuration reference |
 | [08_ANALYSIS_AND_VISUALIZATION.md](docs/08_ANALYSIS_AND_VISUALIZATION.md) | ResultsAnalyzer and ThesisPlotter API |
@@ -675,13 +627,10 @@ Comprehensive documentation is available in the `docs/` directory:
 # 1. Tokenization comparison (SentencePiece vs WordPiece vs BPE)
 python experiments/run_tokenization_experiments.py
 
-# 2. Position encoding comparison (5 types)
+# 2. Model architecture comparison
 python experiments/run_architecture_experiments.py
 
-# 3. Curriculum learning comparison (5 strategies × 5 schedules)
-python experiments/run_curriculum_experiments.py
-
-# 4. Model size comparison (Tiny 50M, Small 110M, Medium 350M)
+# 3. Model size comparison (Tiny 50M, Small 110M, Medium 350M)
 python experiments/run_model_size_experiments.py
 ```
 
@@ -746,26 +695,23 @@ python main.py \
 
 This implementation explores:
 
-1. **Position Encodings**: Which position encoding (RoPE, ALiBi, etc.) works best for Hindi's morphologically rich structure?
+1. **Data Efficiency**: Can models learn Hindi grammar with only 10M tokens (vs billions in typical pretraining)?
 
-2. **Curriculum Learning**: Does morphology-based curriculum learning improve syntactic competence more than length-based or frequency-based curricula?
+2. **Tokenization**: How do different tokenization strategies (SentencePiece, WordPiece, BPE) preserve Hindi morphological boundaries?
 
-3. **Data Efficiency**: Can models learn Hindi grammar with only 10M tokens (vs billions in typical pretraining)?
+3. **Model Size**: What's the optimal model size for data-efficient Hindi language modeling?
 
-4. **Tokenization**: How do different tokenization strategies (SentencePiece, WordPiece, BPE) preserve Hindi morphological boundaries?
-
-5. **Model Size**: What's the optimal model size for data-efficient Hindi language modeling?
+4. **Linguistic Competence**: How well do data-efficient models capture morphological and syntactic phenomena in Hindi?
 
 ## 📦 Project Statistics
 
 - **Total Lines of Code**: ~12,500 lines
 - **Documentation**: ~55,000 lines
 - **Python Modules**: 45+ files
-- **Configuration Templates**: 5 YAML files
+- **Configuration Templates**: 4 YAML files
 - **Evaluation Tasks**: 24 total (14 MultiBLiMP + 10 Probes)
-- **Supported Position Encodings**: 5 types
-- **Curriculum Strategies**: 5 strategies × 5 schedules = 25 combinations
 - **Model Sizes**: 3 (Tiny 50M, Small 110M, Medium 350M)
+- **Tokenization Methods**: 3 (SentencePiece, WordPiece, BPE)
 
 ## 🤝 Contributing
 
@@ -806,8 +752,8 @@ If you use this code or data for research, please cite:
   year={2025},
   school={Technical University of Munich},
   type={Master's Thesis},
-  note={Implementation includes 5 position encodings, curriculum learning (25 configurations),
-        MultiBLiMP evaluation (14 phenomena), and morphological probes (10 tasks)}
+  note={Implementation includes data-efficient language modeling for Hindi with
+        MultiBLiMP evaluation (14 phenomena) and morphological probes (10 tasks)}
 }
 ```
 

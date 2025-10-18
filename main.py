@@ -155,7 +155,7 @@ def stage_data_processing(
 
         # Step 1: Collect raw data
         logging.info("\n📥 Collecting data from all sources...")
-        raw_data = corpus_builder.collect_all_data()
+        raw_data = corpus_builder.collect_all_data(force_redownload=force_reprocess)
         total_raw = sum(len(texts) for texts in raw_data.values())
         logging.info(f"   Collected {total_raw:,} raw documents")
 

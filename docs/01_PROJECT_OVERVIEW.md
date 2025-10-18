@@ -18,7 +18,6 @@ Traditional language models require massive amounts of training data (billions t
 1. **Tokenization Strategy**: Which tokenization method (SentencePiece, WordPiece, BPE) best preserves morphological information in Hindi?
 2. **Model Architecture**: What architecture (GPT-style autoregressive, BERT-style masked LM, or hybrid) performs best with limited Hindi data?
 3. **Data Quality vs Quantity**: What types of text data are most valuable for learning Hindi linguistic competence?
-4. **Curriculum Learning**: Can developmental progressions (simpler → complex structures) improve learning efficiency?
 
 ## System Architecture
 
@@ -74,7 +73,6 @@ Traditional language models require massive amounts of training data (billions t
 │  • Max Epochs: 10                                           │
 │  • Gradient Clipping                                        │
 │  • Learning Rate Scheduling                                 │
-│  • Optional: Curriculum Learning                            │
 │  • Weights & Biases Integration                             │
 └───────────────────────────┬─────────────────────────────────┘
                             │
@@ -100,9 +98,7 @@ hindi-babylm/
 ├── README.md                    # Quick start guide
 │
 ├── configs/                     # Configuration files
-│   ├── base_config.yaml         # Base configuration
-│   ├── curriculum_config.yaml   # Curriculum learning configurations
-│   └── enhanced_model_config.yaml  # Enhanced model configurations
+│   └── base_config.yaml         # Base configuration
 │
 ├── src/                         # Source code
 │   ├── data_processing/         # Data collection & processing
@@ -125,13 +121,10 @@ hindi-babylm/
 │   ├── models/                  # Model architectures
 │   │   ├── model_factory.py            # Factory for creating models
 │   │   ├── gpt_model.py                # GPT-2 style model
-│   │   ├── enhanced_gpt.py             # Enhanced GPT with advanced features (Phase 1)
 │   │   └── bert_model.py               # BERT style model
 │   │
 │   ├── training/                # Training pipeline
-│   │   ├── trainer.py                  # Enhanced training loop (Phase 1)
-│   │   ├── curriculum_strategies.py    # Curriculum learning strategies (Phase 1)
-│   │   ├── curriculum_scheduler.py     # Curriculum progression schedules (Phase 1)
+│   │   ├── trainer.py                  # Training loop
 │   │   └── data_loader.py              # Data loading utilities
 │   │
 │   ├── evaluation/              # Evaluation framework

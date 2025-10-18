@@ -49,10 +49,10 @@ data:
   # Quality Filtering
   filtering:
     min_length: 0  # characters
-    max_length: 1000  # characters
+    max_length: 1000  # remove long characters
     min_hindi_ratio: 0.8  # Devanagari character ratio
     min_word_count: 3 # (to filter out very short lines)
-    max_word_count: 10000  # (to control extremely long lines)
+    max_word_count: 10000  # (to control extremely long lines) (can create trainig issues)
 
   # Deduplication
   deduplication:

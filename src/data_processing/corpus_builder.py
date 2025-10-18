@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import pickle
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from tqdm import tqdm
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
@@ -23,6 +23,7 @@ try:
     from .deduplicator import TextDeduplicator
     from .text_cleaner import clean_text
     from .data_mixer import DataMixer
+    from .cache_manager import check_cache_exists, load_from_cache, save_to_cache
 except ImportError:
     # Fallback for when script is run directly
     from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
@@ -32,6 +33,7 @@ except ImportError:
     from src.data_processing.deduplicator import TextDeduplicator
     from src.data_processing.text_cleaner import clean_text
     from src.data_processing.data_mixer import DataMixer
+    from src.data_processing.cache_manager import check_cache_exists, load_from_cache, save_to_cache
 
 
 class TextDataset(Dataset):
@@ -83,9 +85,62 @@ class CorpusBuilder:
         os.makedirs(os.path.join(self.data_dir, 'raw'), exist_ok=True)
         os.makedirs(os.path.join(self.data_dir, 'splits'), exist_ok=True)
 
-    def collect_all_data(self) -> Dict[str, List[str]]:
-        """Collect data from all sources"""
+    def _load_cached_source(self, source_name: str) -> Optional[List[str]]:
+        """
+        Load source data from cache if it exists
+
+        Args:
+            source_name: Name of source (e.g., 'indiccorp', 'wikipedia', 'childrens_stories')
+
+        Returns:
+            List of texts if cache exists, None otherwise
+        """
+        cache_path = os.path.join(self.data_dir, 'raw', f'{source_name}.pkl')
+
+        if not check_cache_exists(cache_path):
+            return None
+
+        try:
+            data = load_from_cache(cache_path, format='pickle')
+            if data is not None:
+                print(f"   ✓ Loaded {len(data):,} samples from cache: {source_name}.pkl")
+            return data
+        except Exception as e:
+            print(f"   ⚠ Failed to load cache for {source_name}: {e}")
+            return None
+
+    def _save_source_to_cache(self, data: List[str], source_name: str):
+        """
+        Save source data to separate cache file
+
+        Args:
+            data: List of text samples
+            source_name: Name of source (e.g., 'indiccorp', 'wikipedia', 'childrens_stories')
+        """
+        cache_path = os.path.join(self.data_dir, 'raw', f'{source_name}.pkl')
+
+        try:
+            success = save_to_cache(data, cache_path, format='pickle')
+            if success:
+                print(f"   ✓ Saved {len(data):,} samples to cache: {source_name}.pkl")
+        except Exception as e:
+            print(f"   ⚠ Failed to save cache for {source_name}: {e}")
+
+    def collect_all_data(self, force_redownload: bool = False) -> Dict[str, List[str]]:
+        """
+        Collect data from all sources with smart caching
+
+        Args:
+            force_redownload: If True, ignore cache and download fresh data
+
+        Returns:
+            Dictionary with data from all sources
+        """
         print("Collecting data from all sources...")
+        if force_redownload:
+            print("(Force redownload enabled - ignoring cache)\n")
+        else:
+            print("(Checking cache before downloading...)\n")
 
         all_data = {
             'indiccorp': [],
@@ -93,48 +148,98 @@ class CorpusBuilder:
             'childrens_books': []
         }
 
-        # Download IndicCorp Hindi (downloads hi-1.txt by default)
-        print("\n1. Downloading IndicCorp Hindi...")
-        try:
-            # download_indiccorp_hindi returns paths to downloaded/processed files
-            indiccorp_paths = download_indiccorp_hindi(
-                output_dir=os.path.join(self.data_dir, 'raw')
-            )
-            # Load the processed text from the downloaded file(s)
-            indiccorp_texts = []
-            for filename, file_path in indiccorp_paths.items():
-                if filename != 'metadata' and not filename.endswith('_pickle'):
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        indiccorp_texts.extend([line.strip() for line in f if line.strip()])
-            all_data['indiccorp'] = indiccorp_texts
-            print(f"   Downloaded {len(all_data['indiccorp'])} IndicCorp samples")
-        except Exception as e:
-            print(f"   Error downloading IndicCorp: {e}")
+        # 1. IndicCorp - check cache first
+        print("1. IndicCorp Hindi")
+        cached_indiccorp = None if force_redownload else self._load_cached_source('indiccorp')
+        if cached_indiccorp is not None:
+            all_data['indiccorp'] = cached_indiccorp
+            print(f"   Loaded {len(cached_indiccorp):,} samples from cache (skipping download)")
+        else:
+            print("   Cache not found, downloading...")
+            try:
+                # Download IndicCorp (file will be ~26.5GB on disk)
+                indiccorp_paths = download_indiccorp_hindi(
+                    output_dir=os.path.join(self.data_dir, 'raw')
+                )
 
-        # Scrape Wikipedia
-        print("\n2. Scraping Hindi Wikipedia...")
-        try:
-            wiki_categories = ['विज्ञान', 'इतिहास', 'भूगोल', 'साहित्य', 'कला']
-            wiki_articles = scrape_hindi_wikipedia(wiki_categories, max_articles=5000)
-            all_data['wikipedia'] = [article['text'] for article in wiki_articles]
-            print(f"   Scraped {len(all_data['wikipedia'])} Wikipedia articles")
-        except Exception as e:
-            print(f"   Error scraping Wikipedia: {e}")
+                # Process IndicCorp line-by-line to avoid loading entire 26.5GB into memory
+                # We'll stream and sample to fit within 50GB memory limit
+                print("   Processing IndicCorp (streaming to avoid memory issues)...")
+                indiccorp_texts = []
+                max_samples = self.config.__dict__.get('max_tokens', 10_000_000) // 10  # Rough estimate
 
-        # Collect children's books
-        print("\n3. Collecting children's stories...")
-        try:
-            stories = collect_childrens_stories()
-            all_data['childrens_books'] = stories
-            print(f"   Collected {len(all_data['childrens_books'])} children's stories")
-        except Exception as e:
-            print(f"   Error collecting children's books: {e}")
+                for filename, file_path in indiccorp_paths.items():
+                    if filename != 'metadata' and not filename.endswith('_pickle'):
+                        line_count = 0
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line:
+                                    indiccorp_texts.append(line)
+                                    line_count += 1
 
-        # Save raw data
-        raw_data_path = os.path.join(self.data_dir, 'raw', 'raw_corpus.pkl')
-        with open(raw_data_path, 'wb') as f:
-            pickle.dump(all_data, f)
-        print(f"\nRaw data saved to {raw_data_path}")
+                                    # Sample only what we need to stay under memory limit
+                                    if line_count >= max_samples:
+                                        print(f"   Reached sample limit ({max_samples:,} lines), stopping...")
+                                        break
+
+                        print(f"   Processed {line_count:,} lines from {filename}")
+
+                all_data['indiccorp'] = indiccorp_texts
+                print(f"   Total IndicCorp samples: {len(all_data['indiccorp']):,}")
+
+                # Save to cache for future runs
+                self._save_source_to_cache(all_data['indiccorp'], 'indiccorp')
+            except Exception as e:
+                print(f"   ⚠ Error downloading IndicCorp: {e}")
+
+        # 2. Wikipedia - check cache first
+        print("\n2. Hindi Wikipedia")
+        cached_wikipedia = None if force_redownload else self._load_cached_source('wikipedia')
+        if cached_wikipedia is not None:
+            all_data['wikipedia'] = cached_wikipedia
+            print(f"   Loaded {len(cached_wikipedia):,} articles from cache (skipping scraping)")
+        else:
+            print("   Cache not found, scraping...")
+            try:
+                wiki_categories = ['विज्ञान', 'इतिहास', 'भूगोल', 'साहित्य', 'कला']
+                wiki_articles = scrape_hindi_wikipedia(wiki_categories, max_articles=5000)
+                all_data['wikipedia'] = [article['text'] for article in wiki_articles]
+                print(f"   Scraped {len(all_data['wikipedia']):,} Wikipedia articles")
+
+                # Save to cache for future runs
+                self._save_source_to_cache(all_data['wikipedia'], 'wikipedia')
+            except Exception as e:
+                print(f"   ⚠ Error scraping Wikipedia: {e}")
+
+        # 3. Children's Stories - check cache first
+        print("\n3. Children's Stories")
+        cached_stories = None if force_redownload else self._load_cached_source('childrens_stories')
+        if cached_stories is not None:
+            all_data['childrens_books'] = cached_stories
+            print(f"   Loaded {len(cached_stories):,} stories from cache (skipping collection)")
+        else:
+            print("   Cache not found, collecting...")
+            try:
+                stories = collect_childrens_stories()
+                all_data['childrens_books'] = stories
+                print(f"   Collected {len(all_data['childrens_books']):,} children's stories")
+
+                # Save to cache for future runs (even if empty)
+                self._save_source_to_cache(all_data['childrens_books'], 'childrens_stories')
+            except Exception as e:
+                print(f"   ⚠ Error collecting children's books: {e}")
+                print(f"   Continuing without children's stories...")
+                all_data['childrens_books'] = []
+
+        # Print summary
+        print("\n" + "=" * 60)
+        print("Data Collection Summary:")
+        print(f"  IndicCorp:        {len(all_data['indiccorp']):,} samples")
+        print(f"  Wikipedia:        {len(all_data['wikipedia']):,} articles")
+        print(f"  Children's Books: {len(all_data['childrens_books']):,} stories")
+        print(f"  Total:            {sum(len(v) for v in all_data.values()):,} documents")
+        print("=" * 60 + "\n")
 
         return all_data
 
