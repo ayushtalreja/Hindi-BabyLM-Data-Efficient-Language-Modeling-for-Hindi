@@ -3,7 +3,7 @@
 #SBATCH --output=logs/eval_%j.out
 #SBATCH --error=logs/eval_%j.err
 #SBATCH --time=14:00:00
-#SBATCH --partition=mcml-hgx-a100-80x4-mig   
+#SBATCH --partition=lrz-hgx-h100-94x4      
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
