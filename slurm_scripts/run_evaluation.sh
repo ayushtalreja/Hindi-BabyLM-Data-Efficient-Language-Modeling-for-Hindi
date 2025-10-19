@@ -4,8 +4,8 @@
 #SBATCH --error=logs/eval_%j.err
 #SBATCH --time=14:00:00
 #SBATCH --partition=lrz-v100x2*        
-#SBATCH --gres=gpu:002
-#SBATCH --nodes=1
+#SBATCH --gres=gpu:1
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
