@@ -91,6 +91,7 @@ wandb/
 
 # Cache
 .cache/
+.eval_cache/
 *.cache
 __pycache__/
 
