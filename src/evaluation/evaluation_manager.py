@@ -3,6 +3,9 @@ import pandas as pd
 from datetime import datetime
 import os
 from typing import Dict
+from .indicglue_evaluator import IndicGLUEEvaluator
+from .multiblimp_evaluator import MultiBLiMPEvaluator
+from .morphological_probes import MorphologicalProbe
 
 class EvaluationManager:
     def __init__(self, model, tokenizer, config):
