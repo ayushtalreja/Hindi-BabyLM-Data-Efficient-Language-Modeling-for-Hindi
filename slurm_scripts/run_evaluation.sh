@@ -2,15 +2,15 @@
 #SBATCH --job-name=hindi_evaluation
 #SBATCH --output=logs/eval_%j.out
 #SBATCH --error=logs/eval_%j.err
-#SBATCH --time=08:00:00
-#SBATCH --partition=gpu_4
+#SBATCH --time=14:00:00
+#SBATCH --partition=lrz-dgx-a100-80x8
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=your.email@tum.de
+#SBATCH --mail-user=ayush1.kumar@tum.de
 
 # Hindi BabyLM Evaluation (GPU recommended)
 # Evaluates trained model on IndicGLUE, MultiBLiMP, and Morphological Probes
