@@ -236,6 +236,28 @@ training:
   deterministic: true
   cuda_deterministic_algorithms: false  # May reduce performance
 
+  # ==============================================================================
+  # NEW: Training Integration with Evaluation (Task 6)
+  # ==============================================================================
+
+  # Evaluation Callbacks
+  enable_eval_callback: true
+  eval_frequency: 1  # Evaluate every N epochs
+  eval_on_steps: []  # List of specific steps to evaluate on (empty = use frequency)
+  log_eval_to_wandb: true
+
+  # Evaluation-Based Early Stopping
+  eval_early_stopping: true
+  eval_early_stopping_metric: "overall.average_accuracy"  # Metric to monitor
+  eval_early_stopping_patience: 3  # Epochs without improvement
+  eval_early_stopping_mode: "max"  # 'max' for metrics that should increase, 'min' for decrease
+  eval_early_stopping_min_delta: 0.001  # Minimum change to qualify as improvement
+
+  # Checkpoint Selection Based on Evaluation
+  checkpoint_metric: "overall.average_accuracy"  # Metric for selecting best checkpoint
+  checkpoint_metric_mode: "max"  # 'max' or 'min'
+  load_best_checkpoint_at_end: true  # Load best checkpoint after training
+
 # ==============================================================================
 # EVALUATION CONFIGURATION
 # ==============================================================================
@@ -276,6 +298,29 @@ evaluation:
     max_length: 100
     num_samples: 50
     metrics: ["bleu", "rouge", "bertscore"]
+
+  # ==============================================================================
+  # NEW: Advanced Evaluation Features
+  # ==============================================================================
+
+  # Evaluation Caching (Task 3)
+  use_eval_cache: true
+  cache_dir: ".eval_cache"
+  max_cache_age_days: 30
+
+  # Metrics Standardization (Task 5)
+  bootstrap_samples: 1000  # Number of bootstrap samples for confidence intervals
+  confidence_level: 0.95  # 95% confidence intervals
+  aggregation_method: "macro"  # macro, micro, or weighted averaging
+
+  # Visualization Settings (Task 1 & 2)
+  save_visualizations: true
+  visualization_format: ["png", "html"]  # PNG for static, HTML for interactive
+
+  # Comparative Analysis (Task 4)
+  enable_comparative_reports: true
+  report_formats: ["html", "pdf"]
+  comparative_analysis_dir: "comparative_analysis"
 
 # ==============================================================================
 # EXPERIMENT TRACKING

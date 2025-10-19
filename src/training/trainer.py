@@ -27,6 +27,19 @@ from pathlib import Path
 
 from ..utils.seed_manager import SeedManager
 
+# Import evaluation callbacks
+try:
+    from ..evaluation.evaluation_callbacks import (
+        EvaluationCallback,
+        EvaluationBasedEarlyStopping,
+        CheckpointSelector,
+        create_evaluation_callback
+    )
+    EVAL_CALLBACKS_AVAILABLE = True
+except ImportError:
+    EVAL_CALLBACKS_AVAILABLE = False
+    logger.warning("Evaluation callbacks not available")
+
 logger = logging.getLogger(__name__)
 
 
@@ -123,7 +136,62 @@ class HindiLanguageModelTrainer:
             'best_val_loss': float('inf')
         }
 
+        # Initialize evaluation callbacks
+        self.eval_callback = None
+        self.eval_early_stopping = None
+        self.checkpoint_selector = None
+        self._init_evaluation_callbacks()
+
         logger.info("Trainer initialized successfully")
+
+    def _init_evaluation_callbacks(self):
+        """Initialize evaluation callbacks if enabled"""
+        if not EVAL_CALLBACKS_AVAILABLE:
+            logger.info("Evaluation callbacks not available, skipping initialization")
+            return
+
+        training_config = self.config.get('training', {})
+
+        # Initialize evaluation callback
+        if training_config.get('enable_eval_callback', False):
+            try:
+                self.eval_callback = create_evaluation_callback(
+                    self.model,
+                    self.tokenizer,
+                    self.config
+                )
+                logger.info("Evaluation callback initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize evaluation callback: {e}")
+                self.eval_callback = None
+
+        # Initialize evaluation-based early stopping
+        if training_config.get('eval_early_stopping', False):
+            try:
+                self.eval_early_stopping = EvaluationBasedEarlyStopping(
+                    metric_name=training_config.get('eval_early_stopping_metric', 'overall.average_accuracy'),
+                    patience=training_config.get('eval_early_stopping_patience', 3),
+                    min_delta=training_config.get('eval_early_stopping_min_delta', 0.001),
+                    mode=training_config.get('eval_early_stopping_mode', 'max'),
+                    verbose=True
+                )
+                logger.info("Evaluation-based early stopping initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize evaluation-based early stopping: {e}")
+                self.eval_early_stopping = None
+
+        # Initialize checkpoint selector
+        if training_config.get('checkpoint_metric'):
+            try:
+                self.checkpoint_selector = CheckpointSelector(
+                    checkpoint_dir=str(self.checkpoint_dir),
+                    metric_name=training_config.get('checkpoint_metric', 'overall.average_accuracy'),
+                    mode=training_config.get('checkpoint_metric_mode', 'max')
+                )
+                logger.info("Checkpoint selector initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize checkpoint selector: {e}")
+                self.checkpoint_selector = None
 
     def _create_optimizer(self) -> torch.optim.Optimizer:
         """Create optimizer from configuration"""
@@ -421,6 +489,18 @@ class HindiLanguageModelTrainer:
                     'epoch/number': epoch
                 })
 
+            # Run evaluation callback if enabled
+            eval_results = None
+            if self.eval_callback is not None:
+                try:
+                    eval_results = self.eval_callback.on_epoch_end(
+                        epoch=epoch,
+                        step=self.global_step,
+                        model=self.model
+                    )
+                except Exception as e:
+                    logger.error(f"Error in evaluation callback: {e}", exc_info=True)
+
             # Check for improvement
             improved = val_metrics['val_loss'] < (self.best_val_loss - self.early_stopping_threshold)
 
@@ -430,17 +510,39 @@ class HindiLanguageModelTrainer:
                 self.epochs_without_improvement = 0
 
                 # Save best model
-                self.save_checkpoint(epoch, val_metrics, is_best=True)
+                checkpoint_path = self.save_checkpoint(epoch, val_metrics, is_best=True)
+
+                # Register with checkpoint selector
+                if self.checkpoint_selector is not None and eval_results is not None:
+                    self.checkpoint_selector.register_checkpoint(checkpoint_path, eval_results)
+
             else:
                 self.epochs_without_improvement += 1
                 logger.info(f"No improvement for {self.epochs_without_improvement} epoch(s)")
 
                 # Save regular checkpoint
-                self.save_checkpoint(epoch, val_metrics, is_best=False)
+                checkpoint_path = self.save_checkpoint(epoch, val_metrics, is_best=False)
 
-            # Early stopping check
+                # Register with checkpoint selector
+                if self.checkpoint_selector is not None and eval_results is not None:
+                    self.checkpoint_selector.register_checkpoint(checkpoint_path, eval_results)
+
+            # Check evaluation-based early stopping
+            should_stop_eval = False
+            if self.eval_early_stopping is not None and eval_results is not None:
+                try:
+                    should_stop_eval = self.eval_early_stopping(eval_results)
+                except Exception as e:
+                    logger.error(f"Error in evaluation-based early stopping: {e}")
+
+            # Early stopping check (validation loss)
             if self.epochs_without_improvement >= self.early_stopping_patience:
-                logger.info(f"Early stopping triggered after {epoch + 1} epochs")
+                logger.info(f"Early stopping triggered (validation loss) after {epoch + 1} epochs")
+                break
+
+            # Early stopping check (evaluation metric)
+            if should_stop_eval:
+                logger.info(f"Early stopping triggered (evaluation metric) after {epoch + 1} epochs")
                 break
 
             # Check max steps
@@ -450,6 +552,31 @@ class HindiLanguageModelTrainer:
         logger.info("\n" + "="*60)
         logger.info("Training completed!")
         logger.info(f"Best validation loss: {self.best_val_loss:.4f}")
+
+        # Load best checkpoint if requested
+        if self.config.get('training', {}).get('load_best_checkpoint_at_end', False):
+            if self.checkpoint_selector is not None:
+                best_checkpoint = self.checkpoint_selector.get_best_checkpoint()
+                if best_checkpoint:
+                    logger.info(f"Loading best checkpoint: {best_checkpoint}")
+                    try:
+                        self.load_checkpoint(best_checkpoint)
+                        logger.info("Best checkpoint loaded successfully")
+                    except Exception as e:
+                        logger.error(f"Error loading best checkpoint: {e}")
+                else:
+                    logger.warning("No best checkpoint available")
+            else:
+                # Fall back to loading checkpoint_best.pt if it exists
+                best_checkpoint = self.checkpoint_dir / 'checkpoint_best.pt'
+                if best_checkpoint.exists():
+                    logger.info(f"Loading best checkpoint: {best_checkpoint}")
+                    try:
+                        self.load_checkpoint(str(best_checkpoint))
+                        logger.info("Best checkpoint loaded successfully")
+                    except Exception as e:
+                        logger.error(f"Error loading best checkpoint: {e}")
+
         logger.info("="*60)
 
         # Save final model
@@ -460,7 +587,7 @@ class HindiLanguageModelTrainer:
             wandb.finish()
 
     def save_checkpoint(self, epoch: int, metrics: Dict[str, float],
-                       is_best: bool = False, is_final: bool = False):
+                       is_best: bool = False, is_final: bool = False) -> str:
         """
         Save training checkpoint
 
@@ -469,6 +596,9 @@ class HindiLanguageModelTrainer:
             metrics: Current metrics
             is_best: Whether this is the best model so far
             is_final: Whether this is the final checkpoint
+
+        Returns:
+            Path to saved checkpoint
         """
         checkpoint = {
             'epoch': epoch,
@@ -498,6 +628,8 @@ class HindiLanguageModelTrainer:
         # Cleanup old checkpoints (keep only last N)
         if not is_best and not is_final:
             self._cleanup_checkpoints()
+
+        return str(checkpoint_path)
 
     def _cleanup_checkpoints(self):
         """Remove old checkpoints keeping only the most recent N"""
