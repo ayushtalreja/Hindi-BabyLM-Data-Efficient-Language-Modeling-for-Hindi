@@ -232,3 +232,4 @@ with open(notebook_path, 'w', encoding='utf-8') as f:
 
 print(f"✅ Added Section 2 cells to notebook")
 print(f"📄 Notebook now has {len(notebook['cells'])} cells")
+

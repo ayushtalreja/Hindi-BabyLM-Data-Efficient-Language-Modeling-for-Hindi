@@ -69,6 +69,7 @@ class HindiLanguageModelTrainer:
         self.model = model
         self.tokenizer = tokenizer
         self.config = config
+        self.experiment_name = config.get('experiment_name', 'default_experiment')
 
         # Setup seed for reproducibility
         self.seed_manager = SeedManager(
@@ -101,7 +102,9 @@ class HindiLanguageModelTrainer:
         self.scaler = GradScaler() if self.use_amp else None
 
         # Checkpointing
-        self.checkpoint_dir = Path(config.get('checkpoint_dir', 'checkpoints'))
+        # Use model_dir/checkpoints to match ModelFactory's loading path
+        model_dir = config.get('model_dir', 'models')
+        self.checkpoint_dir = Path(model_dir) / 'checkpoints'
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.save_steps = config.get('save_steps', 1000)
         self.save_total_limit = config.get('save_total_limit', 3)
@@ -567,8 +570,8 @@ class HindiLanguageModelTrainer:
                 else:
                     logger.warning("No best checkpoint available")
             else:
-                # Fall back to loading checkpoint_best.pt if it exists
-                best_checkpoint = self.checkpoint_dir / 'checkpoint_best.pt'
+                # Fall back to loading {experiment_name}_best.pt if it exists
+                best_checkpoint = self.checkpoint_dir / f'{self.experiment_name}_best.pt'
                 if best_checkpoint.exists():
                     logger.info(f"Loading best checkpoint: {best_checkpoint}")
                     try:
@@ -613,13 +616,13 @@ class HindiLanguageModelTrainer:
             'metrics_history': self.metrics_history
         }
 
-        # Determine checkpoint name
+        # Determine checkpoint name (include experiment_name to match ModelFactory)
         if is_final:
-            checkpoint_name = 'checkpoint_final.pt'
+            checkpoint_name = f'{self.experiment_name}_final.pt'
         elif is_best:
-            checkpoint_name = 'checkpoint_best.pt'
+            checkpoint_name = f'{self.experiment_name}_best.pt'
         else:
-            checkpoint_name = f'checkpoint_epoch_{epoch}.pt'
+            checkpoint_name = f'{self.experiment_name}_epoch_{epoch}.pt'
 
         checkpoint_path = self.checkpoint_dir / checkpoint_name
         torch.save(checkpoint, checkpoint_path)
@@ -634,7 +637,7 @@ class HindiLanguageModelTrainer:
     def _cleanup_checkpoints(self):
         """Remove old checkpoints keeping only the most recent N"""
         checkpoints = sorted(
-            [f for f in self.checkpoint_dir.glob('checkpoint_epoch_*.pt')],
+            [f for f in self.checkpoint_dir.glob(f'{self.experiment_name}_epoch_*.pt')],
             key=lambda x: x.stat().st_mtime
         )
 
