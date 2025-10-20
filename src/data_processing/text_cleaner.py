@@ -54,7 +54,7 @@ class HindiTextCleaner:
         text = re.sub(r'[\u200B\u200C\u200D\uFEFF]', '', text)
 
         # Normalize numbers: convert English digits to Devanagari if needed (optional)
-        # text = text.translate(str.maketrans('0123456789', '०१२३४५६७८९'))
+        text = text.translate(str.maketrans('0123456789', '०१२३४५६७८९'))
 
         return text
 
