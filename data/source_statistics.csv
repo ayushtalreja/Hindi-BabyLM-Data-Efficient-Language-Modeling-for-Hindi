@@ -1,0 +1,4 @@
+,n_documents,total_characters,total_words,unique_words,type_token_ratio,avg_doc_length_words,median_doc_length_words,std_doc_length_words,avg_doc_length_chars,min_doc_length,max_doc_length
+IndicCorp,1000000.0,294153009.0,57516076.0,1032555.0,0.01795245906553152,57.516076,42.0,109.90807270424783,293.15301,1.0,19709.0
+Wikipedia,5000.0,16189349.0,2927818.0,241810.0,0.08259051621378105,585.5636,216.0,1192.3509887424257,3236.87,14.0,23636.0
+Children,,,,,,,,,,,

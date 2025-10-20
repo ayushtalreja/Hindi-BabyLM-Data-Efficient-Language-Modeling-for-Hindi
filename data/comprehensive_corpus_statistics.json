@@ -1,0 +1,53 @@
+{
+  "IndicCorp": {
+    "n_documents": 1000000,
+    "total_characters": 294153009,
+    "total_words": 57516076,
+    "unique_words": 1032555,
+    "type_token_ratio": 0.01795245906553152,
+    "avg_doc_length_words": 57.516076,
+    "median_doc_length_words": 42.0,
+    "std_doc_length_words": 109.90807270424783,
+    "avg_doc_length_chars": 293.15301,
+    "min_doc_length": 1,
+    "max_doc_length": 19709,
+    "ttr": 0.01795245906553152,
+    "root_ttr": 136.15028964497247,
+    "corrected_ttr": 96.27279306847262,
+    "hapax_ratio": 0.6330306860167255,
+    "dis_ratio": 0.12226854743815099,
+    "hapax_count": 653639,
+    "dis_count": 126249,
+    "questions": 50591,
+    "negations": 4960600,
+    "formal_pronouns": 73078
+  },
+  "Wikipedia": {
+    "n_documents": 5000,
+    "total_characters": 16189349,
+    "total_words": 2927818,
+    "unique_words": 241810,
+    "type_token_ratio": 0.08259051621378105,
+    "avg_doc_length_words": 585.5636,
+    "median_doc_length_words": 216.0,
+    "std_doc_length_words": 1192.3509887424257,
+    "avg_doc_length_chars": 3236.87,
+    "min_doc_length": 14,
+    "max_doc_length": 23636,
+    "ttr": 0.08259051621378105,
+    "root_ttr": 141.31954120239138,
+    "corrected_ttr": 99.92800589838265,
+    "hapax_ratio": 0.657971134361689,
+    "dis_ratio": 0.126942640916422,
+    "hapax_count": 159104,
+    "dis_count": 30696,
+    "questions": 2708,
+    "negations": 237282,
+    "formal_pronouns": 992
+  },
+  "Children": {
+    "questions": 0,
+    "negations": 0,
+    "formal_pronouns": 0
+  }
+}
