@@ -110,9 +110,24 @@ class ModelFactory:
 
         # Get vocab size from checkpoint if not provided
         if vocab_size is None:
+            # Try multiple sources for vocab_size
             vocab_size = checkpoint.get('vocab_size')
+
             if vocab_size is None:
-                raise ValueError("vocab_size not found in checkpoint and not provided")
+                # Try to get from config dict
+                saved_config = checkpoint.get('config', {})
+                if isinstance(saved_config, dict):
+                    vocab_size = saved_config.get('vocab_size')
+                else:
+                    # Config might be an object with attributes
+                    vocab_size = getattr(saved_config, 'vocab_size', None)
+
+            if vocab_size is None:
+                raise ValueError(
+                    f"vocab_size not found in checkpoint and not provided.\n"
+                    f"Checkpoint keys: {list(checkpoint.keys())}\n"
+                    f"Please provide vocab_size explicitly or ensure tokenizer is saved alongside model."
+                )
 
         # Create model with same architecture
         model_type = checkpoint.get('model_type', self.model_type)
@@ -140,7 +155,14 @@ class ModelFactory:
         return model
 
     def load_trained_model(self, experiment_name: str):
-        """Load a trained model by experiment name"""
+        """Load a trained model by experiment name
+
+        Args:
+            experiment_name: Name of the experiment or path to experiment directory
+
+        Returns:
+            Loaded model
+        """
         # Try to find checkpoint
         checkpoint_path = os.path.join(self.model_dir, 'checkpoints', f"{experiment_name}_final.pt")
 
@@ -151,7 +173,33 @@ class ModelFactory:
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(f"No checkpoint found for experiment: {experiment_name}")
 
-        return self.load_model(checkpoint_path)
+        # Try to load tokenizer to get vocab_size
+        vocab_size = None
+        try:
+            # Import here to avoid circular dependency
+            from ..tokenization.tokenizer_factory import TokenizerFactory
+
+            # Try to find tokenizer - check multiple paths
+            tokenizer_paths = [
+                os.path.join('results', experiment_name, 'tokenizer'),  # Standard experiment path
+                os.path.join(self.model_dir, 'tokenizer'),  # Model dir path
+                'tokenizer'  # Default path
+            ]
+
+            for tokenizer_path in tokenizer_paths:
+                if os.path.exists(tokenizer_path):
+                    try:
+                        tokenizer = TokenizerFactory.load_tokenizer(tokenizer_path)
+                        vocab_size = tokenizer.vocab_size
+                        print(f"Loaded vocab_size={vocab_size} from tokenizer at {tokenizer_path}")
+                        break
+                    except Exception as e:
+                        print(f"Failed to load tokenizer from {tokenizer_path}: {e}")
+                        continue
+        except Exception as e:
+            print(f"Warning: Could not load tokenizer to extract vocab_size: {e}")
+
+        return self.load_model(checkpoint_path, vocab_size=vocab_size)
 
     def save_checkpoint(self, model, optimizer, epoch: int, step: int, metrics: Dict[str, float]):
         """Save training checkpoint with optimizer state"""

@@ -71,6 +71,10 @@ class HindiLanguageModelTrainer:
         self.config = config
         self.experiment_name = config.get('experiment_name', 'default_experiment')
 
+        # Store vocab_size and model_type for checkpoint saving
+        self.vocab_size = tokenizer.vocab_size if hasattr(tokenizer, 'vocab_size') else None
+        self.model_type = config.get('model_type', 'gpt')
+
         # Setup seed for reproducibility
         self.seed_manager = SeedManager(
             seed=config.get('seed', 42),
@@ -613,7 +617,11 @@ class HindiLanguageModelTrainer:
             'metrics': metrics,
             'config': self.config,
             'best_val_loss': self.best_val_loss,
-            'metrics_history': self.metrics_history
+            'metrics_history': self.metrics_history,
+            # Add vocab_size and model_type for ModelFactory compatibility
+            'vocab_size': self.vocab_size,
+            'model_type': self.model_type,
+            'experiment_name': self.experiment_name
         }
 
         # Determine checkpoint name (include experiment_name to match ModelFactory)
