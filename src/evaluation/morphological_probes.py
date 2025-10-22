@@ -21,7 +21,6 @@ Reference: Conneau et al. (2018) "What you can cram into a single $&!#* vector"
 """
 
 import torch
-import torch.nn as nn
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, classification_report
@@ -29,7 +28,6 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 from typing import Dict, List, Tuple, Optional
 import logging
-from collections import defaultdict
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -276,11 +274,58 @@ class MorphologicalProbe:
         X = representations.cpu().numpy()
         y = np.array(labels)
 
+        # Determine appropriate test size based on dataset and number of classes
+        num_samples = len(y)
+        num_classes = len(np.unique(y))
+
+        # Calculate minimum test samples needed for stratified split
+        min_test_samples = num_classes  # At least 1 sample per class
+
+        # Determine test_size (use proportion if dataset is large enough, otherwise use absolute number)
+        if isinstance(self.test_size, float):
+            # test_size is a proportion (e.g., 0.2)
+            proposed_test_size = int(self.test_size * num_samples)
+
+            if proposed_test_size < min_test_samples:
+                # Dataset too small for this proportion, use absolute number
+                test_size_to_use = max(min_test_samples, min(num_samples // 3, 10))
+                logger.warning(
+                    f"{task}: Dataset size ({num_samples}) too small for test_size={self.test_size}. "
+                    f"Using {test_size_to_use} test samples instead."
+                )
+            else:
+                test_size_to_use = self.test_size
+        else:
+            # test_size is already an absolute number
+            test_size_to_use = self.test_size
+
+        # Check if stratification is possible
+        # For stratified split, each class needs at least 2 samples (1 train, 1 test)
+        class_counts = pd.Series(y).value_counts()
+        can_stratify = all(count >= 2 for count in class_counts) and num_samples >= num_classes * 2
+
+        if not can_stratify:
+            logger.warning(
+                f"{task}: Cannot stratify - some classes have < 2 samples. "
+                f"Using random split instead."
+            )
+            stratify_param = None
+        else:
+            stratify_param = y if num_classes > 1 else None
+
         # Split train/test
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=self.test_size, random_state=self.random_state,
-            stratify=y if len(np.unique(y)) > 1 else None
-        )
+        try:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size_to_use, random_state=self.random_state,
+                stratify=stratify_param
+            )
+        except ValueError as e:
+            # If stratification still fails, fall back to non-stratified split
+            logger.warning(f"{task}: Stratified split failed ({e}), using random split")
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size_to_use, random_state=self.random_state,
+                stratify=None
+            )
 
         # Train logistic regression probe
         probe = LogisticRegression(
@@ -360,42 +405,101 @@ class MorphologicalProbe:
     def _create_case_probe_data(self) -> Tuple[List[str], List[int], List[str]]:
         """Create probe data for case detection"""
         data = [
-            # Ergative (ने)
+            # Ergative (ने) - 10 examples
             ("राम ने किताब पढ़ी", 0, "ergative"),
             ("सीता ने खाना बनाया", 0, "ergative"),
             ("लड़के ने गाना गाया", 0, "ergative"),
             ("उसने पत्र लिखा", 0, "ergative"),
+            ("मैंने फिल्म देखी", 0, "ergative"),
+            ("बच्चों ने खेल खेला", 0, "ergative"),
+            ("शिक्षक ने पाठ पढ़ाया", 0, "ergative"),
+            ("माँ ने रोटी बनाई", 0, "ergative"),
+            ("पिता ने काम किया", 0, "ergative"),
+            ("लड़की ने गीत गाया", 0, "ergative"),
 
-            # Nominative (no marker)
+            # Nominative (no marker) - 10 examples
             ("राम जाता है", 0, "nominative"),
             ("लड़का खेलता है", 0, "nominative"),
             ("बच्चा सोता है", 0, "nominative"),
             ("कुत्ता भौंकता है", 0, "nominative"),
+            ("सीता हंसती है", 0, "nominative"),
+            ("लड़की पढ़ती है", 0, "nominative"),
+            ("मोहन आता है", 0, "nominative"),
+            ("शेर दहाड़ता है", 0, "nominative"),
+            ("पक्षी उड़ता है", 0, "nominative"),
+            ("बिल्ली म्याऊं करती है", 0, "nominative"),
 
-            # Accusative/Dative (को)
+            # Accusative (को) - 10 examples
             ("मैंने राम को देखा", 2, "accusative"),
             ("उसने बच्चे को बुलाया", 2, "accusative"),
+            ("शिक्षक ने छात्र को पढ़ाया", 2, "accusative"),
+            ("मैंने सीता को पहचाना", 2, "accusative"),
+            ("पिता ने बेटे को समझाया", 2, "accusative"),
+            ("लड़के ने मित्र को गाना सुनाया", 2, "accusative"),
+            ("मैंने तुम्हें देखा", 2, "accusative"),
+            ("उसने मुझे बताया", 2, "accusative"),
+            ("राम ने लक्ष्मण को बुलाया", 2, "accusative"),
+            ("सीता ने राधा को देखा", 2, "accusative"),
+
+            # Dative (को) - 10 examples
             ("मैंने राम को किताब दी", 2, "dative"),
             ("उसने मुझे पत्र भेजा", 2, "dative"),
+            ("शिक्षक ने छात्र को पुरस्कार दिया", 2, "dative"),
+            ("मैंने बच्चे को खिलौना दिया", 2, "dative"),
+            ("सीता ने गीता को फूल दिए", 2, "dative"),
+            ("पिता ने बेटे को उपहार दिया", 2, "dative"),
+            ("मैंने तुम्हें पैसे दिए", 2, "dative"),
+            ("राम ने लक्ष्मण को सलाह दी", 2, "dative"),
+            ("माँ ने बच्चे को दूध दिया", 2, "dative"),
+            ("मित्र ने मुझे किताब दी", 2, "dative"),
 
-            # Ablative (से)
+            # Ablative (से - source/origin) - 10 examples
             ("राम से बात हुई", 0, "ablative"),
             ("मैं घर से आया", 1, "ablative"),
             ("दिल्ली से मुंबई", 0, "ablative"),
+            ("वह स्कूल से आई", 1, "ablative"),
+            ("बच्चे पार्क से लौटे", 1, "ablative"),
+            ("मैं बाजार से आ रहा हूं", 1, "ablative"),
+            ("वह दफ्तर से जा रहा है", 1, "ablative"),
+            ("लड़की मंदिर से आई", 1, "ablative"),
+            ("हम शहर से गांव गए", 1, "ablative"),
+            ("वह विदेश से लौटा", 1, "ablative"),
 
-            # Locative (में/पर)
-            ("राम में अच्छाई है", 0, "locative"),
-            ("मेज पर किताब है", 0, "locative"),
+            # Locative (में/पर) - 10 examples
             ("घर में बच्चे हैं", 0, "locative"),
+            ("मेज पर किताब है", 0, "locative"),
+            ("कमरे में बिस्तर है", 0, "locative"),
+            ("बगीचे में फूल हैं", 0, "locative"),
+            ("पेड़ पर पक्षी बैठा है", 0, "locative"),
+            ("दीवार पर तस्वीर है", 0, "locative"),
+            ("कुर्सी पर लड़का बैठा है", 0, "locative"),
+            ("बक्से में किताबें हैं", 0, "locative"),
+            ("भारत में लोग रहते हैं", 0, "locative"),
+            ("दिल्ली में ताजमहल नहीं है", 0, "locative"),
 
-            # Instrumental (से - instrumental use)
+            # Instrumental (से - instrument) - 10 examples
             ("चाकू से काटो", 0, "instrumental"),
             ("कलम से लिखो", 0, "instrumental"),
+            ("हाथ से खाओ", 0, "instrumental"),
+            ("चम्मच से खाओ", 0, "instrumental"),
+            ("ब्रश से साफ करो", 0, "instrumental"),
+            ("तलवार से लड़ो", 0, "instrumental"),
+            ("कैंची से काटो", 0, "instrumental"),
+            ("हथौड़ी से ठोको", 0, "instrumental"),
+            ("पेंसिल से लिखो", 0, "instrumental"),
+            ("रस्सी से बांधो", 0, "instrumental"),
 
-            # Genitive (का/की/के)
+            # Genitive (का/की/के) - 10 examples
             ("राम की किताब", 0, "genitive"),
             ("लड़के का नाम", 0, "genitive"),
             ("बच्चों के खिलौने", 0, "genitive"),
+            ("सीता की साड़ी", 0, "genitive"),
+            ("शिक्षक का घर", 0, "genitive"),
+            ("लड़की के बाल", 0, "genitive"),
+            ("पिता की कार", 0, "genitive"),
+            ("भारत की राजधानी", 0, "genitive"),
+            ("मोहन के मित्र", 0, "genitive"),
+            ("माँ का प्यार", 0, "genitive"),
         ]
 
         sentences, positions, labels = zip(*data)
@@ -547,19 +651,29 @@ class MorphologicalProbe:
     def _create_voice_probe_data(self) -> Tuple[List[str], List[int], List[str]]:
         """Create probe data for voice detection"""
         data = [
-            # Active
+            # Active - 6 examples
             ("राम ने किताब पढ़ी", 3, "active"),
             ("सीता ने खाना बनाया", 3, "active"),
             ("मैंने पत्र लिखा", 2, "active"),
+            ("लड़के ने गाना गाया", 3, "active"),
+            ("शिक्षक ने पाठ पढ़ाया", 3, "active"),
+            ("पिता ने काम किया", 3, "active"),
 
-            # Passive (जाना auxiliary)
+            # Passive (जाना auxiliary) - 6 examples
             ("किताब पढ़ी गई", 1, "passive"),
             ("खाना बनाया गया", 1, "passive"),
             ("पत्र लिखा गया", 1, "passive"),
+            ("गाना गाया गया", 1, "passive"),
+            ("काम किया गया", 1, "passive"),
+            ("पाठ पढ़ाया गया", 1, "passive"),
 
-            # Causative (वाना/लाना)
+            # Causative (वाना/लाना) - 6 examples
             ("मैंने राम से किताब पढ़वाई", 4, "causative"),
             ("उसने मुझसे खाना बनवाया", 3, "causative"),
+            ("शिक्षक ने छात्र से पाठ पढ़वाया", 4, "causative"),
+            ("मैंने बच्चे से काम करवाया", 4, "causative"),
+            ("उसने मुझसे पत्र लिखवाया", 4, "causative"),
+            ("राम ने सीता से गाना गवाया", 4, "causative"),
         ]
 
         sentences, positions, labels = zip(*data)
@@ -568,18 +682,29 @@ class MorphologicalProbe:
     def _create_honorific_probe_data(self) -> Tuple[List[str], List[int], List[str]]:
         """Create probe data for honorific detection"""
         data = [
-            # Non-honorific (तू)
+            # Non-honorific (तू) - 6 examples
             ("तू जाता है", 0, "non_honorific"),
             ("तू खाता है", 0, "non_honorific"),
+            ("तू पढ़ता है", 0, "non_honorific"),
+            ("तू खेलता है", 0, "non_honorific"),
+            ("तू सोता है", 0, "non_honorific"),
+            ("तू दौड़ता है", 0, "non_honorific"),
 
-            # Mid-honorific (तुम)
+            # Mid-honorific (तुम) - 6 examples
             ("तुम जाते हो", 0, "honorific"),
             ("तुम खाते हो", 0, "honorific"),
+            ("तुम पढ़ते हो", 0, "honorific"),
+            ("तुम खेलते हो", 0, "honorific"),
+            ("तुम सोते हो", 0, "honorific"),
+            ("तुम दौड़ते हो", 0, "honorific"),
 
-            # High-honorific (आप)
+            # High-honorific (आप) - 6 examples
             ("आप जाते हैं", 0, "high_honorific"),
             ("आप खाते हैं", 0, "high_honorific"),
             ("गुरुजी पढ़ाते हैं", 0, "high_honorific"),
+            ("आप पढ़ते हैं", 0, "high_honorific"),
+            ("आप खेलते हैं", 0, "high_honorific"),
+            ("महाराज बैठे हैं", 0, "high_honorific"),
         ]
 
         sentences, positions, labels = zip(*data)
