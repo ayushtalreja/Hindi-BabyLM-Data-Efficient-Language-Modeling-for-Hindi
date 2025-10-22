@@ -56,21 +56,31 @@ class EvaluationManager:
             'model_config': self.config,
             'overall_scores': {}
         }
-        
-        # IndicGLUE average
-        indicglue_scores = [v.get('accuracy', 0) for v in self.results['indicglue'].values() if 'accuracy' in v]
-        if indicglue_scores:
-            summary['overall_scores']['indicglue_avg'] = sum(indicglue_scores) / len(indicglue_scores)
-        
-        # MultiBLiMP overall
-        if 'overall' in self.results['multiblimp']:
-            summary['overall_scores']['multiblimp_accuracy'] = self.results['multiblimp']['overall']['accuracy']
-        
-        # Morphological probes average
-        probe_scores = [v.get('accuracy', 0) for v in self.results['morphological_probes'].values() if 'accuracy' in v]
-        if probe_scores:
-            summary['overall_scores']['morphological_avg'] = sum(probe_scores) / len(probe_scores)
-        
+
+        # IndicGLUE average (defensive - handle missing results)
+        if 'indicglue' in self.results:
+            indicglue_scores = [v.get('accuracy', 0) for v in self.results['indicglue'].values()
+                               if isinstance(v, dict) and 'accuracy' in v]
+            if indicglue_scores:
+                summary['overall_scores']['indicglue_avg'] = sum(indicglue_scores) / len(indicglue_scores)
+
+        # MultiBLiMP overall (use correct key: 'average_accuracy' or 'overall_accuracy')
+        if 'multiblimp' in self.results and 'overall' in self.results['multiblimp']:
+            multiblimp_overall = self.results['multiblimp']['overall']
+            # Try multiple possible keys for robustness
+            summary['overall_scores']['multiblimp_accuracy'] = (
+                multiblimp_overall.get('average_accuracy') or
+                multiblimp_overall.get('overall_accuracy') or
+                multiblimp_overall.get('accuracy', 0.0)
+            )
+
+        # Morphological probes average (defensive - handle missing results)
+        if 'morphological_probes' in self.results:
+            probe_scores = [v.get('accuracy', 0) for v in self.results['morphological_probes'].values()
+                           if isinstance(v, dict) and 'accuracy' in v]
+            if probe_scores:
+                summary['overall_scores']['morphological_avg'] = sum(probe_scores) / len(probe_scores)
+
         return summary
     
     def save_results(self):
