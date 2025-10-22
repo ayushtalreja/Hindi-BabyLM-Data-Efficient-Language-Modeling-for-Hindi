@@ -171,9 +171,29 @@ class MetricsAggregator:
         Returns:
             Metric object with value and optional confidence interval
         """
-        # Convert to numpy arrays
+        # Convert to numpy arrays and ensure 1D shape
         y_true = np.array(y_true)
         y_pred = np.array(y_pred)
+
+        # Flatten to 1D to ensure consistent shape (handles both 1D and 2D inputs)
+        # This prevents "mix of multiclass and multiclass-multioutput" errors
+        if y_true.ndim > 1:
+            y_true = y_true.flatten()
+        if y_pred.ndim > 1:
+            y_pred = y_pred.flatten()
+
+        # Validate that arrays have the same length
+        if len(y_true) != len(y_pred):
+            logger.error(
+                f"Shape mismatch: y_true has {len(y_true)} elements, "
+                f"y_pred has {len(y_pred)} elements"
+            )
+            return Metric(
+                name=f"{metric_name}_{average}" if average else metric_name,
+                value=0.0,
+                n_samples=0,
+                metadata={'error': 'shape_mismatch'}
+            )
 
         if len(y_true) == 0:
             logger.warning(f"Empty input for metric {metric_name}")
@@ -313,9 +333,23 @@ class MetricsAggregator:
         Returns:
             Dictionary mapping class index to dict of metrics
         """
-        # Convert to numpy arrays
+        # Convert to numpy arrays and ensure 1D shape
         y_true = np.array(y_true)
         y_pred = np.array(y_pred)
+
+        # Flatten to 1D to ensure consistent shape
+        if y_true.ndim > 1:
+            y_true = y_true.flatten()
+        if y_pred.ndim > 1:
+            y_pred = y_pred.flatten()
+
+        # Validate that arrays have the same length
+        if len(y_true) != len(y_pred):
+            logger.error(
+                f"Shape mismatch in per-class metrics: y_true has {len(y_true)} elements, "
+                f"y_pred has {len(y_pred)} elements"
+            )
+            return {}
 
         # Get unique classes
         classes = np.unique(np.concatenate([y_true, y_pred]))
@@ -451,8 +485,24 @@ class MetricsAggregator:
         Returns:
             Tuple of (confusion_matrix, labels)
         """
+        # Convert to numpy arrays and ensure 1D shape
         y_true = np.array(y_true)
         y_pred = np.array(y_pred)
+
+        # Flatten to 1D to ensure consistent shape
+        if y_true.ndim > 1:
+            y_true = y_true.flatten()
+        if y_pred.ndim > 1:
+            y_pred = y_pred.flatten()
+
+        # Validate that arrays have the same length
+        if len(y_true) != len(y_pred):
+            logger.error(
+                f"Shape mismatch in confusion matrix: y_true has {len(y_true)} elements, "
+                f"y_pred has {len(y_pred)} elements"
+            )
+            # Return empty confusion matrix
+            return np.array([[]]), []
 
         # Get all labels
         labels = sorted(np.unique(np.concatenate([y_true, y_pred])).tolist())

@@ -310,8 +310,19 @@ def stage_evaluation(
     logging.info("\n📊 Evaluation Summary:")
     for benchmark, scores in results.items():
         if isinstance(scores, dict):
-            avg_score = sum(scores.values()) / len(scores) if scores else 0
-            logging.info(f"   {benchmark}: {avg_score:.4f} average")
+            # Extract numeric accuracy scores, handling nested dictionaries
+            numeric_scores = []
+            for key, value in scores.items():
+                if isinstance(value, dict) and 'accuracy' in value:
+                    numeric_scores.append(value['accuracy'])
+                elif isinstance(value, (int, float)):
+                    numeric_scores.append(value)
+
+            if numeric_scores:
+                avg_score = sum(numeric_scores) / len(numeric_scores)
+                logging.info(f"   {benchmark}: {avg_score:.4f} average ({len(numeric_scores)} tasks)")
+            else:
+                logging.info(f"   {benchmark}: No numeric scores available")
 
     logging.info("\n✅ Evaluation completed successfully!")
     return results

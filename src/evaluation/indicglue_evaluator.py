@@ -505,9 +505,9 @@ class IndicGLUEEvaluator:
         Returns:
             Dictionary with metrics, confusion matrix, and per-class metrics
         """
-        # Convert to numpy arrays
-        predictions = np.array(predictions)
-        labels = np.array(labels)
+        # Convert to numpy arrays and flatten to ensure 1D shape
+        predictions = np.array(predictions).flatten()
+        labels = np.array(labels).flatten()
 
         # Get class names for this task
         class_names = self._get_class_names(task_name)
