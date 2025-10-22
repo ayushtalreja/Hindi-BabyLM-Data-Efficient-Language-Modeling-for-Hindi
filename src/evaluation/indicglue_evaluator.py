@@ -213,24 +213,35 @@ class IndicGLUEEvaluator:
             Dataset or None if not available
         """
         # Mapping of task names to HuggingFace dataset paths
+        # Updated to use new ai4bharat/indic_glue repository with correct config names
         dataset_map = {
-            'IndicNews': ('ai4bharat/IndicGLUE', 'indicnews.hi'),
-            'IndicHeadline': ('ai4bharat/IndicGLUE', 'indicheadline.hi'),
-            'IndicWiki': ('ai4bharat/IndicGLUE', 'indicwiki.hi'),
-            'IndicCQ': ('ai4bharat/IndicGLUE', 'indiccq.hi'),
-            'IndicWNLI': ('ai4bharat/IndicGLUE', 'indicwnli.hi'),
-            'IndicCOPA': ('ai4bharat/IndicGLUE', 'indiccopa.hi')
+            'IndicNews': ('ai4bharat/indic_glue', 'bbca.hi'),  # BBC Article Classification
+            'IndicHeadline': None,  # Not available in indic_glue, will use synthetic data
+            'IndicWiki': ('ai4bharat/indic_glue', 'wstp.hi'),  # Wikipedia Section Title Prediction
+            'IndicCQ': ('ai4bharat/indic_glue', 'csqa.hi'),  # Commonsense QA
+            'IndicWNLI': ('ai4bharat/indic_glue', 'wnli.hi'),  # Winograd NLI
+            'IndicCOPA': ('ai4bharat/indic_glue', 'copa.hi')  # Choice of Plausible Alternatives
         }
 
         if task_name not in dataset_map:
             return None
 
+        dataset_info = dataset_map[task_name]
+
+        # If no real dataset is available for this task
+        if dataset_info is None:
+            logger.info(f"{task_name} is not available in ai4bharat/indic_glue")
+            return None
+
         try:
-            dataset_name, config_name = dataset_map[task_name]
+            dataset_name, config_name = dataset_info
+            logger.info(f"Attempting to load {task_name} from {dataset_name} with config '{config_name}'")
             dataset = load_dataset(dataset_name, config_name, split='test')
+            logger.info(f"Successfully loaded {task_name} with {len(dataset)} examples")
             return dataset
         except Exception as e:
-            logger.debug(f"Failed to load {task_name} from HuggingFace: {e}")
+            logger.warning(f"Failed to load {task_name} from HuggingFace: {e}")
+            logger.info(f"Will use synthetic data for {task_name} instead")
             return None
 
     def _create_synthetic_data(self, task_name: str) -> Dataset:

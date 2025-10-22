@@ -39,7 +39,7 @@ data:
     wikipedia:
       enabled: true
       ratio: 0.3  # 30% from encyclopedia
-      categories: ["विज्ञान", "इतिहास", "भूगोल", "साहित्य", "कला"]
+      categories: ["विज्ञान", "इतिहास", "भूगोल", "साहित्य", "कला"] #["Science", "History", "Geography", "Literature", "Art"]
       max_articles: 5000
     childrens_books:
       enabled: true
