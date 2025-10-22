@@ -70,7 +70,13 @@ class CorpusBuilder:
     def __init__(self, config):
         self.config = config
         self.data_dir = config.__dict__.get('data_dir', 'data')
-        self.max_tokens = config.max_tokens
+        self.max_words = config.__dict__.get('max_words', config.__dict__.get('max_tokens', 10_000_000))
+
+        # Separate word limits for each split
+        self.train_word_limit = config.__dict__.get('train_word_limit', 10_000_000)
+        self.val_word_limit = config.__dict__.get('val_word_limit', 10_000_000)
+        self.test_word_limit = config.__dict__.get('test_word_limit', 10_000_000)
+
         self.train_ratio = config.train_ratio
         self.val_ratio = config.val_ratio
         self.test_ratio = config.test_ratio
@@ -166,7 +172,7 @@ class CorpusBuilder:
                 # We'll stream and sample to fit within 50GB memory limit
                 print("   Processing IndicCorp (streaming to avoid memory issues)...")
                 indiccorp_texts = []
-                max_samples = self.config.__dict__.get('max_tokens', 10_000_000) // 10  # Rough estimate
+                max_samples = self.max_words // 10  # Rough estimate
 
                 for filename, file_path in indiccorp_paths.items():
                     if filename != 'metadata' and not filename.endswith('_pickle'):
@@ -243,13 +249,24 @@ class CorpusBuilder:
 
         return all_data
 
-    def process_and_filter(self, raw_data: Dict[str, List[str]]) -> List[str]:
-        """Process and filter collected data"""
+    def process_and_filter(self, raw_data: Dict[str, List[str]], preserve_sources: bool = False) -> Dict[str, List[str]]:
+        """
+        Process and filter collected data
+
+        Args:
+            raw_data: Dictionary with source names as keys and lists of texts as values
+            preserve_sources: If True, return processed data grouped by source (for new split creation)
+                            If False, return combined list (for legacy split creation)
+
+        Returns:
+            If preserve_sources=True: Dictionary with source names as keys
+            If preserve_sources=False: Dictionary with single key 'combined'
+        """
         print("\nProcessing and filtering data...")
 
-        all_texts = []
+        processed_by_source = {}
 
-        # Combine all sources
+        # Process each source separately
         for source, texts in raw_data.items():
             print(f"\nProcessing {source}...")
 
@@ -264,44 +281,266 @@ class CorpusBuilder:
             filtered_texts = self.quality_filter.filter_by_language(filtered_texts)
 
             print(f"  {len(filtered_texts)} texts passed quality filters")
-            all_texts.extend(filtered_texts)
+            processed_by_source[source] = filtered_texts
 
-        print(f"\nTotal texts before deduplication: {len(all_texts)}")
+        # Calculate total before deduplication
+        total_texts = sum(len(texts) for texts in processed_by_source.values())
+        print(f"\nTotal texts before deduplication: {total_texts}")
 
-        # Deduplicate
-        print("Deduplicating corpus...")
-        deduplicated_texts, removed_indices = self.deduplicator.deduplicate_corpus(all_texts)
-        print(f"Removed {len(removed_indices)} duplicates")
-        print(f"Final corpus size: {len(deduplicated_texts)} texts")
+        if preserve_sources:
+            # For new pipeline: deduplicate within each source, preserve source information
+            deduplicated_by_source = {}
+            total_removed = 0
 
-        # Limit to max tokens if specified
-        if self.max_tokens:
-            deduplicated_texts = self._limit_to_max_tokens(deduplicated_texts)
+            for source, texts in processed_by_source.items():
+                print(f"Deduplicating {source}...")
+                deduplicated_texts, removed_indices = self.deduplicator.deduplicate_corpus(texts)
+                deduplicated_by_source[source] = deduplicated_texts
+                total_removed += len(removed_indices)
+                print(f"  {source}: Removed {len(removed_indices)} duplicates, {len(deduplicated_texts)} remaining")
 
-        return deduplicated_texts
+            print(f"\nTotal duplicates removed: {total_removed}")
+            total_after = sum(len(texts) for texts in deduplicated_by_source.values())
+            print(f"Total texts after deduplication: {total_after}")
 
-    def _limit_to_max_tokens(self, texts: List[str]) -> List[str]:
-        """Limit corpus to maximum number of tokens"""
-        print(f"\nLimiting corpus to {self.max_tokens:,} tokens...")
+            return deduplicated_by_source
+        else:
+            # For legacy pipeline: combine all sources, then deduplicate
+            all_texts = []
+            for texts in processed_by_source.values():
+                all_texts.extend(texts)
+
+            print("Deduplicating corpus...")
+            deduplicated_texts, removed_indices = self.deduplicator.deduplicate_corpus(all_texts)
+            print(f"Removed {len(removed_indices)} duplicates")
+            print(f"Final corpus size: {len(deduplicated_texts)} texts")
+
+            # Limit to max words if specified
+            if self.max_words:
+                deduplicated_texts = self._limit_to_max_words(deduplicated_texts)
+
+            return {'combined': deduplicated_texts}
+
+    def _limit_to_max_words(self, texts: List[str]) -> List[str]:
+        """Limit corpus to maximum number of words"""
+        print(f"\nLimiting corpus to {self.max_words:,} words...")
 
         limited_texts = []
-        total_tokens = 0
+        total_words = 0
 
         for text in texts:
-            # Approximate token count (words * 1.3 for subword tokenization)
-            approx_tokens = len(text.split()) * 1.3
+            # Count words (whitespace tokenization)
+            word_count = len(text.split())
 
-            if total_tokens + approx_tokens <= self.max_tokens:
+            if total_words + word_count <= self.max_words:
                 limited_texts.append(text)
-                total_tokens += approx_tokens
+                total_words += word_count
             else:
                 break
 
-        print(f"Limited to {len(limited_texts)} texts (~{total_tokens:,.0f} tokens)")
+        print(f"Limited to {len(limited_texts)} texts (~{total_words:,} words)")
         return limited_texts
 
+    def create_balanced_splits_with_limits(self, raw_data: Dict[str, List[str]]) -> Dict[str, List[str]]:
+        """
+        Create balanced train/val/test splits with separate word limits
+
+        Strategy:
+        1. Apply global deduplication first (no text appears in multiple splits)
+        2. Validation split: Take equal proportions from each source until val_word_limit reached
+        3. Test split: Take equal proportions from remaining data until test_word_limit reached
+        4. Training split: Use configured train_source_ratios until train_word_limit reached
+
+        Args:
+            raw_data: Dictionary with keys as source names and values as lists of texts
+
+        Returns:
+            Dictionary with 'train', 'val', 'test' splits
+        """
+        print("\n" + "="*80)
+        print("Creating balanced train/val/test splits with separate word limits")
+        print("="*80)
+
+        # Filter out sources with no data
+        available_sources = {k: v for k, v in raw_data.items() if len(v) > 0}
+
+        if len(available_sources) != len(raw_data):
+            missing = set(raw_data.keys()) - set(available_sources.keys())
+            print(f"\n⚠️  Sources with no data: {missing}")
+            print(f"   Using {len(available_sources)} available sources: {list(available_sources.keys())}")
+
+        # Shuffle each source with seed for reproducibility
+        np.random.seed(42)
+        shuffled_sources = {
+            source: np.random.permutation(texts).tolist()
+            for source, texts in available_sources.items()
+        }
+
+        # Track which texts we've used (for global deduplication)
+        used_texts = set()
+        splits = {'train': [], 'val': [], 'test': []}
+        source_indices = {source: 0 for source in available_sources.keys()}
+
+        def get_next_unique_text(source: str) -> Optional[str]:
+            """Get next text from source that hasn't been used yet"""
+            while source_indices[source] < len(shuffled_sources[source]):
+                text = shuffled_sources[source][source_indices[source]]
+                source_indices[source] += 1
+
+                # Check if text is duplicate (global deduplication)
+                text_hash = hash(text)
+                if text_hash not in used_texts:
+                    used_texts.add(text_hash)
+                    return text
+            return None
+
+        # STEP 1: Create balanced validation split (equal from each source)
+        print(f"\n📊 Creating validation split (target: {self.val_word_limit:,} words, balanced across sources)...")
+        val_words_per_source = self.val_word_limit // len(available_sources)
+        val_word_counts = {source: 0 for source in available_sources.keys()}
+        total_val_words = 0
+
+        for source in available_sources.keys():
+            print(f"   Collecting from {source} (target: {val_words_per_source:,} words)...", end=" ")
+            source_val_count = 0
+
+            while val_word_counts[source] < val_words_per_source:
+                text = get_next_unique_text(source)
+                if text is None:
+                    print(f"\n   ⚠️  {source} exhausted at {val_word_counts[source]:,} words")
+                    break
+
+                text_words = len(text.split())
+                if val_word_counts[source] + text_words <= val_words_per_source:
+                    splits['val'].append(text)
+                    val_word_counts[source] += text_words
+                    total_val_words += text_words
+                    source_val_count += 1
+                else:
+                    # Would exceed limit, skip this text
+                    break
+
+            print(f"{source_val_count} texts, {val_word_counts[source]:,} words")
+
+        print(f"   ✓ Validation split: {len(splits['val'])} texts, {total_val_words:,} words")
+
+        # STEP 2: Create balanced test split (equal from each source)
+        print(f"\n📊 Creating test split (target: {self.test_word_limit:,} words, balanced across sources)...")
+        test_words_per_source = self.test_word_limit // len(available_sources)
+        test_word_counts = {source: 0 for source in available_sources.keys()}
+        total_test_words = 0
+
+        for source in available_sources.keys():
+            print(f"   Collecting from {source} (target: {test_words_per_source:,} words)...", end=" ")
+            source_test_count = 0
+
+            while test_word_counts[source] < test_words_per_source:
+                text = get_next_unique_text(source)
+                if text is None:
+                    print(f"\n   ⚠️  {source} exhausted at {test_word_counts[source]:,} words")
+                    break
+
+                text_words = len(text.split())
+                if test_word_counts[source] + text_words <= test_words_per_source:
+                    splits['test'].append(text)
+                    test_word_counts[source] += text_words
+                    total_test_words += text_words
+                    source_test_count += 1
+                else:
+                    # Would exceed limit, skip this text
+                    break
+
+            print(f"{source_test_count} texts, {test_word_counts[source]:,} words")
+
+        print(f"   ✓ Test split: {len(splits['test'])} texts, {total_test_words:,} words")
+
+        # STEP 3: Create training split (use configured ratios)
+        print(f"\n📊 Creating training split (target: {self.train_word_limit:,} words, using source ratios)...")
+
+        # Get train source ratios from config
+        train_source_ratios = self.config.__dict__.get('train_source_ratios', {
+            source: 1.0 / len(available_sources) for source in available_sources.keys()
+        })
+
+        # Handle missing children's books by redistributing ratio
+        if 'childrens_books' not in available_sources and 'childrens_books' in train_source_ratios:
+            print(f"   ⚠️  Redistributing childrens_books ratio ({train_source_ratios['childrens_books']:.2%}) to other sources")
+            childrens_ratio = train_source_ratios.pop('childrens_books')
+            total_remaining = sum(train_source_ratios.values())
+            for source in train_source_ratios.keys():
+                train_source_ratios[source] += (train_source_ratios[source] / total_remaining) * childrens_ratio
+
+        # Calculate target words per source for training
+        train_words_per_source = {
+            source: int(self.train_word_limit * ratio)
+            for source, ratio in train_source_ratios.items()
+            if source in available_sources
+        }
+
+        print(f"   Training source ratios:")
+        for source, ratio in train_source_ratios.items():
+            if source in available_sources:
+                print(f"      {source}: {ratio:.1%} ({train_words_per_source[source]:,} words)")
+
+        train_word_counts = {source: 0 for source in available_sources.keys()}
+        total_train_words = 0
+
+        for source in available_sources.keys():
+            if source not in train_words_per_source:
+                continue
+
+            target_words = train_words_per_source[source]
+            print(f"   Collecting from {source} (target: {target_words:,} words)...", end=" ")
+            source_train_count = 0
+
+            while train_word_counts[source] < target_words:
+                text = get_next_unique_text(source)
+                if text is None:
+                    print(f"\n   ⚠️  {source} exhausted at {train_word_counts[source]:,} words")
+                    break
+
+                text_words = len(text.split())
+                if train_word_counts[source] + text_words <= target_words:
+                    splits['train'].append(text)
+                    train_word_counts[source] += text_words
+                    total_train_words += text_words
+                    source_train_count += 1
+                else:
+                    # Would exceed limit, skip this text
+                    break
+
+            print(f"{source_train_count} texts, {train_word_counts[source]:,} words")
+
+        print(f"   ✓ Training split: {len(splits['train'])} texts, {total_train_words:,} words")
+
+        # Final summary
+        print("\n" + "="*80)
+        print("SPLIT CREATION SUMMARY")
+        print("="*80)
+        print(f"  Train: {len(splits['train']):,} texts, {total_train_words:,} words")
+        for source in available_sources.keys():
+            if source in train_word_counts:
+                print(f"    - {source}: {train_word_counts[source]:,} words ({train_word_counts[source]/total_train_words*100:.1f}%)")
+
+        print(f"\n  Val:   {len(splits['val']):,} texts, {total_val_words:,} words")
+        for source in available_sources.keys():
+            print(f"    - {source}: {val_word_counts[source]:,} words ({val_word_counts[source]/total_val_words*100:.1f}%)")
+
+        print(f"\n  Test:  {len(splits['test']):,} texts, {total_test_words:,} words")
+        for source in available_sources.keys():
+            print(f"    - {source}: {test_word_counts[source]:,} words ({test_word_counts[source]/total_test_words*100:.1f}%)")
+
+        print(f"\n  Total: {len(splits['train']) + len(splits['val']) + len(splits['test']):,} texts, {total_train_words + total_val_words + total_test_words:,} words")
+        print("="*80 + "\n")
+
+        return splits
+
     def create_splits(self, processed_data: List[str]) -> Dict[str, List[str]]:
-        """Create train/val/test splits"""
+        """
+        Create train/val/test splits (legacy method for backward compatibility)
+
+        NOTE: This method is deprecated. Use create_balanced_splits_with_limits() for new pipeline.
+        """
         print("\nCreating train/val/test splits...")
 
         # Shuffle data
@@ -353,7 +592,7 @@ class CorpusBuilder:
             'train_ratio': self.train_ratio,
             'val_ratio': self.val_ratio,
             'test_ratio': self.test_ratio,
-            'max_tokens': self.max_tokens
+            'max_words': self.max_words
         }
 
         metadata_path = os.path.join(self.data_dir, 'splits', 'metadata.json')

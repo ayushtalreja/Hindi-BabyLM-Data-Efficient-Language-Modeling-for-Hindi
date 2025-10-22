@@ -16,7 +16,14 @@ class ExperimentConfig:
     results_dir: str = "results"
 
     # Data configuration
-    max_tokens: int = 10_000_000
+    max_words: int = 10_000_000  # Maximum words in corpus (renamed from max_tokens)
+    max_tokens: int = None  # Deprecated: use max_words instead
+
+    # Separate word limits for each split (Phase 2)
+    train_word_limit: int = 10_000_000  # 10M words for training
+    val_word_limit: int = 10_000_000    # 10M words for validation
+    test_word_limit: int = 10_000_000   # 10M words for test
+
     train_ratio: float = 0.8
     val_ratio: float = 0.1
     test_ratio: float = 0.1

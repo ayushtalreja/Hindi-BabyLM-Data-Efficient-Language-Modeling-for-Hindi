@@ -1,17 +1,19 @@
 # ==============================================================================
-# Hindi BabyLM - Comprehensive Base Configuration
+# Hindi BabyLM - 100M Words Configuration
 # ==============================================================================
+# This configuration is for experiments with 100M word training data.
+# Validation and test data remain at 10M words each as specified in requirements.
 
 # Project Metadata
 project:
   name: "hindi-babylm"
-  description: "Data-efficient language modeling for Hindi (BabyLM Challenge)"
+  description: "Data-efficient language modeling for Hindi - 100M training words"
   version: "1.0.0"
-  track: "strict-small"  # 10M token limit
+  track: "100M-training"  # 100M word training dataset
 
 # Directory Structure
 directories:
-  data_dir: "data"
+  data_dir: "data_100M"  # Use separate directory to avoid conflicts
   model_dir: "models"
   tokenizer_dir: "tokenizers"
   results_dir: "results"
@@ -22,42 +24,43 @@ directories:
 # DATA CONFIGURATION
 # ==============================================================================
 data:
-  # Word Budget (BabyLM Strict-Small Track)
-  max_words: 10_000_000  # 10M words (changed from tokens to words for accurate counting)
+  # Word Budget - 100M for training, 10M each for val/test
+  max_words: 100_000_000  # 100M words for backward compatibility
 
   # Separate word limits for each split
-  # These allow train/val/test to each have independent word limits
-  train_word_limit: 10_000_000  # 10M words for training
-  val_word_limit: 10_000_000    # 10M words for validation
-  test_word_limit: 10_000_000   # 10M words for test
+  # Training enlarged to 100M, validation and test remain at 10M
+  train_word_limit: 100_000_000  # 100M words for training
+  val_word_limit: 10_000_000     # 10M words for validation
+  test_word_limit: 10_000_000    # 10M words for test
 
-  # Data Splits (used for proportional sizing if word limits not specified)
+  # Data Splits (legacy, not used with new split creation)
   train_ratio: 0.8
   val_ratio: 0.1
   test_ratio: 0.1
 
   # Source Mixing Ratios (for training data only)
   # Validation and test splits are always balanced across sources
+  # Flexible ratios for 100M experiment as specified in requirements
   train_source_ratios:
-    indiccorp: 0.60        # 60% from IndicCorp
-    wikipedia: 0.30        # 30% from Wikipedia
-    childrens_books: 0.10  # 10% from children's books
+    indiccorp: 0.70        # 70% from IndicCorp
+    wikipedia: 0.25        # 25% from Wikipedia
+    childrens_books: 0.05  # 5% from children's books
 
   # Data Sources & Mixing Ratios
   sources:
     indiccorp:
       enabled: true
-      ratio: 0.6  # 60% from news/web
-      max_samples: 50000
+      ratio: 0.7  # 70% from news/web
+      max_samples: 500000  # Increased for 100M dataset
     wikipedia:
       enabled: true
-      ratio: 0.3  # 30% from encyclopedia
-      categories: ["विज्ञान", "इतिहास", "भूगोल", "साहित्य", "कला"] #["Science", "History", "Geography", "Literature", "Art"]
-      max_articles: 5000
+      ratio: 0.25  # 25% from encyclopedia
+      categories: ["विज्ञान", "इतिहास", "भूगोल", "साहित्य", "कला"]
+      max_articles: 50000  # Increased for 100M dataset
     childrens_books:
       enabled: true
-      ratio: 0.1  # 10% from children's literature
-      max_stories: 2000
+      ratio: 0.05  # 5% from children's literature
+      max_stories: 5000  # Increased for 100M dataset
 
   # Quality Filtering
   filtering:
@@ -65,7 +68,7 @@ data:
     max_length: 1000  # remove long characters
     min_hindi_ratio: 0.8  # Devanagari character ratio
     min_word_count: 3 # (to filter out very short lines)
-    max_word_count: 10000  # (to control extremely long lines) (can create trainig issues)
+    max_word_count: 10000  # (to control extremely long lines)
 
   # Deduplication
   deduplication:
@@ -79,7 +82,7 @@ data:
     remove_urls: true
     remove_emails: true
     normalize_whitespace: true
-    max_workers: 4  # Parallel processing
+    max_workers: 8  # Increased for larger dataset
 
 # ==============================================================================
 # TOKENIZATION CONFIGURATION
@@ -88,8 +91,8 @@ tokenization:
   # Tokenizer Type
   type: "sentencepiece"  # Options: sentencepiece, wordpiece, bpe
 
-  # Vocabulary
-  vocab_size: 32000
+  # Vocabulary (might want to increase for 100M dataset)
+  vocab_size: 50000  # Increased from 32k to 50k for better coverage
   character_coverage: 0.9995  # For SentencePiece
 
   # Special Tokens
@@ -130,17 +133,15 @@ model:
   # Model Type
   type: "gpt"  # Options: gpt, deberta
 
-  # Model Size Preset (optional - overrides individual architecture params)
-  # GPT sizes: tiny (50M params), small (110M params), medium (350M params)
-  # DeBERTa sizes: tiny (22M params), small (86M params), base (86M params), large (304M params)
-  model_size: "small"  # Options: tiny, small, medium/base, large
+  # Model Size - Consider using larger model for 100M dataset
+  model_size: "medium"  # Options: tiny, small, medium/base, large
 
   # Core Architecture Hyperparameters
   architecture:
-    hidden_size: 768
-    num_hidden_layers: 12
-    num_attention_heads: 12
-    intermediate_size: 3072  # FFN hidden size (typically 4 * hidden_size)
+    hidden_size: 1024  # Increased from 768
+    num_hidden_layers: 16  # Increased from 12
+    num_attention_heads: 16  # Increased from 12
+    intermediate_size: 4096  # Increased from 3072
     max_position_embeddings: 512
 
   # Regularization
@@ -163,11 +164,10 @@ model:
     reorder_and_upcast_attn: false
 
   deberta:
-    # DeBERTa uses disentangled attention with relative position encoding
     position_buckets: 256
     relative_attention: true
-    max_relative_positions: -1  # -1 means use max_position_embeddings
-    pooler_hidden_size: 768  # Size of pooler layer
+    max_relative_positions: -1
+    pooler_hidden_size: 1024
     pooler_dropout: 0.1
     pooler_hidden_act: "gelu"
 
@@ -176,15 +176,15 @@ model:
 # ==============================================================================
 training:
   # Basic Training Parameters
-  batch_size: 32
-  gradient_accumulation_steps: 1  # Effective batch = batch_size * grad_accum
-  num_epochs: 10
-  max_steps: -1  # -1 for epoch-based, or set specific step count
+  batch_size: 64  # Increased for larger dataset
+  gradient_accumulation_steps: 2  # Effective batch = 64 * 2 = 128
+  num_epochs: 15  # More epochs for 100M dataset
+  max_steps: -1
 
   # Optimization
   optimizer:
-    type: "adamw"  # Options: adamw, adam, sgd, adafactor
-    learning_rate: 3.0e-4
+    type: "adamw"
+    learning_rate: 2.0e-4  # Slightly lower LR for larger model
     weight_decay: 0.01
     beta1: 0.9
     beta2: 0.999
@@ -193,83 +193,79 @@ training:
 
   # Learning Rate Scheduling
   lr_scheduler:
-    type: "cosine_with_warmup"  # Options: linear, cosine, constant, polynomial
-    warmup_steps: 1000
-    warmup_ratio: 0.1  # Alternative to warmup_steps (ratio of total steps)
-    num_cycles: 0.5  # For cosine schedule
-    min_lr_ratio: 0.0  # Minimum LR as ratio of initial LR
+    type: "cosine_with_warmup"
+    warmup_steps: 5000  # Increased warmup for larger dataset
+    warmup_ratio: 0.1
+    num_cycles: 0.5
+    min_lr_ratio: 0.0
 
   # Gradient Management
   gradient:
-    max_grad_norm: 1.0  # Gradient clipping
-    gradient_checkpointing: false  # Memory-efficient training
+    max_grad_norm: 1.0
+    gradient_checkpointing: true  # Enable for larger model
 
   # Mixed Precision Training
   mixed_precision:
     enabled: true
-    dtype: "fp16"  # Options: fp16, bf16
-    opt_level: "O1"  # For apex mixed precision
+    dtype: "fp16"
+    opt_level: "O1"
 
   # Checkpointing
   checkpointing:
-    save_strategy: "steps"  # Options: steps, epoch, no
-    save_steps: 1000
-    save_total_limit: 3  # Keep only last 3 checkpoints
+    save_strategy: "steps"
+    save_steps: 2000  # Less frequent for larger dataset
+    save_total_limit: 3
     load_best_model_at_end: true
     metric_for_best_model: "eval_loss"
     greater_is_better: false
 
   # Evaluation
   evaluation:
-    eval_strategy: "steps"  # Options: steps, epoch, no
-    eval_steps: 500
-    per_device_eval_batch_size: 32
+    eval_strategy: "steps"
+    eval_steps: 1000  # Less frequent for larger dataset
+    per_device_eval_batch_size: 64
     eval_accumulation_steps: null
 
   # Logging
   logging:
-    log_level: "info"  # Options: debug, info, warning, error
+    log_level: "info"
     log_steps: 100
-    report_to: ["wandb", "tensorboard"]  # Options: wandb, tensorboard, none
+    report_to: ["wandb", "tensorboard"]
 
   # Early Stopping
   early_stopping:
     enabled: true
-    patience: 3  # Epochs without improvement
-    threshold: 0.001  # Minimum change to qualify as improvement
+    patience: 5  # More patience for larger dataset
+    threshold: 0.001
 
   # Distributed Training
   distributed:
-    strategy: "ddp"  # Options: ddp, fsdp, deepspeed
+    strategy: "ddp"
     find_unused_parameters: false
     gradient_as_bucket_view: true
 
   # Reproducibility
   seed: 42
   deterministic: true
-  cuda_deterministic_algorithms: false  # May reduce performance
-
-  # ==============================================================================
-  # NEW: Training Integration with Evaluation (Task 6)
-  # ==============================================================================
+  cuda_deterministic_algorithms: false
 
   # Evaluation Callbacks
   enable_eval_callback: true
-  eval_frequency: 1  # Evaluate every N epochs
-  eval_on_steps: []  # List of specific steps to evaluate on (empty = use frequency)
+  eval_frequency: 1
+  eval_on_steps: []
   log_eval_to_wandb: true
 
   # Evaluation-Based Early Stopping
   eval_early_stopping: true
-  eval_early_stopping_metric: "overall.average_accuracy"  # Metric to monitor
-  eval_early_stopping_patience: 3  # Epochs without improvement
-  eval_early_stopping_mode: "max"  # 'max' for metrics that should increase, 'min' for decrease
-  eval_early_stopping_min_delta: 0.001  # Minimum change to qualify as improvement
+  eval_early_stopping_metric: "overall.average_accuracy"
+  eval_early_stopping_patience: 5
+  eval_early_stopping_mode: "max"
+  eval_early_stopping_min_delta: 0.001
 
   # Checkpoint Selection Based on Evaluation
-  checkpoint_metric: "overall.average_accuracy"  # Metric for selecting best checkpoint
-  checkpoint_metric_mode: "max"  # 'max' or 'min'
-  load_best_checkpoint_at_end: true  # Load best checkpoint after training
+  checkpoint_metric: "overall.average_accuracy"
+  checkpoint_metric_mode: "max"
+  load_best_checkpoint_at_end: true
 
 # ==============================================================================
 # EVALUATION CONFIGURATION
@@ -280,8 +276,8 @@ evaluation:
     indicglue:
       enabled: true
       tasks: ["IndicNews", "IndicHeadline", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
-      batch_size: 32
-      max_samples_per_task: 1000  # For quick evaluation
+      batch_size: 64
+      max_samples_per_task: 1000
 
     multiblimp:
       enabled: true
@@ -291,13 +287,13 @@ evaluation:
     morphological_probes:
       enabled: true
       probes: ["case", "number", "gender", "tense", "person", "honorific"]
-      layers_to_probe: [6, 12]  # Which transformer layers to probe
+      layers_to_probe: [8, 16]  # Adjusted for 16-layer model
 
   # Perplexity Evaluation
   perplexity:
     enabled: true
     split: "test"
-    report_per_source: true  # Report PPL per data source
+    report_per_source: true
 
   # Zero-shot Evaluation
   zero_shot:
@@ -312,25 +308,21 @@ evaluation:
     num_samples: 50
     metrics: ["bleu", "rouge", "bertscore"]
 
-  # ==============================================================================
-  # NEW: Advanced Evaluation Features
-  # ==============================================================================
-
-  # Evaluation Caching (Task 3)
+  # Advanced Evaluation Features
   use_eval_cache: true
   cache_dir: ".eval_cache"
   max_cache_age_days: 30
 
-  # Metrics Standardization (Task 5)
-  bootstrap_samples: 1000  # Number of bootstrap samples for confidence intervals
-  confidence_level: 0.95  # 95% confidence intervals
-  aggregation_method: "macro"  # macro, micro, or weighted averaging
+  # Metrics Standardization
+  bootstrap_samples: 1000
+  confidence_level: 0.95
+  aggregation_method: "macro"
 
-  # Visualization Settings (Task 1 & 2)
+  # Visualization Settings
   save_visualizations: true
-  visualization_format: ["png", "html"]  # PNG for static, HTML for interactive
+  visualization_format: ["png", "html"]
 
-  # Comparative Analysis (Task 4)
+  # Comparative Analysis
   enable_comparative_reports: true
   report_formats: ["html", "pdf"]
   comparative_analysis_dir: "comparative_analysis"
@@ -343,11 +335,11 @@ experiment_tracking:
   wandb:
     enabled: true
     project: "hindi-babylm"
-    entity: ayushtalreja1  # Your wandb username/team
-    tags: ["babylm", "hindi", "10m-tokens"]
-    notes: "Baseline experiment"
-    mode: "online"  # Options: online, offline, disabled
-    log_model: "checkpoint"  # Options: checkpoint, end, false
+    entity: ayushtalreja1
+    tags: ["babylm", "hindi", "100m-words", "large-scale"]
+    notes: "100M word training experiment"
+    mode: "online"
+    log_model: "checkpoint"
 
   # TensorBoard
   tensorboard:
@@ -365,17 +357,17 @@ experiment_tracking:
 # ==============================================================================
 resources:
   # Device Configuration
-  device: "cuda"  # Options: cuda, cpu, mps (for Apple Silicon)
-  gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]  # List of GPU IDs to use
-  num_workers: 4  # DataLoader workers
+  device: "cuda"
+  gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]
+  num_workers: 8  # Increased for larger dataset
 
   # Memory Management
   pin_memory: true
-  prefetch_factor: 2  # DataLoader prefetch
+  prefetch_factor: 2
 
   # Limits
-  max_memory_per_gpu: null  # GB, null for unlimited
-  cpu_memory_limit: null  # GB
+  max_memory_per_gpu: null
+  cpu_memory_limit: null
 
 # ==============================================================================
 # ANALYSIS & VISUALIZATION
@@ -392,7 +384,7 @@ analysis:
   training_analysis:
     plot_learning_curves: true
     plot_gradient_norms: true
-    plot_attention_weights: false  # Expensive
+    plot_attention_weights: false
 
   # Tokenization Analysis
   tokenization_analysis:
@@ -419,8 +411,8 @@ reproducibility:
   save_git_diff: true
 
   # Environment
-  save_environment: true  # Save pip freeze output
-  save_system_info: true  # Save hardware/OS info
+  save_environment: true
+  save_system_info: true
 
 debugging:
   # Debug Mode
@@ -433,8 +425,8 @@ debugging:
   # Validation
   validate_data_loader: true
   check_data_distribution: true
-  detect_anomalies: false  # PyTorch anomaly detection (slow)
+  detect_anomalies: false
 
   # Testing
-  overfit_small_batch: false  # Test with 1-2 batches
-  fast_dev_run: false  # Run 1 batch per epoch for testing
+  overfit_small_batch: false
+  fast_dev_run: false

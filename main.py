@@ -159,17 +159,16 @@ def stage_data_processing(
         total_raw = sum(len(texts) for texts in raw_data.values())
         logging.info(f"   Collected {total_raw:,} raw documents")
 
-        # Step 2: Process and filter
+        # Step 2: Process and filter (preserve sources for new pipeline)
         logging.info("\n🔧 Processing and filtering data...")
-        processed_data = corpus_builder.process_and_filter(raw_data)
-        logging.info(f"   After processing: {len(processed_data):,} documents")
+        processed_data = corpus_builder.process_and_filter(raw_data, preserve_sources=True)
+        total_processed = sum(len(texts) for texts in processed_data.values())
+        logging.info(f"   After processing: {total_processed:,} documents across {len(processed_data)} sources")
 
-        # Step 3: Create splits
-        logging.info("\n✂️  Creating train/val/test splits...")
-        splits = corpus_builder.create_splits(processed_data)
-        logging.info(f"   Train: {len(splits['train']):,} samples")
-        logging.info(f"   Val:   {len(splits['val']):,} samples")
-        logging.info(f"   Test:  {len(splits['test']):,} samples")
+        # Step 3: Create balanced splits with separate word limits
+        logging.info("\n✂️  Creating balanced train/val/test splits with separate word limits...")
+        splits = corpus_builder.create_balanced_splits_with_limits(processed_data)
+        # Word counts will be logged by the method itself
 
         # Step 4: Save splits
         logging.info("\n💾 Saving splits to disk...")
