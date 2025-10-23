@@ -57,7 +57,7 @@ python main.py \
     --config configs/base_config.yaml \
     --experiment_name ${SLURM_JOB_ID}_complete_pipeline \
     --stage all \
-    --device cuda
+    --device cuda \
     --force-reprocess
 
 # Check exit status
