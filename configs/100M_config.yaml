@@ -238,12 +238,6 @@ training:
     patience: 5  # More patience for larger dataset
     threshold: 0.001
 
-  # Distributed Training
-  distributed:
-    strategy: "ddp"
-    find_unused_parameters: false
-    gradient_as_bucket_view: true
-
   # Reproducibility
   seed: 42
   deterministic: true
@@ -358,7 +352,6 @@ experiment_tracking:
 resources:
   # Device Configuration
   device: "cuda"
-  gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]
   num_workers: 8  # Increased for larger dataset
 
   # Memory Management

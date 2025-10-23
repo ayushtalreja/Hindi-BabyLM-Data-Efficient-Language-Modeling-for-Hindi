@@ -238,12 +238,6 @@ training:
     patience: 3  # Epochs without improvement
     threshold: 0.001  # Minimum change to qualify as improvement
 
-  # Distributed Training
-  distributed:
-    strategy: "ddp"  # Options: ddp, fsdp, deepspeed
-    find_unused_parameters: false
-    gradient_as_bucket_view: true
-
   # Reproducibility
   seed: 42
   deterministic: true
@@ -366,7 +360,6 @@ experiment_tracking:
 resources:
   # Device Configuration
   device: "cuda"  # Options: cuda, cpu, mps (for Apple Silicon)
-  gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]  # List of GPU IDs to use
   num_workers: 4  # DataLoader workers
 
   # Memory Management

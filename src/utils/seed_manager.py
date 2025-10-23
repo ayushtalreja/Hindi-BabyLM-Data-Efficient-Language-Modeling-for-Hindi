@@ -61,7 +61,7 @@ class SeedManager:
         # PyTorch CUDA
         if torch.cuda.is_available():
             torch.cuda.manual_seed(self.seed)
-            torch.cuda.manual_seed_all(self.seed)  # For multi-GPU
+            torch.cuda.manual_seed_all(self.seed)
             logger.debug("✓ PyTorch CUDA seeds set")
 
         # Set deterministic behavior

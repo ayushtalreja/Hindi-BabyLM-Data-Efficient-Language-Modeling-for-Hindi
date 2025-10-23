@@ -58,6 +58,7 @@ python main.py \
     --experiment_name ${SLURM_JOB_ID}_complete_pipeline \
     --stage all \
     --device cuda
+    --force-reprocess
 
 # Check exit status
 if [ $? -eq 0 ]; then

@@ -1123,9 +1123,8 @@ model_factory.save_model(model, tokenizer, "final_model")
 **Solutions**:
 1. Enable mixed precision
 2. Increase batch size (if memory allows)
-3. Use more GPUs (DataParallel/DistributedDataParallel)
-4. Reduce logging frequency
-5. Use faster tokenizer
+3. Reduce logging frequency
+4. Use faster tokenizer
 
 ## Best Practices
 
