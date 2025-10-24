@@ -172,7 +172,9 @@ class CorpusBuilder:
                 # We'll stream and sample to fit within 50GB memory limit
                 print("   Processing IndicCorp (streaming to avoid memory issues)...")
                 indiccorp_texts = []
-                max_samples = self.max_words // 10  # Rough estimate
+                # Read max_samples from config
+                indiccorp_config = self.config.__dict__.get('sources', {}).get('indiccorp', {})
+                max_samples = indiccorp_config.get('max_samples', self.max_words // 10)
 
                 for filename, file_path in indiccorp_paths.items():
                     if filename != 'metadata' and not filename.endswith('_pickle'):
@@ -209,7 +211,10 @@ class CorpusBuilder:
             print("   Cache not found, scraping...")
             try:
                 wiki_categories = ['विज्ञान', 'इतिहास', 'भूगोल', 'साहित्य', 'कला']
-                wiki_articles = scrape_hindi_wikipedia(wiki_categories, max_articles=5000)
+                # Read max_articles from config
+                wiki_config = self.config.__dict__.get('sources', {}).get('wikipedia', {})
+                wiki_max_articles = wiki_config.get('max_articles', 5000)
+                wiki_articles = scrape_hindi_wikipedia(wiki_categories, max_articles=wiki_max_articles)
                 all_data['wikipedia'] = [article['text'] for article in wiki_articles]
                 print(f"   Scraped {len(all_data['wikipedia']):,} Wikipedia articles")
 
@@ -227,7 +232,10 @@ class CorpusBuilder:
         else:
             print("   Cache not found, collecting...")
             try:
-                stories = collect_childrens_stories()
+                # Read max_stories from config
+                childrens_config = self.config.__dict__.get('sources', {}).get('childrens_books', {})
+                max_stories = childrens_config.get('max_stories', 2000)
+                stories = collect_childrens_stories(max_stories=max_stories)
                 all_data['childrens_books'] = stories
                 print(f"   Collected {len(all_data['childrens_books']):,} children's stories")
 

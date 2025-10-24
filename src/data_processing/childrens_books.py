@@ -422,17 +422,20 @@ class ChildrensStoryCollector:
         return True
 
 
-def collect_childrens_stories() -> List[str]:
+def collect_childrens_stories(max_stories: int = 2000) -> List[str]:
     """
     Main entry point for collecting children's stories
 
     This function is called by corpus_builder.py to collect Hindi
     children's stories for the BabyLM corpus.
 
+    Args:
+        max_stories: Maximum number of stories to collect (default: 2000)
+
     Returns:
         List of story texts (strings)
     """
-    collector = ChildrensStoryCollector(max_stories=2000, rate_limit_delay=2.0)
+    collector = ChildrensStoryCollector(max_stories=max_stories, rate_limit_delay=2.0)
     return collector.collect_all_stories()
 
 
