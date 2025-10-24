@@ -242,7 +242,7 @@ class IndicCorpDownloader:
     def get_statistics(
         self,
         file_path: Path,
-        num_samples: int = 10000
+        num_samples: int = 100000
     ) -> Dict:
         """
         Calculate statistics from a text file.
@@ -269,8 +269,8 @@ class IndicCorpDownloader:
             'total_words': 0,
             'avg_chars_per_line': 0.0,
             'avg_words_per_line': 0.0,
-            'min_length': float('inf'),
-            'max_length': 0,
+            'min_character_length': float('inf'),
+            'max_character_length': 0,
             'empty_lines': 0
         }
 
@@ -292,8 +292,8 @@ class IndicCorpDownloader:
                 stats['total_characters'] += char_count
                 stats['total_words'] += word_count
                 stats['lines_analyzed'] += 1
-                stats['min_length'] = min(stats['min_length'], char_count)
-                stats['max_length'] = max(stats['max_length'], char_count)
+                stats['min_length'] = min(stats['min_character_length'], char_count)
+                stats['max_length'] = max(stats['max_character_length'], char_count)
 
                 count += 1
 
@@ -303,8 +303,8 @@ class IndicCorpDownloader:
             stats['avg_words_per_line'] = stats['total_words'] / stats['lines_analyzed']
 
         # Fix infinity for min_length if no valid samples
-        if stats['min_length'] == float('inf'):
-            stats['min_length'] = 0
+        if stats['min_character_length'] == float('inf'):
+            stats['min_character_length'] = 0
 
         logger.info(f"✓ Statistics calculated")
         logger.info(f"  Lines analyzed: {stats['lines_analyzed']}")
