@@ -283,10 +283,10 @@ evaluation:
       phenomena: ["agreement", "case_marking", "word_order", "binding", "control"]
       n_examples_per_phenomenon: 100
 
-    morphological_probes:
-      enabled: true
-      probes: ["case", "number", "gender", "tense", "person", "honorific"]
-      layers_to_probe: [6, 12]  # Which transformer layers to probe
+    # morphological_probes:  # REMOVED - No longer available
+    #   enabled: true
+    #   probes: ["case", "number", "gender", "tense", "person", "honorific"]
+    #   layers_to_probe: [6, 12]  # Which transformer layers to probe
 
   # Perplexity Evaluation
   perplexity:

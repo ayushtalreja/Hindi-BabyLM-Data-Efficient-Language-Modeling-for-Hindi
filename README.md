@@ -74,7 +74,6 @@ hindi-babylm/
 │   │   ├── evaluation_manager.py     # Evaluation orchestration
 │   │   ├── indicglue_evaluator.py    # Hindi NLP benchmark
 │   │   ├── multiblimp_evaluator.py   # 14 linguistic phenomena
-│   │   ├── morphological_probes.py   # 10 morphological probe tasks
 │   │   └── perplexity_evaluator.py   # Language modeling metrics
 │   │
 │   ├── analysis/                     # Phase 2: Analysis & Visualization
@@ -125,7 +124,6 @@ hindi-babylm/
 ├── figures/                          # Generated Figures
 │   ├── training_curves.png
 │   ├── multiblimp_comparison.png
-│   ├── morphological_probes_comparison.png
 │   └── ...
 │
 ├── tables/                           # LaTeX Tables
@@ -458,7 +456,6 @@ evaluation:
   benchmarks:
     - indicglue          # Hindi NLP tasks
     - multiblimp         # 14 linguistic phenomena
-    - morphological_probes  # 10 probe tasks
 
 reproducibility:
   seed: 42
@@ -486,15 +483,7 @@ Tests grammatical competence with minimal pairs:
 
 **And 7 more phenomena** (word order, scrambling, binding, etc.)
 
-### 2. Morphological Probes (10 Tasks)
-
-Layer-wise analysis of morphological features:
-- Number detection, Gender detection, Person detection
-- Case marking, Tense/aspect, Mood detection
-- Voice detection, Definiteness, Postposition attachment
-- Compound verb structure
-
-### 3. IndicGLUE
+### 2. IndicGLUE
 
 Standard Hindi NLP benchmarks for downstream task evaluation.
 
@@ -525,13 +514,11 @@ Comprehensive experiment analysis:
 - Training curves comparison
 - IndicGLUE/MultiBLiMP performance comparison
 - Statistical significance testing (t-test, Wilcoxon, effect sizes)
-- Layer-wise probe visualizations
 - LaTeX table generation for thesis
 
 **Generated Outputs**:
 - `figures/training_curves.png`
 - `figures/multiblimp_comparison.png`
-- `figures/morphological_probes_comparison.png`
 - `tables/indicglue_results.tex`
 - `tables/multiblimp_results.tex`
 - `reports/[experiment]_report.md`
@@ -611,7 +598,7 @@ Comprehensive documentation is available in the `docs/` directory:
 | [03_TOKENIZATION.md](docs/03_TOKENIZATION.md) | Tokenization strategies and morphological analysis |
 | [04_MODELS.md](docs/04_MODELS.md) | Model architectures |
 | [05_TRAINING.md](docs/05_TRAINING.md) | Training pipeline |
-| [06_EVALUATION.md](docs/06_EVALUATION.md) | MultiBLiMP (14 phenomena), morphological probes (10 tasks) |
+| [06_EVALUATION.md](docs/06_EVALUATION.md) | MultiBLiMP (14 phenomena), IndicGLUE benchmarks |
 | [07_CONFIGURATION.md](docs/07_CONFIGURATION.md) | Complete configuration reference |
 | [08_ANALYSIS_AND_VISUALIZATION.md](docs/08_ANALYSIS_AND_VISUALIZATION.md) | ResultsAnalyzer and ThesisPlotter API |
 | [09_JUPYTER_NOTEBOOKS.md](docs/09_JUPYTER_NOTEBOOKS.md) | Interactive analysis workflows |
@@ -709,7 +696,7 @@ This implementation explores:
 - **Documentation**: ~55,000 lines
 - **Python Modules**: 45+ files
 - **Configuration Templates**: 4 YAML files
-- **Evaluation Tasks**: 24 total (14 MultiBLiMP + 10 Probes)
+- **Evaluation Tasks**: 14 MultiBLiMP phenomena + IndicGLUE benchmarks
 - **Model Sizes**: 3 (Tiny 50M, Small 110M, Medium 350M)
 - **Tokenization Methods**: 3 (SentencePiece, WordPiece, BPE)
 
@@ -753,7 +740,7 @@ If you use this code or data for research, please cite:
   school={Technical University of Munich},
   type={Master's Thesis},
   note={Implementation includes data-efficient language modeling for Hindi with
-        MultiBLiMP evaluation (14 phenomena) and morphological probes (10 tasks)}
+        MultiBLiMP evaluation (14 phenomena) and IndicGLUE benchmarks}
 }
 ```
 

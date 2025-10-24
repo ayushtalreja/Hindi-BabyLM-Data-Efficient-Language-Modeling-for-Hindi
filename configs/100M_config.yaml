@@ -278,10 +278,10 @@ evaluation:
       phenomena: ["agreement", "case_marking", "word_order", "binding", "control"]
       n_examples_per_phenomenon: 100
 
-    morphological_probes:
-      enabled: true
-      probes: ["case", "number", "gender", "tense", "person", "honorific"]
-      layers_to_probe: [8, 16]  # Adjusted for 16-layer model
+    # morphological_probes:  # REMOVED - No longer available
+    #   enabled: true
+    #   probes: ["case", "number", "gender", "tense", "person", "honorific"]
+    #   layers_to_probe: [8, 16]  # Adjusted for 16-layer model
 
   # Perplexity Evaluation
   perplexity:

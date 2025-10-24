@@ -1,7 +1,6 @@
 from .evaluation_manager import EvaluationManager
 from .indicglue_evaluator import IndicGLUEEvaluator, evaluate_indicglue
 from .multiblimp_evaluator import MultiBLiMPEvaluator
-from .morphological_probes import MorphologicalProbe
 from .metrics_utils import (
     Metric,
     AggregatedMetrics,
@@ -22,7 +21,6 @@ __all__ = [
     'IndicGLUEEvaluator',
     'evaluate_indicglue',
     'MultiBLiMPEvaluator',
-    'MorphologicalProbe',
     'Metric',
     'AggregatedMetrics',
     'MetricsAggregator',

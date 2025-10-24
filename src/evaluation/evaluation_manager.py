@@ -5,7 +5,6 @@ import os
 from typing import Dict
 from .indicglue_evaluator import IndicGLUEEvaluator
 from .multiblimp_evaluator import MultiBLiMPEvaluator
-from .morphological_probes import MorphologicalProbe
 
 class EvaluationManager:
     def __init__(self, model, tokenizer, config):
@@ -16,7 +15,6 @@ class EvaluationManager:
         # Initialize evaluators
         self.indicglue_evaluator = IndicGLUEEvaluator(model, tokenizer)
         self.multiblimp_evaluator = MultiBLiMPEvaluator(model, tokenizer)
-        self.morphological_probe = MorphologicalProbe(model, tokenizer)
         
         # Results storage
         self.results = {}
@@ -30,21 +28,16 @@ class EvaluationManager:
         indicglue_results = self.indicglue_evaluator.evaluate_all_tasks()
         self.results['indicglue'] = indicglue_results
         
-        # 2. MultiBLiMP Evaluation  
+        # 2. MultiBLiMP Evaluation
         print("\n2. Running MultiBLiMP evaluation...")
         multiblimp_results = self.multiblimp_evaluator.evaluate_all_phenomena()
         self.results['multiblimp'] = multiblimp_results
-        
-        # 3. Morphological Probes
-        print("\n3. Running morphological probes...")
-        probe_results = self.morphological_probe.run_all_probes()
-        self.results['morphological_probes'] = probe_results
-        
-        # 4. Generate Summary
+
+        # 3. Generate Summary
         summary = self.generate_summary()
         self.results['summary'] = summary
-        
-        # 5. Save Results
+
+        # 4. Save Results
         self.save_results()
         
         return self.results
@@ -73,13 +66,6 @@ class EvaluationManager:
                 multiblimp_overall.get('overall_accuracy') or
                 multiblimp_overall.get('accuracy', 0.0)
             )
-
-        # Morphological probes average (defensive - handle missing results)
-        if 'morphological_probes' in self.results:
-            probe_scores = [v.get('accuracy', 0) for v in self.results['morphological_probes'].values()
-                           if isinstance(v, dict) and 'accuracy' in v]
-            if probe_scores:
-                summary['overall_scores']['morphological_avg'] = sum(probe_scores) / len(probe_scores)
 
         return summary
     

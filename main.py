@@ -293,7 +293,7 @@ def stage_evaluation(
     # Get enabled benchmarks from config
     benchmarks = config.__dict__.get('evaluation', {}).get('benchmarks', [])
     if not benchmarks:
-        benchmarks = ['indicglue', 'multiblimp', 'morphological_probes']
+        benchmarks = ['indicglue', 'multiblimp']
 
     logging.info(f"   Enabled benchmarks: {', '.join(benchmarks)}")
 

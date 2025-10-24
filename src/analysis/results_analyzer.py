@@ -240,13 +240,6 @@ class ResultsAnalyzer:
                     if isinstance(phenom_results, dict) and 'accuracy' in phenom_results:
                         results_data[phenomenon][exp_name] = phenom_results['accuracy']
 
-            elif eval_type == 'probes':
-                for probe, probe_results in eval_results.get('morphological_probes', {}).items():
-                    if isinstance(probe_results, dict):
-                        accuracy = probe_results.get('best_accuracy') or probe_results.get('accuracy')
-                        if accuracy is not None:
-                            results_data[probe][exp_name] = accuracy
-
         if not results_data:
             logger.warning(f"No {eval_type} results found")
             return plt.figure()
