@@ -2,6 +2,7 @@ import yaml
 import os
 from dataclasses import dataclass
 from typing import Dict, List, Any
+from pathlib import Path
 import wandb
 
 @dataclass
@@ -140,6 +141,18 @@ class ExperimentConfig:
             filtered_config = flat_config
 
         return cls(**filtered_config)
+
+    def get_tokenizer_path(self) -> Path:
+        """Get the experiment-scoped tokenizer directory path"""
+        return Path(self.results_dir) / self.experiment_name / 'tokenizer'
+
+    def get_model_path(self) -> Path:
+        """Get the experiment-scoped model directory path"""
+        return Path(self.results_dir) / self.experiment_name / 'models'
+
+    def get_results_path(self) -> Path:
+        """Get the experiment-scoped results directory path"""
+        return Path(self.results_dir) / self.experiment_name
 
 class ExperimentManager:
     def __init__(self, base_config: ExperimentConfig):

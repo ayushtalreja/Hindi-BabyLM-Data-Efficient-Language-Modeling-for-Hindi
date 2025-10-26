@@ -71,8 +71,9 @@ class EvaluationManager:
     
     def save_results(self):
         """Save evaluation results to files"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        results_dir = os.path.join(self.config.get('results_dir', 'results'), f'evaluation_{timestamp}')
+        # Save results to experiment directory instead of timestamp-based directory
+        experiment_name = self.config.get('experiment_name', 'default_experiment')
+        results_dir = os.path.join(self.config.get('results_dir', 'results'), experiment_name)
         os.makedirs(results_dir, exist_ok=True)
         
         # Save comprehensive results as JSON

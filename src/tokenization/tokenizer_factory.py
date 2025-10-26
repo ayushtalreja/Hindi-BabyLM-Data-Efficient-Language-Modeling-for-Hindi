@@ -153,14 +153,13 @@ class TokenizerFactory:
         return BPETokenizerWrapper(tokenizer, self.vocab_size)
 
     @staticmethod
-    def load_tokenizer(experiment_name: str, tokenizer_dir: str = 'tokenizers'):
+    def load_tokenizer(experiment_name: str, results_dir: str = 'results'):
         """Load a saved tokenizer
 
         Args:
             experiment_name: Either an experiment name (e.g., 'my_experiment') or
                            a full directory path (e.g., 'results/my_experiment/tokenizer')
-            tokenizer_dir: Base directory for tokenizers (only used if experiment_name
-                         is not a full path). Defaults to 'tokenizers'.
+            results_dir: Base results directory. Defaults to 'results'.
 
         Returns:
             Loaded tokenizer instance
@@ -169,43 +168,20 @@ class TokenizerFactory:
 
         # Check if experiment_name is actually a directory path
         if os.path.isdir(experiment_name):
-            # experiment_name is a full directory path
+            # experiment_name is a full directory path (e.g., 'results/exp/tokenizer')
             tokenizer_dir = experiment_name
-            metadata_path = os.path.join(tokenizer_dir, 'tokenizer_metadata.pkl')
         else:
-            # experiment_name is just the name, use old format for backward compatibility
-            metadata_path = os.path.join(tokenizer_dir, f'{experiment_name}_metadata.pkl')
+            # Construct path: results/{experiment_name}/tokenizer/
+            tokenizer_dir = os.path.join(results_dir, experiment_name, 'tokenizer')
+
+        metadata_path = os.path.join(tokenizer_dir, 'tokenizer_metadata.pkl')
 
         if not os.path.exists(metadata_path):
-            # Fallback: try to load from standard paths
-            print("Metadata not found, trying standard paths...")
-
-            # Try SentencePiece
-            sp_model_path = os.path.join(tokenizer_dir, 'sentencepiece.model')
-            if os.path.exists(sp_model_path):
-                print(f"Loading SentencePiece tokenizer from {sp_model_path}")
-                tokenizer = HindiSentencePieceTokenizer()
-                tokenizer.model = spm.SentencePieceProcessor(model_file=sp_model_path)
-                tokenizer.vocab_size = tokenizer.model.vocab_size()
-                return tokenizer
-
-            # Try WordPiece
-            wp_path = os.path.join(tokenizer_dir, 'wordpiece.json')
-            if os.path.exists(wp_path):
-                print(f"Loading WordPiece tokenizer from {wp_path}")
-                from tokenizers import Tokenizer
-                tokenizer = Tokenizer.from_file(wp_path)
-                return WordPieceTokenizerWrapper(tokenizer, tokenizer.get_vocab_size())
-
-            # Try BPE
-            bpe_path = os.path.join(tokenizer_dir, 'bpe.json')
-            if os.path.exists(bpe_path):
-                print(f"Loading BPE tokenizer from {bpe_path}")
-                from tokenizers import Tokenizer
-                tokenizer = Tokenizer.from_file(bpe_path)
-                return BPETokenizerWrapper(tokenizer, tokenizer.get_vocab_size())
-
-            raise FileNotFoundError(f"No tokenizer found for experiment: {experiment_name}")
+            raise FileNotFoundError(
+                f"No tokenizer found for experiment: {experiment_name}\n"
+                f"Expected metadata at: {metadata_path}\n"
+                f"Make sure the tokenizer has been saved to: {tokenizer_dir}"
+            )
 
         # Load metadata
         with open(metadata_path, 'rb') as f:

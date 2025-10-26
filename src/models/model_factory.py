@@ -12,12 +12,14 @@ class ModelFactory:
     def __init__(self, config):
         self.config = config
         self.model_type = config.model_type
-        self.model_dir = config.__dict__.get('model_dir', 'models')
+        self.results_dir = config.__dict__.get('results_dir', 'results')
         self.experiment_name = config.__dict__.get('experiment_name', 'default_experiment')
 
-        # Create directories
+        # Model directory is now under results/{experiment_name}/models/
+        self.model_dir = os.path.join(self.results_dir, self.experiment_name, 'models')
+
+        # Create experiment model directory
         os.makedirs(self.model_dir, exist_ok=True)
-        os.makedirs(os.path.join(self.model_dir, 'checkpoints'), exist_ok=True)
 
     def create_model(self, vocab_size: int):
         """Create a model based on config"""
@@ -71,9 +73,9 @@ class ModelFactory:
     def save_model(self, model, tokenizer, checkpoint_name: Optional[str] = None, metrics: Optional[Dict[str, float]] = None):
         """Save model checkpoint with metadata"""
         if checkpoint_name is None:
-            checkpoint_name = f"{self.experiment_name}_final"
+            checkpoint_name = "final"
 
-        checkpoint_path = os.path.join(self.model_dir, 'checkpoints', f"{checkpoint_name}.pt")
+        checkpoint_path = os.path.join(self.model_dir, f"{checkpoint_name}.pt")
 
         # Prepare checkpoint
         checkpoint = {
@@ -90,11 +92,6 @@ class ModelFactory:
         # Save checkpoint
         torch.save(checkpoint, checkpoint_path)
         print(f"Model checkpoint saved to {checkpoint_path}")
-
-        # Also save just the model state dict for easier loading
-        model_path = os.path.join(self.model_dir, f"{self.experiment_name}_model.pt")
-        torch.save(model.state_dict(), model_path)
-        print(f"Model state dict saved to {model_path}")
 
         return checkpoint_path
 
@@ -163,15 +160,17 @@ class ModelFactory:
         Returns:
             Loaded model
         """
-        # Try to find checkpoint
-        checkpoint_path = os.path.join(self.model_dir, 'checkpoints', f"{experiment_name}_final.pt")
+        # Try to find checkpoint in new location: results/{experiment_name}/models/
+        experiment_model_dir = os.path.join(self.results_dir, experiment_name, 'models')
+        checkpoint_path = os.path.join(experiment_model_dir, "final.pt")
 
         if not os.path.exists(checkpoint_path):
-            # Try alternative paths
-            checkpoint_path = os.path.join(self.model_dir, 'checkpoints', f"{experiment_name}_best.pt")
+            # Try best checkpoint
+            checkpoint_path = os.path.join(experiment_model_dir, "best.pt")
 
         if not os.path.exists(checkpoint_path):
-            raise FileNotFoundError(f"No checkpoint found for experiment: {experiment_name}")
+            raise FileNotFoundError(f"No checkpoint found for experiment: {experiment_name}\n"
+                                    f"Looked in: {experiment_model_dir}")
 
         # Try to load tokenizer to get vocab_size
         vocab_size = None
@@ -203,8 +202,8 @@ class ModelFactory:
 
     def save_checkpoint(self, model, optimizer, epoch: int, step: int, metrics: Dict[str, float]):
         """Save training checkpoint with optimizer state"""
-        checkpoint_name = f"{self.experiment_name}_epoch{epoch}_step{step}"
-        checkpoint_path = os.path.join(self.model_dir, 'checkpoints', f"{checkpoint_name}.pt")
+        checkpoint_name = f"epoch{epoch}_step{step}"
+        checkpoint_path = os.path.join(self.model_dir, f"{checkpoint_name}.pt")
 
         checkpoint = {
             'model_state_dict': model.state_dict(),
