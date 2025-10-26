@@ -34,6 +34,7 @@ class HindiTextCleaner:
         text = self.remove_extra_whitespace(text)
         text = self.handle_special_cases(text)
         return text
+    
     def remove_extra_whitespace(self, text: str) -> str:
         """Remove extra whitespace and normalize spacing"""
         # Replace multiple spaces with single space
@@ -50,7 +51,7 @@ class HindiTextCleaner:
         text = re.sub(r'\.{2,}', '॥', text)  # Convert multiple dots to double danda
         text = re.sub(r'\.(?=\s|$)', '।', text)  # Convert single dot to danda at sentence end
 
-        # Remove zero-width characters and joiners (except ZWNJ and ZWJ which are meaningful)
+        # Remove zero-width characters and joiners (except ZWNJ and ZWJ which are meaningful) (ZWJ = U+200D, ZWNJ = U+200C) (Zero width Non Joiner)
         text = re.sub(r'[\u200B\u200C\u200D\uFEFF]', '', text)
 
         # Normalize numbers: convert English digits to Devanagari if needed (optional)
