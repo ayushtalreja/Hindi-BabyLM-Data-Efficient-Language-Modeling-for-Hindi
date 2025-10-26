@@ -45,27 +45,36 @@ echo "=========================================="
 echo "Starting Evaluation"
 echo "=========================================="
 
-# Experiment name should be provided as argument
-EXPERIMENT_NAME=${1}
+# Parse arguments
+CONFIG=${1:-configs/base_config.yaml}
+EXPERIMENT_NAME=${2:-}  # Optional experiment name override
 
+echo "Using config: $CONFIG"
+
+# Build command
 if [ -z "$EXPERIMENT_NAME" ]; then
-    echo "Error: Experiment name required!"
-    echo "Usage: sbatch run_evaluation.sh <experiment_name>"
-    exit 1
+    # Use experiment name from config file
+    echo "Using experiment name from config file"
+    python main.py \
+        --config $CONFIG \
+        --stage eval \
+        --device cuda
+else
+    # Override with provided experiment name
+    echo "Using experiment name: $EXPERIMENT_NAME"
+    python main.py \
+        --config $CONFIG \
+        --experiment_name $EXPERIMENT_NAME \
+        --stage eval \
+        --device cuda
 fi
-
-python main.py \
-    --config configs/base_config.yaml \
-    --experiment_name $EXPERIMENT_NAME \
-    --stage eval \
-    --device cuda
 
 # Check exit status
 if [ $? -eq 0 ]; then
     echo ""
     echo "=========================================="
     echo "Evaluation completed successfully!"
-    echo "Results saved to: results/$EXPERIMENT_NAME/evaluation_results.json"
+    echo "Check results directory for evaluation output"
     echo "=========================================="
 else
     echo ""

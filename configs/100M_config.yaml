@@ -4,6 +4,12 @@
 # This configuration is for experiments with 100M word training data.
 # Validation and test data remain at 10M words each as specified in requirements.
 
+# Experiment Configuration
+experiment:
+  name: "gpt_100M_large"  # Default experiment name (can be overridden via CLI)
+  description: "Large GPT model on 100M word training corpus"
+  tags: ["large-scale", "gpt", "100M", "medium-model"]
+
 # Project Metadata
 project:
   name: "hindi-babylm"

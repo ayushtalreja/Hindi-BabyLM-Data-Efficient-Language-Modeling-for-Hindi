@@ -1,7 +1,7 @@
 import yaml
 import os
-from dataclasses import dataclass
-from typing import Dict, List, Any
+from dataclasses import dataclass, field
+from typing import Dict, List, Any, Optional
 from pathlib import Path
 import wandb
 
@@ -9,6 +9,8 @@ import wandb
 class ExperimentConfig:
     # Experiment metadata
     experiment_name: str = "default_experiment"
+    experiment_description: str = ""
+    experiment_tags: Optional[List[str]] = None
 
     # Directory configuration
     data_dir: str = "data"
@@ -77,6 +79,16 @@ class ExperimentConfig:
         flat_config = {}
 
         # Handle nested structure if it exists
+        # Extract experiment configuration
+        if 'experiment' in config_dict:
+            exp_config = config_dict.get('experiment', {})
+            if 'name' in exp_config:
+                flat_config['experiment_name'] = exp_config['name']
+            if 'description' in exp_config:
+                flat_config['experiment_description'] = exp_config['description']
+            if 'tags' in exp_config:
+                flat_config['experiment_tags'] = exp_config['tags']
+
         if 'data' in config_dict:
             flat_config.update(config_dict.get('data', {}))
         if 'tokenization' in config_dict:

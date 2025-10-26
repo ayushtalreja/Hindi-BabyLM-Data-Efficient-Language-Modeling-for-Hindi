@@ -404,11 +404,15 @@ Examples:
         print(f"❌ Error loading configuration: {e}")
         sys.exit(1)
 
-    # Set experiment name
+    # Set experiment name with priority: CLI > Config > Auto-generated
     if args.experiment_name:
+        # Priority 1: Command-line argument
         experiment_name = args.experiment_name
+    elif hasattr(config, 'experiment_name') and config.experiment_name != "default_experiment":
+        # Priority 2: Config file
+        experiment_name = config.experiment_name
     else:
-        # Auto-generate experiment name
+        # Priority 3: Auto-generate with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_type = config.__dict__.get('model', {}).get('type', 'model')
         experiment_name = f"{model_type}_{timestamp}"

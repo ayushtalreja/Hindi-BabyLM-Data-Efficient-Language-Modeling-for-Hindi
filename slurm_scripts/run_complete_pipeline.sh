@@ -53,19 +53,38 @@ echo "=========================================="
 echo "Starting Hindi BabyLM Pipeline"
 echo "=========================================="
 
-python main.py \
-    --config configs/base_config.yaml \
-    --experiment_name ${SLURM_JOB_ID}_complete_pipeline \
-    --stage all \
-    --device cuda \
-    --force-reprocess
+# Parse arguments - allow config file override
+CONFIG=${1:-configs/base_config.yaml}
+EXPERIMENT_NAME=${2:-}  # Optional experiment name override
+
+echo "Using config: $CONFIG"
+
+# Build command
+if [ -z "$EXPERIMENT_NAME" ]; then
+    # Use experiment name from config file
+    echo "Using experiment name from config file"
+    python main.py \
+        --config $CONFIG \
+        --stage all \
+        --device cuda \
+        --force-reprocess
+else
+    # Override with provided experiment name
+    echo "Using experiment name: $EXPERIMENT_NAME"
+    python main.py \
+        --config $CONFIG \
+        --experiment_name $EXPERIMENT_NAME \
+        --stage all \
+        --device cuda \
+        --force-reprocess
+fi
 
 # Check exit status
 if [ $? -eq 0 ]; then
     echo ""
     echo "=========================================="
     echo "Pipeline completed successfully!"
-    echo "Results saved to: results/${SLURM_JOB_ID}_complete_pipeline/"
+    echo "Check results directory for output"
     echo "=========================================="
 else
     echo ""
