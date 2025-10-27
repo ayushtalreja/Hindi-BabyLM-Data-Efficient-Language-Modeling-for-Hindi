@@ -222,6 +222,14 @@ class CorpusBuilder:
                 self._save_source_to_cache(all_data['wikipedia'], 'wikipedia')
             except Exception as e:
                 print(f"   ⚠ Error scraping Wikipedia: {e}")
+                checkpoint_path = Path('.wiki_checkpoint.json')
+                if checkpoint_path.exists():
+                    print(f"   💾 A checkpoint file exists at: {checkpoint_path}")
+                    print(f"   ℹ️  You can resume scraping by running the script again")
+                    print(f"   ℹ️  The scraper will automatically continue from where it left off")
+                else:
+                    print(f"   ℹ️  No checkpoint found - this was an early failure")
+                print(f"   ⚠ Continuing without Wikipedia data for now...")
 
         # 3. Children's Stories - check cache first
         print("\n3. Children's Stories")
