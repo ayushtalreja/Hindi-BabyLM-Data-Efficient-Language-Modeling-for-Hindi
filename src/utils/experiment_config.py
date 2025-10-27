@@ -5,6 +5,26 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 import wandb
 
+
+@dataclass
+class GPTModelConfig:
+    """Configuration specific to GPT models"""
+    use_cache: bool = True
+    scale_attn_weights: bool = True
+    reorder_and_upcast_attn: bool = False
+
+
+@dataclass
+class DeBERTaModelConfig:
+    """Configuration specific to DeBERTa models"""
+    position_buckets: int = 256
+    relative_attention: bool = True
+    max_relative_positions: int = -1
+    pooler_hidden_size: int = 768
+    pooler_dropout: float = 0.1
+    pooler_hidden_act: str = "gelu"
+
+
 @dataclass
 class ExperimentConfig:
     # Experiment metadata
@@ -45,13 +65,9 @@ class ExperimentConfig:
     dropout: float = 0.1
     intermediate_size: int = 3072
 
-    # DeBERTa-specific configuration
-    position_buckets: int = 256
-    relative_attention: bool = True
-    max_relative_positions: int = -1
-    pooler_hidden_size: int = 768
-    pooler_dropout: float = 0.1
-    pooler_hidden_act: str = "gelu"
+    # Model-specific configurations (only one should be populated based on model_type)
+    gpt_config: Optional[GPTModelConfig] = None
+    deberta_config: Optional[DeBERTaModelConfig] = None
 
     # Training configuration
     batch_size: int = 32
@@ -64,10 +80,45 @@ class ExperimentConfig:
     eval_steps: int = 500
     save_steps: int = 1000
 
+    def __post_init__(self):
+        """Auto-populate model-specific config based on model_type"""
+        if self.model_type == 'gpt' and self.gpt_config is None:
+            self.gpt_config = GPTModelConfig()
+        elif self.model_type == 'deberta' and self.deberta_config is None:
+            self.deberta_config = DeBERTaModelConfig()
+
+    def get_model_specific_config(self):
+        """Get the active model-specific configuration"""
+        if self.model_type == 'gpt':
+            return self.gpt_config
+        elif self.model_type == 'deberta':
+            return self.deberta_config
+        else:
+            return None
+
+    def to_clean_dict(self):
+        """
+        Return a dictionary representation with only relevant model-specific params.
+        This ensures saved configs don't contain cross-contamination.
+        """
+        config_dict = {}
+        for key, value in self.__dict__.items():
+            # Include the active model-specific config
+            if key == 'gpt_config' and self.model_type == 'gpt' and value is not None:
+                config_dict[key] = value.__dict__
+            elif key == 'deberta_config' and self.model_type == 'deberta' and value is not None:
+                config_dict[key] = value.__dict__
+            # Skip the inactive model-specific config
+            elif key in ('gpt_config', 'deberta_config'):
+                continue
+            else:
+                config_dict[key] = value
+        return config_dict
+
     def save_config(self, path: str):
-        """Save configuration to YAML file"""
+        """Save configuration to YAML file (with clean model-specific params)"""
         with open(path, 'w') as f:
-            yaml.dump(self.__dict__, f, default_flow_style=False)
+            yaml.dump(self.to_clean_dict(), f, default_flow_style=False)
 
     @classmethod
     def load_config(cls, path: str):
@@ -125,13 +176,20 @@ class ExperimentConfig:
                 if 'max_position_embeddings' in arch:
                     flat_config['max_length'] = arch['max_position_embeddings']
 
-            # Extract DeBERTa-specific config
+            # Extract model-specific configs and create nested dataclass instances
+            if 'gpt' in model_config:
+                gpt_params = model_config['gpt']
+                flat_config['gpt_config'] = GPTModelConfig(**{
+                    k: v for k, v in gpt_params.items()
+                    if k in GPTModelConfig.__dataclass_fields__
+                })
+
             if 'deberta' in model_config:
-                deberta_config = model_config['deberta']
-                for key in ['position_buckets', 'relative_attention', 'max_relative_positions',
-                           'pooler_hidden_size', 'pooler_dropout', 'pooler_hidden_act']:
-                    if key in deberta_config:
-                        flat_config[key] = deberta_config[key]
+                deberta_params = model_config['deberta']
+                flat_config['deberta_config'] = DeBERTaModelConfig(**{
+                    k: v for k, v in deberta_params.items()
+                    if k in DeBERTaModelConfig.__dataclass_fields__
+                })
 
             # Extract from regularization section
             if 'regularization' in model_config:
@@ -151,6 +209,65 @@ class ExperimentConfig:
             filtered_config = {k: v for k, v in flat_config.items() if k in allowed_keys}
         else:
             filtered_config = flat_config
+
+        return cls(**filtered_config)
+
+    @classmethod
+    def from_checkpoint_config(cls, config_dict: Dict[str, Any]):
+        """
+        Create ExperimentConfig from a checkpoint config dict.
+        Handles backward compatibility with old flat configs that have model-specific params.
+        """
+        if not isinstance(config_dict, dict):
+            return None
+
+        # Make a copy to avoid modifying the original
+        config_dict = config_dict.copy()
+
+        # Check if this is an old flat config with model-specific params mixed in
+        model_type = config_dict.get('model_type', 'gpt')
+
+        # Define old model-specific fields that should be migrated
+        old_deberta_fields = {
+            'position_buckets', 'relative_attention', 'max_relative_positions',
+            'pooler_hidden_size', 'pooler_dropout', 'pooler_hidden_act'
+        }
+        old_gpt_fields = {
+            'use_cache', 'scale_attn_weights', 'reorder_and_upcast_attn'
+        }
+
+        # Handle nested configs that are already dicts (from saved checkpoints)
+        if 'gpt_config' in config_dict and isinstance(config_dict['gpt_config'], dict):
+            config_dict['gpt_config'] = GPTModelConfig(**config_dict['gpt_config'])
+
+        if 'deberta_config' in config_dict and isinstance(config_dict['deberta_config'], dict):
+            config_dict['deberta_config'] = DeBERTaModelConfig(**config_dict['deberta_config'])
+
+        # Check if we have old flat model-specific params
+        has_old_deberta_params = any(k in config_dict for k in old_deberta_fields)
+        has_old_gpt_params = any(k in config_dict for k in old_gpt_fields)
+
+        # If we have old params, migrate them to nested structure
+        if model_type == 'deberta' and has_old_deberta_params:
+            # Create DeBERTa config from flat params
+            deberta_params = {k: config_dict.pop(k) for k in old_deberta_fields if k in config_dict}
+            config_dict['deberta_config'] = DeBERTaModelConfig(**deberta_params)
+            print("⚠️  Migrated old flat DeBERTa config to nested structure")
+
+        if model_type == 'gpt' and has_old_gpt_params:
+            # Create GPT config from flat params
+            gpt_params = {k: config_dict.pop(k) for k in old_gpt_fields if k in config_dict}
+            config_dict['gpt_config'] = GPTModelConfig(**gpt_params)
+            print("⚠️  Migrated old flat GPT config to nested structure")
+
+        # Remove any remaining old model-specific params from other model types
+        # (e.g., DeBERTa params in a GPT config)
+        for field in old_deberta_fields | old_gpt_fields:
+            config_dict.pop(field, None)
+
+        # Filter to only allowed keys
+        allowed_keys = set(cls.__dataclass_fields__.keys())
+        filtered_config = {k: v for k, v in config_dict.items() if k in allowed_keys}
 
         return cls(**filtered_config)
 

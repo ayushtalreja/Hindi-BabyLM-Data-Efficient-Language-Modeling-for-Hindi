@@ -169,13 +169,8 @@ model:
     scale_attn_weights: true
     reorder_and_upcast_attn: false
 
-  deberta:
-    position_buckets: 256
-    relative_attention: true
-    max_relative_positions: -1
-    pooler_hidden_size: 1024
-    pooler_dropout: 0.1
-    pooler_hidden_act: "gelu"
+  # Note: deberta section removed - only include model-specific config for the active model type
+  # For DeBERTa models, add a deberta section here instead of gpt
 
 # ==============================================================================
 # TRAINING CONFIGURATION

@@ -22,6 +22,9 @@ class TextDeduplicator:
     
     def deduplicate_corpus(self, texts: List[str]) -> Tuple[List[str], List[int]]:
         """Remove duplicates and return cleaned corpus with indices"""
+        # Reset LSH index for this deduplication run to avoid key collisions
+        self.lsh = MinHashLSH(threshold=self.threshold, num_perm=self.num_perm)
+
         # First pass: exact duplicate detection using hashes
         seen_hashes = set()
         exact_duplicates = set()

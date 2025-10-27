@@ -62,6 +62,13 @@ class MultiBLiMPEvaluator:
         self.device = next(model.parameters()).device
         logger.info(f"MultiBLiMP evaluator initialized on device: {self.device}")
 
+        # Get config parameters
+        multiblimp_config = self.config.get('evaluation', {}).get('benchmarks', {}).get('multiblimp', {})
+        self.max_examples_per_phenomenon = multiblimp_config.get('n_examples_per_phenomenon', None)
+
+        if self.max_examples_per_phenomenon:
+            logger.info(f"Will limit to {self.max_examples_per_phenomenon} examples per phenomenon (from config)")
+
         # Phenomena to test
         self.phenomena = [
             'subject_verb_agreement_number',
@@ -83,7 +90,18 @@ class MultiBLiMPEvaluator:
         # Load or create minimal pairs
         self.minimal_pairs = self._initialize_minimal_pairs()
 
-        logger.info(f"Loaded {sum(len(pairs) for pairs in self.minimal_pairs.values())} minimal pairs across {len(self.minimal_pairs)} phenomena")
+        # Log comprehensive test coverage statistics
+        total_pairs = sum(len(pairs) for pairs in self.minimal_pairs.values())
+        logger.info(f"MultiBLiMP test coverage: {total_pairs} minimal pairs across {len(self.minimal_pairs)} phenomena")
+
+        # Show per-phenomenon breakdown
+        if total_pairs > 100:  # External dataset loaded (detailed breakdown)
+            logger.info("Per-phenomenon test coverage:")
+            for phenomenon in sorted(self.minimal_pairs.keys()):
+                count = len(self.minimal_pairs[phenomenon])
+                logger.info(f"  {phenomenon}: {count} pairs")
+        else:  # Built-in dataset (summary only)
+            logger.info(f"Using built-in test suite ({total_pairs} pairs total)")
 
     def evaluate_all_phenomena(self) -> Dict[str, Dict]:
         """
@@ -306,13 +324,34 @@ class MultiBLiMPEvaluator:
         try:
             dataset = self._load_multiblimp_dataset()
             if dataset:
-                return dataset
+                minimal_pairs = dataset
+            else:
+                # Use comprehensive built-in minimal pairs
+                logger.info("Using built-in Hindi minimal pairs database")
+                minimal_pairs = self._create_comprehensive_minimal_pairs()
         except Exception as e:
             logger.debug(f"Could not load external MultiBLiMP dataset: {e}")
+            # Use comprehensive built-in minimal pairs
+            logger.info("Using built-in Hindi minimal pairs database")
+            minimal_pairs = self._create_comprehensive_minimal_pairs()
 
-        # Use comprehensive built-in minimal pairs
-        logger.info("Using built-in Hindi minimal pairs database")
-        return self._create_comprehensive_minimal_pairs()
+        # Apply limiting if configured
+        if self.max_examples_per_phenomenon:
+            original_total = sum(len(pairs) for pairs in minimal_pairs.values())
+            limited_pairs = {}
+            for phenomenon, pairs in minimal_pairs.items():
+                if len(pairs) > self.max_examples_per_phenomenon:
+                    limited_pairs[phenomenon] = pairs[:self.max_examples_per_phenomenon]
+                    logger.debug(f"Limited {phenomenon} from {len(pairs)} to {self.max_examples_per_phenomenon} pairs")
+                else:
+                    limited_pairs[phenomenon] = pairs
+
+            new_total = sum(len(pairs) for pairs in limited_pairs.values())
+            if new_total < original_total:
+                logger.info(f"Applied limiting: reduced from {original_total} to {new_total} total pairs")
+            minimal_pairs = limited_pairs
+
+        return minimal_pairs
 
     def _load_multiblimp_dataset(self) -> Optional[Dict]:
         """
@@ -322,18 +361,31 @@ class MultiBLiMPEvaluator:
             Dataset or None if not available
         """
         try:
-            dataset = load_dataset('BabyLM/MultilingualBlimp', 'hi', split='test')
+            logger.info("Attempting to load MultiBLiMP dataset from HuggingFace (jumelet/multiblimp)...")
+            dataset = load_dataset('jumelet/multiblimp', 'hin', split='train')
+
+            logger.info(f"Successfully loaded external dataset with {len(dataset)} examples")
+
             # Convert to our format
             minimal_pairs = defaultdict(list)
             for example in dataset:
                 phenomenon = example.get('phenomenon', 'unknown')
                 minimal_pairs[phenomenon].append({
-                    'good': example['good_sentence'],
-                    'bad': example['bad_sentence'],
+                    'good': example['sen'],  # Grammatical sentence
+                    'bad': example['wrong_sen'],  # Ungrammatical sentence
                     'phenomenon': phenomenon
                 })
+
+            # Log statistics
+            total_pairs = sum(len(pairs) for pairs in minimal_pairs.values())
+            logger.info(f"Converted to {total_pairs} minimal pairs across {len(minimal_pairs)} phenomena")
+            for phenomenon, pairs in sorted(minimal_pairs.items()):
+                logger.debug(f"  {phenomenon}: {len(pairs)} pairs")
+
             return dict(minimal_pairs)
-        except:
+        except Exception as e:
+            logger.warning(f"Could not load external MultiBLiMP dataset: {e}")
+            logger.info("Will fall back to built-in minimal pairs")
             return None
 
     def _create_comprehensive_minimal_pairs(self) -> Dict[str, List[Dict]]:

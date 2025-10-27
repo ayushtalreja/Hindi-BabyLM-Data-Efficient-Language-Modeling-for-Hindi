@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any
 
 from .gpt_model import HindiGPTModel
 from .deberta_model import HindiDeBERTaModel
+from .classification_models import wrap_model_for_classification
 
 
 class ModelFactory:
@@ -40,19 +41,42 @@ class ModelFactory:
             'dropout': self.config.__dict__.get('dropout', 0.1),
             'intermediate_size': self.config.__dict__.get('intermediate_size', 3072),
             'activation': self.config.__dict__.get('activation', 'gelu'),
-            'use_cache': self.config.__dict__.get('use_cache', True),
         }
 
-        # Add DeBERTa-specific params
-        if self.model_type == 'deberta':
-            model_config.update({
-                'position_buckets': self.config.__dict__.get('position_buckets', 256),
-                'relative_attention': self.config.__dict__.get('relative_attention', True),
-                'max_relative_positions': self.config.__dict__.get('max_relative_positions', -1),
-                'pooler_hidden_size': self.config.__dict__.get('pooler_hidden_size', self.config.hidden_size),
-                'pooler_dropout': self.config.__dict__.get('pooler_dropout', 0.1),
-                'pooler_hidden_act': self.config.__dict__.get('pooler_hidden_act', 'gelu'),
-            })
+        # Add model-specific params from nested configs
+        if self.model_type == 'gpt':
+            gpt_config = self.config.gpt_config
+            if gpt_config is not None:
+                model_config.update({
+                    'use_cache': gpt_config.use_cache,
+                    'scale_attn_weights': gpt_config.scale_attn_weights,
+                    'reorder_and_upcast_attn': gpt_config.reorder_and_upcast_attn,
+                })
+            else:
+                # Fallback to defaults if config not populated
+                model_config['use_cache'] = True
+
+        elif self.model_type == 'deberta':
+            deberta_config = self.config.deberta_config
+            if deberta_config is not None:
+                model_config.update({
+                    'position_buckets': deberta_config.position_buckets,
+                    'relative_attention': deberta_config.relative_attention,
+                    'max_relative_positions': deberta_config.max_relative_positions,
+                    'pooler_hidden_size': deberta_config.pooler_hidden_size,
+                    'pooler_dropout': deberta_config.pooler_dropout,
+                    'pooler_hidden_act': deberta_config.pooler_hidden_act,
+                })
+            else:
+                # Fallback to defaults if config not populated
+                model_config.update({
+                    'position_buckets': 256,
+                    'relative_attention': True,
+                    'max_relative_positions': -1,
+                    'pooler_hidden_size': self.config.hidden_size,
+                    'pooler_dropout': 0.1,
+                    'pooler_hidden_act': 'gelu',
+                })
 
         if self.model_type == "gpt":
             model = HindiGPTModel(vocab_size=vocab_size, config=model_config)
@@ -70,6 +94,52 @@ class ModelFactory:
 
         return model
 
+    def wrap_for_classification(
+        self,
+        model,
+        num_classes: int,
+        dropout: float = 0.1,
+        freeze_base: bool = False,
+        pooling_strategy: str = 'auto'
+    ):
+        """
+        Wrap a language model with a classification head for sequence classification tasks.
+
+        Args:
+            model: Pre-trained language model (HindiGPTModel or HindiDeBERTaModel)
+            num_classes: Number of classification classes
+            dropout: Dropout probability for classification head
+            freeze_base: If True, freeze the language model parameters
+            pooling_strategy: Pooling strategy ('auto', 'mean', 'max', 'first', 'last')
+
+        Returns:
+            Model wrapped with classification head
+        """
+        print(f"\nWrapping {self.model_type} model with classification head...")
+        print(f"  Number of classes: {num_classes}")
+        print(f"  Dropout: {dropout}")
+        print(f"  Freeze base model: {freeze_base}")
+        print(f"  Pooling strategy: {pooling_strategy}")
+
+        wrapped_model = wrap_model_for_classification(
+            lm_model=model,
+            model_type=self.model_type,
+            num_classes=num_classes,
+            hidden_size=self.config.hidden_size,
+            dropout=dropout,
+            freeze_base=freeze_base,
+            pooling_strategy=pooling_strategy
+        )
+
+        # Count parameters
+        num_params = sum(p.numel() for p in wrapped_model.parameters())
+        num_trainable_params = sum(p.numel() for p in wrapped_model.parameters() if p.requires_grad)
+
+        print(f"  Total parameters: {num_params:,}")
+        print(f"  Trainable parameters: {num_trainable_params:,}")
+
+        return wrapped_model
+
     def save_model(self, model, tokenizer, checkpoint_name: Optional[str] = None, metrics: Optional[Dict[str, float]] = None):
         """Save model checkpoint with metadata"""
         if checkpoint_name is None:
@@ -82,7 +152,7 @@ class ModelFactory:
             'model_state_dict': model.state_dict(),
             'model_type': self.model_type,
             'vocab_size': tokenizer.vocab_size,
-            'config': self.config.__dict__,
+            'config': self.config.to_clean_dict(),  # Use clean dict to avoid contamination
             'experiment_name': self.experiment_name
         }
 
@@ -130,10 +200,21 @@ class ModelFactory:
         model_type = checkpoint.get('model_type', self.model_type)
         saved_config = checkpoint.get('config', {})
 
-        # Update config with saved values
-        for key, value in saved_config.items():
-            if hasattr(self.config, key):
-                setattr(self.config, key, value)
+        # Import here to avoid circular import
+        from ..utils.experiment_config import ExperimentConfig
+
+        # Use backward compatibility method to handle old flat configs
+        migrated_config = ExperimentConfig.from_checkpoint_config(saved_config)
+        if migrated_config is not None:
+            # Update current config with migrated values
+            for key, value in migrated_config.__dict__.items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
+        else:
+            # Fallback to old method if migration fails
+            for key, value in saved_config.items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
 
         # Create model
         original_model_type = self.model_type
@@ -212,7 +293,7 @@ class ModelFactory:
             'step': step,
             'metrics': metrics,
             'model_type': self.model_type,
-            'config': self.config.__dict__,
+            'config': self.config.to_clean_dict(),  # Use clean dict to avoid contamination
             'experiment_name': self.experiment_name
         }
 

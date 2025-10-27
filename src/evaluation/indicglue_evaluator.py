@@ -28,6 +28,9 @@ from pathlib import Path
 from .metrics_utils import MetricsAggregator, Metric
 from .evaluation_cache import EvaluationCache
 
+# Import classification models for wrapping language models
+from ..models.classification_models import wrap_model_for_classification
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,13 +55,23 @@ class IndicGLUEEvaluator:
             tokenizer: Tokenizer for the model
             config: Optional configuration dictionary
         """
-        self.model = model
+        self.base_model = model
         self.tokenizer = tokenizer
         self.config = config or {}
 
         # Device setup
         self.device = next(model.parameters()).device
         logger.info(f"IndicGLUE evaluator initialized on device: {self.device}")
+
+        # Detect if the model is already a classification model or a language model
+        # Language models have output shape [batch, seq_len, vocab_size]
+        # Classification models have output shape [batch, num_classes]
+        self.is_language_model = self._is_language_model(model)
+
+        # Dictionary to store task-specific wrapped models
+        self.wrapped_models = {}
+
+        logger.info(f"Model type detected: {'Language Model' if self.is_language_model else 'Classification Model'}")
 
         # Task configurations
         self.tasks = {
@@ -75,10 +88,9 @@ class IndicGLUEEvaluator:
                 'class_names': ['Not Related', 'Partially Related', 'Fully Related']
             },
             'IndicWiki': {
-                'type': 'classification',
-                'num_labels': 4,  # Section title categories
-                'metric': 'accuracy',
-                'class_names': ['History', 'Geography', 'Science', 'Other']
+                'type': 'multiple_choice',
+                'num_choices': 4,  # Four title choices (titleA, titleB, titleC, titleD)
+                'metric': 'accuracy'
             },
             'IndicCQ': {
                 'type': 'multiple_choice',
@@ -119,6 +131,111 @@ class IndicGLUEEvaluator:
         # Visualization settings
         self.save_visualizations = eval_config.get('save_visualizations', True)
         self.visualization_format = eval_config.get('visualization_format', ['png', 'html'])
+
+    def _is_language_model(self, model) -> bool:
+        """
+        Detect if the model is a language model (outputs per-token predictions)
+        or a classification model (outputs per-example predictions).
+
+        Returns:
+            True if language model, False if classification model
+        """
+        # Check if model has classification head attributes
+        if hasattr(model, 'classifier'):
+            return False
+
+        # Check the model class name
+        model_class_name = model.__class__.__name__
+        if 'Classification' in model_class_name or 'Classifier' in model_class_name:
+            return False
+
+        # Check for language modeling head
+        if 'LMHead' in model_class_name or 'MaskedLM' in model_class_name or 'GPT' in model_class_name:
+            return True
+
+        # Default: assume it's a language model for safety
+        logger.warning(f"Could not definitively determine model type for {model_class_name}, assuming language model")
+        return True
+
+    def _get_model_config(self) -> Dict:
+        """Extract model configuration for wrapping."""
+        # Try to get hidden size from model config
+        if hasattr(self.base_model, 'config'):
+            hidden_size = self.base_model.config.hidden_size
+        elif hasattr(self.base_model, 'model') and hasattr(self.base_model.model, 'config'):
+            hidden_size = self.base_model.model.config.hidden_size
+        else:
+            # Default hidden size
+            hidden_size = 768
+            logger.warning(f"Could not determine hidden size, using default: {hidden_size}")
+
+        # Try to detect model type
+        model_class_name = self.base_model.__class__.__name__.lower()
+        if 'gpt' in model_class_name:
+            model_type = 'gpt'
+        elif 'deberta' in model_class_name:
+            model_type = 'deberta'
+        else:
+            model_type = 'gpt'  # Default
+            logger.warning(f"Could not determine model type from {self.base_model.__class__.__name__}, using 'gpt'")
+
+        return {
+            'hidden_size': hidden_size,
+            'model_type': model_type
+        }
+
+    def _get_model_for_task(self, task_name: str):
+        """
+        Get the appropriate model for a specific task.
+        If the base model is a language model, wrap it with a classification head.
+
+        Args:
+            task_name: Name of the task
+
+        Returns:
+            Model ready for the task
+        """
+        if not self.is_language_model:
+            # Already a classification model, use as-is
+            return self.base_model
+
+        # Check if we already have a wrapped model for this task
+        if task_name in self.wrapped_models:
+            return self.wrapped_models[task_name]
+
+        # Wrap the language model with a classification head
+        task_config = self.tasks[task_name]
+        model_config = self._get_model_config()
+
+        # Determine number of classes based on task type
+        if task_config['type'] in ['classification', 'nli']:
+            num_classes = task_config['num_labels']
+        elif task_config['type'] == 'multiple_choice':
+            # Multiple choice tasks don't need classification heads
+            # They use the language model as-is for scoring
+            return self.base_model
+        else:
+            raise ValueError(f"Unknown task type: {task_config['type']}")
+
+        logger.info(f"Wrapping model for task {task_name} with {num_classes} classes...")
+
+        wrapped_model = wrap_model_for_classification(
+            lm_model=self.base_model,
+            model_type=model_config['model_type'],
+            num_classes=num_classes,
+            hidden_size=model_config['hidden_size'],
+            dropout=self.config.get('eval_dropout', 0.0),  # No dropout during evaluation
+            freeze_base=True,  # Freeze base model during evaluation
+            pooling_strategy='auto'
+        )
+
+        # Move to correct device
+        wrapped_model = wrapped_model.to(self.device)
+
+        # Cache the wrapped model
+        self.wrapped_models[task_name] = wrapped_model
+
+        return wrapped_model
 
     def evaluate_all_tasks(self) -> Dict[str, Dict]:
         """
@@ -294,7 +411,9 @@ class IndicGLUEEvaluator:
         predictions = []
         labels = []
 
-        self.model.eval()
+        # Get the appropriate model for this task (wrapped with classification head if needed)
+        model = self._get_model_for_task(task_name)
+        model.eval()
 
         with torch.no_grad():
             for i in tqdm(range(0, len(dataset), self.batch_size), desc=f"Evaluating {task_name}"):
@@ -319,21 +438,38 @@ class IndicGLUEEvaluator:
                     continue
 
                 # Get model predictions
-                outputs = self.model(**inputs)
+                outputs = model(**inputs)
                 logits = outputs.logits if hasattr(outputs, 'logits') else outputs[0]
 
                 # Get predicted classes
-                batch_preds = torch.argmax(logits, dim=-1).cpu().numpy()
+                # For classification models: logits shape is [batch, num_classes]
+                # For language models (if still used): logits shape is [batch, seq_len, vocab_size]
+                if logits.dim() == 2:
+                    # Classification model: [batch, num_classes]
+                    batch_preds = torch.argmax(logits, dim=-1).cpu().numpy()
+                elif logits.dim() == 3:
+                    # Language model (fallback): [batch, seq_len, vocab_size]
+                    # This should not happen if wrapping worked correctly
+                    logger.warning(f"Received 3D logits for {task_name}, using fallback (last token, first N classes)")
+                    num_classes = self.tasks[task_name]['num_labels']
+                    last_token_logits = logits[:, -1, :num_classes]
+                    batch_preds = torch.argmax(last_token_logits, dim=-1).cpu().numpy()
+                else:
+                    raise ValueError(f"Unexpected logits shape: {logits.shape}")
 
                 predictions.extend(batch_preds.tolist())
                 labels.extend(batch_labels if isinstance(batch_labels, list) else batch_labels.tolist())
+
+        # Validate predictions and labels have same length
+        assert len(predictions) == len(labels), \
+            f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
 
         # Compute metrics
         return self._compute_classification_metrics(predictions, labels, task_name)
 
     def _evaluate_multiple_choice(self, dataset: Dataset, task_name: str) -> Dict:
         """
-        Evaluate multiple choice task (IndicCOPA, IndicCQ)
+        Evaluate multiple choice task (IndicCOPA, IndicCQ, IndicWiki)
 
         Args:
             dataset: Dataset to evaluate on
@@ -345,23 +481,40 @@ class IndicGLUEEvaluator:
         predictions = []
         labels = []
 
-        self.model.eval()
+        # Use base model for multiple choice (no classification head needed)
+        self.base_model.eval()
 
         with torch.no_grad():
             for example in tqdm(dataset, desc=f"Evaluating {task_name}"):
-                # Extract premise and choices
+                # Extract premise/question/text based on task
                 if 'premise' in example:
                     premise = example['premise']
                 elif 'question' in example:
                     premise = example['question']
+                elif 'sectionText' in example:
+                    # IndicWiki uses sectionText
+                    premise = example['sectionText']
                 else:
                     premise = example.get('context', '')
 
-                # Get choices
+                # Get choices based on task format
                 choices = []
                 if 'choice1' in example and 'choice2' in example:
+                    # IndicCOPA format
                     choices = [example['choice1'], example['choice2']]
+                elif task_name == 'IndicWiki' and 'titleA' in example:
+                    # IndicWiki format: titleA, titleB, titleC, titleD
+                    choices = [
+                        example['titleA'],
+                        example['titleB'],
+                        example['titleC'],
+                        example['titleD']
+                    ]
+                elif task_name == 'IndicCQ' and 'options' in example:
+                    # IndicCQ format: options is a list
+                    choices = example['options']
                 elif 'choices' in example:
+                    # Generic choices field
                     choices = example['choices']
                 else:
                     # Default for synthetic data
@@ -376,7 +529,7 @@ class IndicGLUEEvaluator:
                     # Tokenize and get score
                     try:
                         inputs = self._tokenize_batch([text])
-                        outputs = self.model(**inputs)
+                        outputs = self.base_model(**inputs)
 
                         # Use loss or logits to score
                         if hasattr(outputs, 'logits'):
@@ -391,7 +544,34 @@ class IndicGLUEEvaluator:
                 # Predict choice with highest score
                 pred = np.argmax(choice_scores)
                 predictions.append(pred)
-                labels.append(example['label'])
+
+                # Convert label to numeric format based on task
+                if task_name == 'IndicWiki' and 'correctTitle' in example:
+                    # IndicWiki: correctTitle is 'titleA', 'titleB', 'titleC', or 'titleD'
+                    # Map to indices: titleA->0, titleB->1, titleC->2, titleD->3
+                    label_map = {'titleA': 0, 'titleB': 1, 'titleC': 2, 'titleD': 3}
+                    numeric_label = label_map.get(example['correctTitle'], 0)
+                    labels.append(numeric_label)
+                elif task_name == 'IndicCQ' and 'answer' in example and 'options' in example:
+                    # IndicCQ: answer is the text, find its index in options
+                    try:
+                        numeric_label = example['options'].index(example['answer'])
+                        labels.append(numeric_label)
+                    except (ValueError, AttributeError):
+                        # If answer not in options, log warning and use 0
+                        logger.warning(f"Answer '{example.get('answer')}' not found in options for IndicCQ")
+                        labels.append(0)
+                elif 'label' in example:
+                    # Standard label field (IndicCOPA)
+                    labels.append(example['label'])
+                else:
+                    # Fallback for missing labels
+                    logger.warning(f"No label field found for {task_name}, using 0")
+                    labels.append(0)
+
+        # Validate predictions and labels have same length
+        assert len(predictions) == len(labels), \
+            f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
 
         # Compute metrics
         return self._compute_classification_metrics(predictions, labels, task_name)
@@ -410,7 +590,9 @@ class IndicGLUEEvaluator:
         predictions = []
         labels = []
 
-        self.model.eval()
+        # Get the appropriate model for this task (wrapped with classification head if needed)
+        model = self._get_model_for_task(task_name)
+        model.eval()
 
         with torch.no_grad():
             for i in tqdm(range(0, len(dataset), self.batch_size), desc=f"Evaluating {task_name}"):
@@ -431,13 +613,31 @@ class IndicGLUEEvaluator:
                     continue
 
                 # Get predictions
-                outputs = self.model(**inputs)
+                outputs = model(**inputs)
                 logits = outputs.logits if hasattr(outputs, 'logits') else outputs[0]
 
-                batch_preds = torch.argmax(logits, dim=-1).cpu().numpy()
+                # Get predicted classes
+                # For classification models: logits shape is [batch, num_classes]
+                # For language models (if still used): logits shape is [batch, seq_len, vocab_size]
+                if logits.dim() == 2:
+                    # Classification model: [batch, num_classes]
+                    batch_preds = torch.argmax(logits, dim=-1).cpu().numpy()
+                elif logits.dim() == 3:
+                    # Language model (fallback): [batch, seq_len, vocab_size]
+                    # This should not happen if wrapping worked correctly
+                    logger.warning(f"Received 3D logits for {task_name}, using fallback (last token, first N classes)")
+                    num_classes = self.tasks[task_name]['num_labels']
+                    last_token_logits = logits[:, -1, :num_classes]
+                    batch_preds = torch.argmax(last_token_logits, dim=-1).cpu().numpy()
+                else:
+                    raise ValueError(f"Unexpected logits shape: {logits.shape}")
 
                 predictions.extend(batch_preds.tolist())
                 labels.extend(batch_labels if isinstance(batch_labels, list) else batch_labels.tolist())
+
+        # Validate predictions and labels have same length
+        assert len(predictions) == len(labels), \
+            f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
 
         # Compute metrics
         return self._compute_classification_metrics(predictions, labels, task_name)
