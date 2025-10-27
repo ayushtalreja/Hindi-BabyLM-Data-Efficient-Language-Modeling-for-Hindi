@@ -13,8 +13,14 @@ class TestExperimentConfig:
     """Test ExperimentConfig class"""
 
     def test_default_initialization(self):
-        """Test ExperimentConfig can be initialized with defaults"""
-        config = ExperimentConfig()
+        """Test ExperimentConfig can be initialized with explicit values"""
+        # After refactoring, configs should be loaded from YAML files
+        # This test verifies that ExperimentConfig can still be initialized programmatically
+        config = ExperimentConfig(
+            experiment_name="default_experiment",
+            vocab_size=32000,
+            batch_size=32
+        )
 
         assert config.experiment_name == "default_experiment"
         assert config.vocab_size == 32000

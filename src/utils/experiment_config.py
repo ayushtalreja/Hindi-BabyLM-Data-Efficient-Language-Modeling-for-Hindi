@@ -9,76 +9,76 @@ import wandb
 @dataclass
 class GPTModelConfig:
     """Configuration specific to GPT models"""
-    use_cache: bool = True
-    scale_attn_weights: bool = True
-    reorder_and_upcast_attn: bool = False
+    use_cache: Optional[bool] = None
+    scale_attn_weights: Optional[bool] = None
+    reorder_and_upcast_attn: Optional[bool] = None
 
 
 @dataclass
 class DeBERTaModelConfig:
     """Configuration specific to DeBERTa models"""
-    position_buckets: int = 256
-    relative_attention: bool = True
-    max_relative_positions: int = -1
-    pooler_hidden_size: int = 768
-    pooler_dropout: float = 0.1
-    pooler_hidden_act: str = "gelu"
+    position_buckets: Optional[int] = None
+    relative_attention: Optional[bool] = None
+    max_relative_positions: Optional[int] = None
+    pooler_hidden_size: Optional[int] = None
+    pooler_dropout: Optional[float] = None
+    pooler_hidden_act: Optional[str] = None
 
 
 @dataclass
 class ExperimentConfig:
     # Experiment metadata
-    experiment_name: str = "default_experiment"
-    experiment_description: str = ""
+    experiment_name: Optional[str] = None
+    experiment_description: Optional[str] = None
     experiment_tags: Optional[List[str]] = None
 
     # Directory configuration
-    data_dir: str = "data"
-    model_dir: str = "models"
-    tokenizer_dir: str = "tokenizers"
-    results_dir: str = "results"
+    data_dir: Optional[str] = None
+    model_dir: Optional[str] = None
+    tokenizer_dir: Optional[str] = None
+    results_dir: Optional[str] = None
 
     # Data configuration
-    max_words: int = 10_000_000  # Maximum words in corpus (renamed from max_tokens)
-    max_tokens: int = None  # Deprecated: use max_words instead
+    max_words: Optional[int] = None  # Maximum words in corpus (renamed from max_tokens)
+    max_tokens: Optional[int] = None  # Deprecated: use max_words instead
 
     # Separate word limits for each split (Phase 2)
-    train_word_limit: int = 10_000_000  # 10M words for training
-    val_word_limit: int = 10_000_000    # 10M words for validation
-    test_word_limit: int = 10_000_000   # 10M words for test
+    train_word_limit: Optional[int] = None  # 10M words for training
+    val_word_limit: Optional[int] = None    # 10M words for validation
+    test_word_limit: Optional[int] = None   # 10M words for test
 
-    train_ratio: float = 0.8
-    val_ratio: float = 0.1
-    test_ratio: float = 0.1
+    train_ratio: Optional[float] = None
+    val_ratio: Optional[float] = None
+    test_ratio: Optional[float] = None
 
     # Tokenization configuration
-    tokenizer_type: str = "sentencepiece"
-    vocab_size: int = 32000
+    tokenizer_type: Optional[str] = None
+    vocab_size: Optional[int] = None
 
     # Model configuration
-    model_type: str = "gpt"  # gpt, deberta
-    model_size: str = "small"  # tiny, small, medium/base, large
-    hidden_size: int = 768
-    num_layers: int = 12
-    num_heads: int = 12
-    max_length: int = 512
-    dropout: float = 0.1
-    intermediate_size: int = 3072
+    model_type: Optional[str] = None  # gpt, deberta
+    model_size: Optional[str] = None  # tiny, small, medium/base, large
+    hidden_size: Optional[int] = None
+    num_layers: Optional[int] = None
+    num_heads: Optional[int] = None
+    max_length: Optional[int] = None
+    dropout: Optional[float] = None
+    intermediate_size: Optional[int] = None
 
     # Model-specific configurations (only one should be populated based on model_type)
     gpt_config: Optional[GPTModelConfig] = None
     deberta_config: Optional[DeBERTaModelConfig] = None
 
     # Training configuration
-    batch_size: int = 32
-    learning_rate: float = 3e-4
-    num_epochs: int = 10
-    weight_decay: float = 0.01
-    warmup_steps: int = 1000
+    batch_size: Optional[int] = None
+    learning_rate: Optional[float] = None
+    num_epochs: Optional[int] = None
+    weight_decay: Optional[float] = None
+    warmup_steps: Optional[int] = None
 
     # Evaluation configuration
-    eval_steps: int = 500
-    save_steps: int = 1000
+    eval_steps: Optional[int] = None
+    save_steps: Optional[int] = None
 
     def __post_init__(self):
         """Auto-populate model-specific config based on model_type"""
@@ -140,14 +140,29 @@ class ExperimentConfig:
             if 'tags' in exp_config:
                 flat_config['experiment_tags'] = exp_config['tags']
 
+        # Extract directories configuration
+        if 'directories' in config_dict:
+            directories = config_dict.get('directories', {})
+            if 'data_dir' in directories:
+                flat_config['data_dir'] = directories['data_dir']
+            if 'model_dir' in directories:
+                flat_config['model_dir'] = directories['model_dir']
+            if 'tokenizer_dir' in directories:
+                flat_config['tokenizer_dir'] = directories['tokenizer_dir']
+            if 'results_dir' in directories:
+                flat_config['results_dir'] = directories['results_dir']
+
         if 'data' in config_dict:
             flat_config.update(config_dict.get('data', {}))
         if 'tokenization' in config_dict:
             tokenization = config_dict.get('tokenization', {})
             if 'vocab_size' in tokenization:
                 flat_config['vocab_size'] = tokenization['vocab_size']
-            # Default to first method if multiple methods listed
-            if 'methods' in tokenization and isinstance(tokenization['methods'], list):
+            # Map 'type' field to 'tokenizer_type'
+            if 'type' in tokenization:
+                flat_config['tokenizer_type'] = tokenization['type']
+            # Default to first method if multiple methods listed (backward compatibility)
+            elif 'methods' in tokenization and isinstance(tokenization['methods'], list):
                 flat_config['tokenizer_type'] = tokenization['methods'][0]
         if 'training' in config_dict:
             training = config_dict.get('training', {})
@@ -155,6 +170,28 @@ class ExperimentConfig:
             # Map max_epochs to num_epochs if needed
             if 'max_epochs' in training:
                 flat_config['num_epochs'] = training['max_epochs']
+            # Extract optimizer parameters
+            if 'optimizer' in training:
+                optimizer = training['optimizer']
+                if 'learning_rate' in optimizer:
+                    flat_config['learning_rate'] = optimizer['learning_rate']
+                if 'weight_decay' in optimizer:
+                    flat_config['weight_decay'] = optimizer['weight_decay']
+            # Extract learning rate scheduler parameters
+            if 'lr_scheduler' in training:
+                lr_scheduler = training['lr_scheduler']
+                if 'warmup_steps' in lr_scheduler:
+                    flat_config['warmup_steps'] = lr_scheduler['warmup_steps']
+            # Extract evaluation parameters
+            if 'evaluation' in training:
+                evaluation = training['evaluation']
+                if 'eval_steps' in evaluation:
+                    flat_config['eval_steps'] = evaluation['eval_steps']
+            # Extract checkpointing parameters
+            if 'checkpointing' in training:
+                checkpointing = training['checkpointing']
+                if 'save_steps' in checkpointing:
+                    flat_config['save_steps'] = checkpointing['save_steps']
         if 'model' in config_dict:
             model_config = config_dict.get('model', {})
             # Add top-level model config
