@@ -1,9 +1,6 @@
 # Claude Code agents and configuration
 .claude/
 
-# Scripts directory (user-specific execution scripts)
-scripts/
-
 # Python
 __pycache__/
 *.py[cod]
@@ -82,9 +79,9 @@ logs/
 
 # Model files
 models/
-*.model
 *.pkl
 *.pickle
+*.pt
 
 # Weights & Biases
 wandb/
