@@ -78,7 +78,7 @@ logs/
 # *.pdf
 
 # Model files
-models/
+/models/
 *.pkl
 *.pickle
 *.pt

@@ -1,0 +1,350 @@
+"""
+Classification Wrappers for Language Models
+
+This module provides classification heads on top of language models to enable
+sequence-level classification tasks. The language models (GPT, DeBERTa) output
+per-token predictions, but classification tasks need per-example predictions.
+
+Architecture:
+- Language Model: [batch, seq_len, vocab_size]
+- Pooling: [batch, seq_len, hidden_size] -> [batch, hidden_size]
+- Classification Head: [batch, hidden_size] -> [batch, num_classes]
+"""
+
+import torch
+import torch.nn as nn
+from typing import Optional, Dict, Any
+from dataclasses import dataclass
+
+
+@dataclass
+class ClassificationOutput:
+    """Output from classification models"""
+    logits: torch.Tensor  # [batch, num_classes]
+    loss: Optional[torch.Tensor] = None
+    hidden_states: Optional[torch.Tensor] = None  # [batch, hidden_size]
+    pooled_output: Optional[torch.Tensor] = None  # [batch, hidden_size]
+
+
+class GPTForSequenceClassification(nn.Module):
+    """
+    GPT model with classification head for sequence-level classification.
+
+    Uses last-token pooling since GPT is a causal language model where
+    the last token has seen the full sequence context.
+    """
+
+    def __init__(self,
+                 lm_model: nn.Module,
+                 num_classes: int,
+                 hidden_size: int,
+                 dropout: float = 0.1,
+                 freeze_base: bool = False):
+        """
+        Args:
+            lm_model: Pre-trained GPT language model
+            num_classes: Number of classification classes
+            hidden_size: Hidden size of the language model
+            dropout: Dropout probability for classification head
+            freeze_base: If True, freeze the language model parameters
+        """
+        super().__init__()
+
+        self.lm_model = lm_model
+        self.num_classes = num_classes
+        self.hidden_size = hidden_size
+
+        # Freeze base model if requested
+        if freeze_base:
+            for param in self.lm_model.parameters():
+                param.requires_grad = False
+
+        # Classification head
+        self.dropout = nn.Dropout(dropout)
+        self.classifier = nn.Linear(hidden_size, num_classes)
+
+        # Initialize classification head
+        nn.init.normal_(self.classifier.weight, std=0.02)
+        nn.init.zeros_(self.classifier.bias)
+
+    def forward(self,
+                input_ids: torch.Tensor,
+                attention_mask: Optional[torch.Tensor] = None,
+                labels: Optional[torch.Tensor] = None,
+                **kwargs) -> ClassificationOutput:
+        """
+        Forward pass for classification.
+
+        Args:
+            input_ids: Input token IDs [batch, seq_len]
+            attention_mask: Attention mask [batch, seq_len]
+            labels: Classification labels [batch] (optional)
+
+        Returns:
+            ClassificationOutput with logits [batch, num_classes]
+        """
+        # Get language model outputs
+        lm_outputs = self.lm_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=None  # Don't compute LM loss
+        )
+
+        # Extract hidden states: [batch, seq_len, hidden_size]
+        if hasattr(lm_outputs, 'hidden_states') and lm_outputs.hidden_states is not None:
+            # If model outputs hidden states, use the last layer
+            hidden_states = lm_outputs.hidden_states[-1]
+        elif hasattr(lm_outputs, 'last_hidden_state'):
+            hidden_states = lm_outputs.last_hidden_state
+        else:
+            # For GPT2LMHeadModel, we need to get transformer outputs
+            # The logits shape is [batch, seq_len, vocab_size]
+            # We need to access the transformer's last hidden state
+            transformer_outputs = self.lm_model.model.transformer(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            hidden_states = transformer_outputs.last_hidden_state
+
+        # Last token pooling: [batch, hidden_size]
+        # For causal LM, the last token has seen the full context
+        if attention_mask is not None:
+            # Get the last non-padding token for each example
+            sequence_lengths = attention_mask.sum(dim=1).long() - 1
+            batch_size = hidden_states.shape[0]
+            pooled_output = hidden_states[
+                torch.arange(batch_size, device=hidden_states.device),
+                sequence_lengths
+            ]
+        else:
+            # If no attention mask, just use the last token
+            pooled_output = hidden_states[:, -1, :]
+
+        # Apply classification head
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)  # [batch, num_classes]
+
+        # Compute loss if labels provided
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+
+        return ClassificationOutput(
+            logits=logits,
+            loss=loss,
+            hidden_states=hidden_states,
+            pooled_output=pooled_output
+        )
+
+
+class DeBERTaForSequenceClassification(nn.Module):
+    """
+    DeBERTa model with classification head for sequence-level classification.
+
+    Uses mean pooling over all tokens since DeBERTa is a masked language model
+    without a special CLS token position.
+    """
+
+    def __init__(self,
+                 lm_model: nn.Module,
+                 num_classes: int,
+                 hidden_size: int,
+                 dropout: float = 0.1,
+                 pooling_strategy: str = 'mean',
+                 freeze_base: bool = False):
+        """
+        Args:
+            lm_model: Pre-trained DeBERTa language model
+            num_classes: Number of classification classes
+            hidden_size: Hidden size of the language model
+            dropout: Dropout probability for classification head
+            pooling_strategy: Pooling strategy ('mean', 'max', 'first', 'last')
+            freeze_base: If True, freeze the language model parameters
+        """
+        super().__init__()
+
+        self.lm_model = lm_model
+        self.num_classes = num_classes
+        self.hidden_size = hidden_size
+        self.pooling_strategy = pooling_strategy
+
+        # Freeze base model if requested
+        if freeze_base:
+            for param in self.lm_model.parameters():
+                param.requires_grad = False
+
+        # Classification head
+        self.dropout = nn.Dropout(dropout)
+        self.classifier = nn.Linear(hidden_size, num_classes)
+
+        # Initialize classification head
+        nn.init.normal_(self.classifier.weight, std=0.02)
+        nn.init.zeros_(self.classifier.bias)
+
+    def pool_hidden_states(self,
+                          hidden_states: torch.Tensor,
+                          attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Pool hidden states to get sequence representation.
+
+        Args:
+            hidden_states: Hidden states [batch, seq_len, hidden_size]
+            attention_mask: Attention mask [batch, seq_len]
+
+        Returns:
+            Pooled representation [batch, hidden_size]
+        """
+        if self.pooling_strategy == 'mean':
+            # Mean pooling with attention mask
+            if attention_mask is not None:
+                # Expand mask for broadcasting: [batch, seq_len, 1]
+                mask_expanded = attention_mask.unsqueeze(-1).float()
+                # Sum over sequence length, weighted by mask
+                sum_hidden = (hidden_states * mask_expanded).sum(dim=1)
+                # Divide by number of non-padding tokens
+                sum_mask = mask_expanded.sum(dim=1)
+                sum_mask = torch.clamp(sum_mask, min=1e-9)  # Avoid division by zero
+                pooled = sum_hidden / sum_mask
+            else:
+                pooled = hidden_states.mean(dim=1)
+
+        elif self.pooling_strategy == 'max':
+            # Max pooling
+            if attention_mask is not None:
+                # Set padding positions to large negative value
+                mask_expanded = attention_mask.unsqueeze(-1).float()
+                hidden_states = hidden_states.clone()
+                hidden_states[mask_expanded == 0] = -1e9
+            pooled = hidden_states.max(dim=1)[0]
+
+        elif self.pooling_strategy == 'first':
+            # First token (CLS-like)
+            pooled = hidden_states[:, 0, :]
+
+        elif self.pooling_strategy == 'last':
+            # Last non-padding token
+            if attention_mask is not None:
+                sequence_lengths = attention_mask.sum(dim=1).long() - 1
+                batch_size = hidden_states.shape[0]
+                pooled = hidden_states[
+                    torch.arange(batch_size, device=hidden_states.device),
+                    sequence_lengths
+                ]
+            else:
+                pooled = hidden_states[:, -1, :]
+
+        else:
+            raise ValueError(f"Unknown pooling strategy: {self.pooling_strategy}")
+
+        return pooled
+
+    def forward(self,
+                input_ids: torch.Tensor,
+                attention_mask: Optional[torch.Tensor] = None,
+                labels: Optional[torch.Tensor] = None,
+                **kwargs) -> ClassificationOutput:
+        """
+        Forward pass for classification.
+
+        Args:
+            input_ids: Input token IDs [batch, seq_len]
+            attention_mask: Attention mask [batch, seq_len]
+            labels: Classification labels [batch] (optional)
+
+        Returns:
+            ClassificationOutput with logits [batch, num_classes]
+        """
+        # Get language model outputs
+        lm_outputs = self.lm_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=None  # Don't compute LM loss
+        )
+
+        # Extract hidden states: [batch, seq_len, hidden_size]
+        if hasattr(lm_outputs, 'hidden_states') and lm_outputs.hidden_states is not None:
+            # If model outputs hidden states, use the last layer
+            hidden_states = lm_outputs.hidden_states[-1]
+        elif hasattr(lm_outputs, 'last_hidden_state'):
+            hidden_states = lm_outputs.last_hidden_state
+        else:
+            # For DebertaV2ForMaskedLM, access the base model
+            base_outputs = self.lm_model.model.deberta(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            hidden_states = base_outputs.last_hidden_state
+
+        # Pool to get sequence representation: [batch, hidden_size]
+        pooled_output = self.pool_hidden_states(hidden_states, attention_mask)
+
+        # Apply classification head
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)  # [batch, num_classes]
+
+        # Compute loss if labels provided
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+
+        return ClassificationOutput(
+            logits=logits,
+            loss=loss,
+            hidden_states=hidden_states,
+            pooled_output=pooled_output
+        )
+
+
+def wrap_model_for_classification(
+    lm_model: nn.Module,
+    model_type: str,
+    num_classes: int,
+    hidden_size: int,
+    dropout: float = 0.1,
+    freeze_base: bool = False,
+    pooling_strategy: str = 'auto'
+) -> nn.Module:
+    """
+    Wrap a language model with a classification head.
+
+    Args:
+        lm_model: Pre-trained language model
+        model_type: Type of model ('gpt' or 'deberta')
+        num_classes: Number of classification classes
+        hidden_size: Hidden size of the language model
+        dropout: Dropout probability for classification head
+        freeze_base: If True, freeze the language model parameters
+        pooling_strategy: Pooling strategy ('auto', 'mean', 'max', 'first', 'last')
+
+    Returns:
+        Model wrapped with classification head
+    """
+    model_type = model_type.lower()
+
+    if model_type == 'gpt':
+        return GPTForSequenceClassification(
+            lm_model=lm_model,
+            num_classes=num_classes,
+            hidden_size=hidden_size,
+            dropout=dropout,
+            freeze_base=freeze_base
+        )
+
+    elif model_type == 'deberta':
+        # Auto-select pooling strategy
+        if pooling_strategy == 'auto':
+            pooling_strategy = 'mean'
+
+        return DeBERTaForSequenceClassification(
+            lm_model=lm_model,
+            num_classes=num_classes,
+            hidden_size=hidden_size,
+            dropout=dropout,
+            pooling_strategy=pooling_strategy,
+            freeze_base=freeze_base
+        )
+
+    else:
+        raise ValueError(f"Unknown model type: {model_type}. Must be 'gpt' or 'deberta'")
