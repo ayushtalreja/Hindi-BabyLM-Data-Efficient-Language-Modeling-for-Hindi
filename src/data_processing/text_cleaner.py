@@ -1,12 +1,13 @@
 import unicodedata
 import re
 from typing import List, Tuple
+from .utils import HindiValidator
 
 class HindiTextCleaner:
     def __init__(self):
-        # Define Hindi Unicode ranges
-        self.hindi_range = (0x0900, 0x097F)  # Devanagari block
-        self.hindi_ext_range = (0xA8E0, 0xA8FF)  # Extended Devanagari
+        # Use centralized Hindi Unicode ranges from HindiValidator
+        self.hindi_range = HindiValidator.DEVANAGARI_RANGE
+        self.hindi_ext_range = HindiValidator.DEVANAGARI_EXT_RANGE
         
     def normalize_unicode(self, text: str) -> str:
         """Normalize Hindi text using NFC form"""
@@ -27,11 +28,53 @@ class HindiTextCleaner:
                 cleaned_chars.append(char)
         return ''.join(cleaned_chars)
     
-    def clean_text(self, text: str) -> str:
-        """Complete text cleaning pipeline"""
+    def remove_urls(self, text: str) -> str:
+        """Remove URLs from text"""
+        return re.sub(r'http\S+', '', text)
+
+    def remove_noise_patterns(self, text: str) -> str:
+        """Remove common noise patterns like download links, etc."""
+        # Remove common noise patterns (case-insensitive)
+        text = re.sub(r'(?i)(click here|download|pdf|epub|read more|subscribe)', '', text)
+        # Remove brackets and braces
+        text = re.sub(r'[\[\]{}]', '', text)
+        return text
+
+    def normalize_repeated_punctuation(self, text: str) -> str:
+        """Normalize repeated punctuation marks"""
+        # Normalize repeated Hindi punctuation
+        text = re.sub(r'([।॥!?])\1+', r'\1', text)
+        return text
+
+    def clean_text(self, text: str,
+                   remove_urls: bool = True,
+                   remove_noise: bool = True,
+                   normalize_punctuation: bool = True) -> str:
+        """Complete text cleaning pipeline with configurable options.
+
+        Args:
+            text: Input text to clean
+            remove_urls: Whether to remove URLs
+            remove_noise: Whether to remove common noise patterns
+            normalize_punctuation: Whether to normalize repeated punctuation
+
+        Returns:
+            Cleaned text string
+        """
         text = self.normalize_unicode(text)
+
+        if remove_urls:
+            text = self.remove_urls(text)
+
+        if remove_noise:
+            text = self.remove_noise_patterns(text)
+
         text = self.remove_non_hindi(text)
         text = self.remove_extra_whitespace(text)
+
+        if normalize_punctuation:
+            text = self.normalize_repeated_punctuation(text)
+
         text = self.handle_special_cases(text)
         return text
     

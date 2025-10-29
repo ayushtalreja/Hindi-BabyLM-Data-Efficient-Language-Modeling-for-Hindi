@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import pickle
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Optional
 from tqdm import tqdm
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
@@ -16,24 +16,22 @@ if str(project_root) not in sys.path:
 
 # Import data processing modules
 try:
-    from .indiccorp_downloader import download_indiccorp_hindi
-    from .wiki_scraper import scrape_hindi_wikipedia
+    from .downloaders import IndicCorpDownloader, WikiDownloader, IndicDialogueLoader
     from .childrens_books import collect_childrens_stories
     from .quality_filter import QualityFilter
     from .deduplicator import TextDeduplicator
     from .text_cleaner import clean_text
-    from .data_mixer import DataMixer
-    from .cache_manager import check_cache_exists, load_from_cache, save_to_cache
+    # Use unified file I/O utilities instead of deprecated cache_manager
+    from .utils import check_cache_exists, load_pickle, save_pickle
 except ImportError:
     # Fallback for when script is run directly
-    from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
-    from src.data_processing.wiki_scraper import scrape_hindi_wikipedia
+    from src.data_processing.downloaders import IndicCorpDownloader, WikiDownloader, IndicDialogueLoader
     from src.data_processing.childrens_books import collect_childrens_stories
     from src.data_processing.quality_filter import QualityFilter
     from src.data_processing.deduplicator import TextDeduplicator
     from src.data_processing.text_cleaner import clean_text
-    from src.data_processing.data_mixer import DataMixer
-    from src.data_processing.cache_manager import check_cache_exists, load_from_cache, save_to_cache
+    # Use unified file I/O utilities instead of deprecated cache_manager
+    from src.data_processing.utils import check_cache_exists, load_pickle, save_pickle
 
 
 class TextDataset(Dataset):
@@ -84,7 +82,6 @@ class CorpusBuilder:
         # Initialize components
         self.quality_filter = QualityFilter()
         self.deduplicator = TextDeduplicator()
-        self.data_mixer = DataMixer()
 
         # Create directories
         os.makedirs(self.data_dir, exist_ok=True)
@@ -107,8 +104,8 @@ class CorpusBuilder:
             return None
 
         try:
-            data = load_from_cache(cache_path, format='pickle')
-            if data is not None:
+            data = load_pickle(cache_path)
+            if data is not None and len(data) > 0:
                 print(f"   ✓ Loaded {len(data):,} samples from cache: {source_name}.pkl")
             return data
         except Exception as e:
@@ -126,7 +123,7 @@ class CorpusBuilder:
         cache_path = os.path.join(self.data_dir, 'raw', f'{source_name}.pkl')
 
         try:
-            success = save_to_cache(data, cache_path, format='pickle')
+            success = save_pickle(data, cache_path)
             if success:
                 print(f"   ✓ Saved {len(data):,} samples to cache: {source_name}.pkl")
         except Exception as e:
@@ -151,6 +148,7 @@ class CorpusBuilder:
         all_data = {
             'indiccorp': [],
             'wikipedia': [],
+            'indicdialogue': [],
             'childrens_books': []
         }
 
@@ -163,35 +161,20 @@ class CorpusBuilder:
         else:
             print("   Cache not found, downloading...")
             try:
-                # Download IndicCorp (file will be ~26.5GB on disk)
-                indiccorp_paths = download_indiccorp_hindi(
-                    output_dir=os.path.join(self.data_dir, 'raw')
-                )
-
-                # Process IndicCorp line-by-line to avoid loading entire 26.5GB into memory
-                # We'll stream and sample to fit within 50GB memory limit
-                print("   Processing IndicCorp (streaming to avoid memory issues)...")
-                indiccorp_texts = []
-                # Read max_samples from config
+                # Read config
                 indiccorp_config = self.config.__dict__.get('sources', {}).get('indiccorp', {})
                 max_samples = indiccorp_config.get('max_samples', self.max_words // 10)
 
-                for filename, file_path in indiccorp_paths.items():
-                    if filename != 'metadata' and not filename.endswith('_pickle'):
-                        line_count = 0
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            for line in f:
-                                line = line.strip()
-                                if line:
-                                    indiccorp_texts.append(line)
-                                    line_count += 1
+                # Use new downloader
+                downloader = IndicCorpDownloader(
+                    output_dir=os.path.join(self.data_dir, 'raw')
+                )
 
-                                    # Sample only what we need to stay under memory limit
-                                    if line_count >= max_samples:
-                                        print(f"   Reached sample limit ({max_samples:,} lines), stopping...")
-                                        break
-
-                        print(f"   Processed {line_count:,} lines from {filename}")
+                indiccorp_texts = downloader.download(
+                    files=['hi-1.txt'],  # Download only first file by default
+                    max_lines=max_samples,
+                    clean_texts=True
+                )
 
                 all_data['indiccorp'] = indiccorp_texts
                 print(f"   Total IndicCorp samples: {len(all_data['indiccorp']):,}")
@@ -206,33 +189,74 @@ class CorpusBuilder:
         cached_wikipedia = None if force_redownload else self._load_cached_source('wikipedia')
         if cached_wikipedia is not None:
             all_data['wikipedia'] = cached_wikipedia
-            print(f"   Loaded {len(cached_wikipedia):,} articles from cache (skipping scraping)")
+            print(f"   Loaded {len(cached_wikipedia):,} articles from cache (skipping download)")
         else:
-            print("   Cache not found, scraping...")
+            print("   Cache not found, downloading from HuggingFace...")
             try:
-                wiki_categories = ['विज्ञान', 'इतिहास', 'भूगोल', 'साहित्य', 'कला']
-                # Read max_articles from config
+                # Read config
                 wiki_config = self.config.__dict__.get('sources', {}).get('wikipedia', {})
                 wiki_max_articles = wiki_config.get('max_articles', 5000)
-                wiki_articles = scrape_hindi_wikipedia(wiki_categories, max_articles=wiki_max_articles)
-                all_data['wikipedia'] = [article['text'] for article in wiki_articles]
-                print(f"   Scraped {len(all_data['wikipedia']):,} Wikipedia articles")
+                dataset_version = wiki_config.get('dataset_version', '20231101.hi')
+
+                # Use new downloader
+                downloader = WikiDownloader(
+                    output_dir=os.path.join(self.data_dir, 'raw'),
+                    dataset_version=dataset_version
+                )
+
+                wiki_texts = downloader.download(
+                    max_articles=wiki_max_articles,
+                    min_length=self.config.__dict__.get('filtering', {}).get('min_length', 50),
+                    max_length=self.config.__dict__.get('filtering', {}).get('max_length', 50000)
+                )
+
+                all_data['wikipedia'] = wiki_texts
+                print(f"   Downloaded {len(all_data['wikipedia']):,} Wikipedia articles")
 
                 # Save to cache for future runs
                 self._save_source_to_cache(all_data['wikipedia'], 'wikipedia')
             except Exception as e:
-                print(f"   ⚠ Error scraping Wikipedia: {e}")
-                checkpoint_path = Path('.wiki_checkpoint.json')
-                if checkpoint_path.exists():
-                    print(f"   💾 A checkpoint file exists at: {checkpoint_path}")
-                    print(f"   ℹ️  You can resume scraping by running the script again")
-                    print(f"   ℹ️  The scraper will automatically continue from where it left off")
-                else:
-                    print(f"   ℹ️  No checkpoint found - this was an early failure")
+                print(f"   ⚠ Error downloading Wikipedia: {e}")
                 print(f"   ⚠ Continuing without Wikipedia data for now...")
 
-        # 3. Children's Stories - check cache first
-        print("\n3. Children's Stories")
+        # 3. IndicDialogue - check cache first
+        print("\n3. IndicDialogue (Movie Subtitles)")
+        cached_dialogue = None if force_redownload else self._load_cached_source('indicdialogue')
+        if cached_dialogue is not None:
+            all_data['indicdialogue'] = cached_dialogue
+            print(f"   Loaded {len(cached_dialogue):,} dialogues from cache (skipping load)")
+        else:
+            print("   Cache not found, loading from JSONL...")
+            try:
+                # Read config
+                dialogue_config = self.config.__dict__.get('sources', {}).get('indicdialogue', {})
+                max_movies = dialogue_config.get('max_movies', None)
+                combine_dialogues = dialogue_config.get('combine_dialogues', False)
+                min_dialogue_length = dialogue_config.get('min_dialogue_length', 10)
+
+                # Use new loader
+                loader = IndicDialogueLoader(
+                    jsonl_path='data/raw/hindi.jsonl',
+                    output_dir=os.path.join(self.data_dir, 'raw')
+                )
+
+                dialogue_texts = loader.download(
+                    max_movies=max_movies,
+                    min_dialogue_length=min_dialogue_length,
+                    combine_dialogues=combine_dialogues
+                )
+
+                all_data['indicdialogue'] = dialogue_texts
+                print(f"   Loaded {len(all_data['indicdialogue']):,} dialogue texts")
+
+                # Save to cache for future runs
+                self._save_source_to_cache(all_data['indicdialogue'], 'indicdialogue')
+            except Exception as e:
+                print(f"   ⚠ Error loading IndicDialogue: {e}")
+                print(f"   ⚠ Continuing without IndicDialogue data for now...")
+
+        # 4. Children's Stories - check cache first
+        print("\n4. Children's Stories")
         cached_stories = None if force_redownload else self._load_cached_source('childrens_stories')
         if cached_stories is not None:
             all_data['childrens_books'] = cached_stories
@@ -259,6 +283,7 @@ class CorpusBuilder:
         print("Data Collection Summary:")
         print(f"  IndicCorp:        {len(all_data['indiccorp']):,} samples")
         print(f"  Wikipedia:        {len(all_data['wikipedia']):,} articles")
+        print(f"  IndicDialogue:    {len(all_data['indicdialogue']):,} dialogues")
         print(f"  Children's Books: {len(all_data['childrens_books']):,} stories")
         print(f"  Total:            {sum(len(v) for v in all_data.values()):,} documents")
         print("=" * 60 + "\n")

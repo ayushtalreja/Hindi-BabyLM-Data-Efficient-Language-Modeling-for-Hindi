@@ -1,5 +1,6 @@
 import pandas as pd
 from typing import List, Dict, Tuple
+from .utils import HindiValidator
 
 class QualityFilter:
     def __init__(self, min_length=10, max_length=1000, min_hindi_ratio=0.8):
@@ -13,16 +14,13 @@ class QualityFilter:
                 if self.min_length <= len(text) <= self.max_length]
     
     def filter_by_language(self, texts: List[str]) -> List[str]:
-        """Filter texts with high Hindi character ratio"""
+        """Filter texts with high Hindi character ratio using centralized validator"""
         filtered = []
         for text in texts:
             if len(text) == 0:
                 continue
-            # Count Hindi/Devanagari characters
-            hindi_chars = sum(1 for char in text
-                            if 0x0900 <= ord(char) <= 0x097F or
-                               0xA8E0 <= ord(char) <= 0xA8FF)
-            ratio = hindi_chars / len(text)
+            # Use centralized HindiValidator for consistency
+            ratio = HindiValidator.calculate_hindi_ratio(text, ignore_whitespace=False)
             if ratio >= self.min_hindi_ratio:
                 filtered.append(text)
         return filtered

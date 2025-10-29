@@ -13,19 +13,14 @@ All content is collected respecting copyright, robots.txt, and rate limits.
 import requests
 from bs4 import BeautifulSoup
 import time
-import re
 from typing import List, Dict, Optional
-from urllib.parse import urljoin
-import logging
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Import centralized utilities
+from .utils import HindiValidator, configure_logger, HTTPClient
+from .text_cleaner import HindiTextCleaner
 
-# Suppress verbose urllib3/requests connection logs
-logging.getLogger('urllib3').setLevel(logging.WARNING)
-logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
-logging.getLogger('pdfminer').setLevel(logging.ERROR)  # Suppress pdfminer warnings
+# Setup logging using centralized configuration
+logger = configure_logger(__name__)
 
 
 class ChildrensStoryCollector:
@@ -44,6 +39,13 @@ class ChildrensStoryCollector:
         self.user_agent = 'Mozilla/5.0 (Research Project) HindiBabyLM/1.0 (Linguistic Research)'
         self.collected_stories = []
         self.seen_urls = set()
+
+        # Initialize HTTP client and text cleaner
+        self.http_client = HTTPClient(
+            rate_limit_delay=rate_limit_delay,
+            user_agent=self.user_agent
+        )
+        self.text_cleaner = HindiTextCleaner()
 
     def collect_all_stories(self) -> List[str]:
         """
@@ -118,17 +120,11 @@ class ChildrensStoryCollector:
             params['page'] = page
 
             try:
-                time.sleep(self.rate_limit_delay)
+                # Use centralized HTTP client with automatic retry and rate limiting
+                response = self.http_client.get(api_base, params=params)
 
-                response = requests.get(
-                    api_base,
-                    params=params,
-                    timeout=15,
-                    headers={'User-Agent': self.user_agent}
-                )
-
-                if response.status_code != 200:
-                    logger.warning(f"API returned status {response.status_code} for page {page}")
+                if not response or response.status_code != 200:
+                    logger.warning(f"API returned status {response.status_code if response else 'None'} for page {page}")
                     continue
 
                 data = response.json()
@@ -183,17 +179,11 @@ class ChildrensStoryCollector:
             Story dictionary or None if fetch fails
         """
         try:
-            time.sleep(self.rate_limit_delay)
-
-            # Use the read API endpoint to get story pages
+            # Use centralized HTTP client to fetch story content
             api_url = f"https://storyweaver.org.in/api/v1/stories/{slug}/read"
-            response = requests.get(
-                api_url,
-                timeout=15,
-                headers={'User-Agent': self.user_agent}
-            )
+            response = self.http_client.get(api_url)
 
-            if response.status_code == 200:
+            if response and response.status_code == 200:
                 data = response.json()
                 story_data = data.get('data', {})
 
@@ -307,6 +297,7 @@ class ChildrensStoryCollector:
     def is_hindi_text(self, text: str) -> bool:
         """
         Check if text contains significant Hindi (Devanagari) content
+        Uses centralized HindiValidator for consistency
 
         Args:
             text: Text to check
@@ -314,22 +305,12 @@ class ChildrensStoryCollector:
         Returns:
             True if text is primarily Hindi
         """
-        if not text or len(text) < 50:
-            return False
-
-        # Count Devanagari characters
-        devanagari_count = sum(1 for char in text if '\u0900' <= char <= '\u097F')
-        total_chars = sum(1 for char in text if not char.isspace())
-
-        if total_chars == 0:
-            return False
-
-        hindi_ratio = devanagari_count / total_chars
-        return hindi_ratio > 0.8  # At least 80% Devanagari
+        # Use centralized HindiValidator
+        return HindiValidator.is_hindi_text(text, min_ratio=0.8, min_length=50)
 
     def clean_story_text(self, text: str) -> str:
         """
-        Clean and normalize story text
+        Clean and normalize story text using centralized text cleaner
 
         Args:
             text: Raw story text
@@ -337,23 +318,13 @@ class ChildrensStoryCollector:
         Returns:
             Cleaned text
         """
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text)
-
-        # Remove common noise patterns
-        text = re.sub(r'(?i)(click here|download|pdf|epub|read more)', '', text)
-        text = re.sub(r'[\[\]{}]', '', text)  # Remove brackets
-
-        # Remove URLs
-        text = re.sub(r'http\S+', '', text)
-
-        # Remove repeated punctuation
-        text = re.sub(r'([।॥!?])\1+', r'\1', text)
-
-        # Remove extra spaces around punctuation
-        text = re.sub(r'\s*([।॥,;:.!?])\s*', r'\1 ', text)
-
-        return text.strip()
+        # Use centralized HindiTextCleaner with all cleaning options enabled
+        return self.text_cleaner.clean_text(
+            text,
+            remove_urls=True,
+            remove_noise=True,
+            normalize_punctuation=True
+        )
 
     def filter_stories(self, stories: List[Dict]) -> List[Dict]:
         """
