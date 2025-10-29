@@ -183,7 +183,8 @@ def stage_training(
     config: ExperimentConfig,
     splits: Dict,
     experiment_dir: Path,
-    resume_from: Optional[str] = None
+    resume_from: Optional[str] = None,
+    full_config_yaml: Optional[Dict] = None
 ):
     """
     Stage 2: Model Training
@@ -193,6 +194,7 @@ def stage_training(
         splits: Data splits dictionary
         experiment_dir: Directory to save results
         resume_from: Optional checkpoint path to resume from
+        full_config_yaml: Full YAML config dict (for sections not in ExperimentConfig)
     """
     print_banner("STAGE 2: MODEL TRAINING")
     logging.info("Starting model training stage...")
@@ -222,7 +224,16 @@ def stage_training(
 
     # Step 3: Create trainer
     logging.info("\n👨‍🏫 Initializing trainer...")
-    trainer = HindiLanguageModelTrainer(model, tokenizer, config.__dict__)
+    # Merge ExperimentConfig with additional YAML sections (like experiment_tracking)
+    trainer_config = config.__dict__.copy()
+    # Add experiment_tracking section if it exists in the full YAML
+    if full_config_yaml and 'experiment_tracking' in full_config_yaml:
+        trainer_config['experiment_tracking'] = full_config_yaml['experiment_tracking']
+        logging.info("   Added experiment_tracking config to trainer")
+    # Add reproducibility section if it exists
+    if full_config_yaml and 'reproducibility' in full_config_yaml:
+        trainer_config['reproducibility'] = full_config_yaml['reproducibility']
+    trainer = HindiLanguageModelTrainer(model, tokenizer, trainer_config)
 
     # Resume from checkpoint if specified
     if resume_from:
@@ -400,6 +411,9 @@ Examples:
     # Load configuration
     try:
         config = ExperimentConfig.load_config(args.config)
+        # Also load full YAML to get sections not in ExperimentConfig (like experiment_tracking)
+        with open(args.config, 'r') as f:
+            full_config_yaml = yaml.safe_load(f)
     except Exception as e:
         print(f"❌ Error loading configuration: {e}")
         sys.exit(1)
@@ -479,7 +493,8 @@ Examples:
                 config,
                 splits,
                 experiment_dir,
-                resume_from=args.resume
+                resume_from=args.resume,
+                full_config_yaml=full_config_yaml
             )
 
         # Stage 3: Evaluation

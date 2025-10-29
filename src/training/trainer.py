@@ -686,13 +686,20 @@ class HindiLanguageModelTrainer:
 
     def _initialize_wandb(self):
         """Initialize Weights & Biases logging"""
-        wandb_config = self.config.get('wandb', {})
+        # Try to get wandb config from nested experiment_tracking path first, then fall back to top-level
+        experiment_tracking = self.config.get('experiment_tracking', {})
+        wandb_config = experiment_tracking.get('wandb', self.config.get('wandb', {}))
 
         if not wandb_config.get('enabled', False):
-            logger.info("W&B logging disabled")
+            logger.info("W&B logging disabled in config")
             return
 
         try:
+            logger.info("Initializing W&B...")
+            logger.info(f"W&B project: {wandb_config.get('project', 'hindi-babylm')}")
+            logger.info(f"W&B entity: {wandb_config.get('entity', 'not set')}")
+            logger.info(f"W&B mode: {wandb_config.get('mode', 'online')}")
+
             wandb.init(
                 project=wandb_config.get('project', 'hindi-babylm'),
                 entity=wandb_config.get('entity'),
@@ -709,9 +716,13 @@ class HindiLanguageModelTrainer:
 
             self.wandb_initialized = True
             logger.info("✓ W&B initialized successfully")
+            logger.info(f"✓ View your run at: {wandb.run.get_url() if wandb.run else 'N/A'}")
 
         except Exception as e:
-            logger.warning(f"Failed to initialize W&B: {e}")
+            logger.error(f"Failed to initialize W&B: {e}")
+            logger.error(f"W&B config being used: {wandb_config}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             self.wandb_initialized = False
 
     def get_training_summary(self) -> Dict[str, Any]:
