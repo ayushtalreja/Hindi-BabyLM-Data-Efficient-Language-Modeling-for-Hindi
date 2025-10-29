@@ -45,24 +45,34 @@ data:
   # Source Mixing Ratios (for training data only)
   # Validation and test splits are always balanced across sources
   train_source_ratios:
-    indiccorp: 0.60        # 60% from IndicCorp
-    wikipedia: 0.30        # 30% from Wikipedia
-    childrens_books: 0.10  # 10% from children's books
+    indiccorp: 0.50        # 50% from IndicCorp (formal written Hindi)
+    wikipedia: 0.30        # 30% from Wikipedia (encyclopedic Hindi)
+    indicdialogue: 0.15    # 15% from IndicDialogue (conversational Hindi)
+    childrens_books: 0.05  # 5% from children's books (simple narrative Hindi)
 
   # Data Sources & Mixing Ratios
   sources:
     indiccorp:
       enabled: true
-      ratio: 0.6  # 60% from news/web
+      ratio: 0.5  # 50% from news/web
       max_samples: 50000
+
     wikipedia:
       enabled: true
       ratio: 0.3  # 30% from encyclopedia
-      categories: ["विज्ञान", "इतिहास", "भूगोल", "साहित्य", "कला"] #["Science", "History", "Geography", "Literature", "Art"]
+      dataset_version: "20231101.hi"  # HuggingFace dataset version
       max_articles: 25000
+
+    indicdialogue:
+      enabled: true
+      ratio: 0.15  # 15% from conversational Hindi
+      max_movies: null  # null = use all 3,542 movies
+      combine_dialogues: false  # false = keep each dialogue line separate
+      min_dialogue_length: 10  # Minimum characters per dialogue line
+
     childrens_books:
       enabled: true
-      ratio: 0.1  # 10% from children's literature
+      ratio: 0.05  # 5% from children's literature
       max_stories: 8000
 
   # Quality Filtering
