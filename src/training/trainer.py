@@ -1,5 +1,5 @@
 """
-Enhanced Training Pipeline for Hindi BabyLM
+Training Pipeline for Hindi BabyLM
 
 This module provides a comprehensive training framework with:
 - Learning rate scheduling (warmup + cosine/linear decay)
@@ -14,8 +14,9 @@ This module provides a comprehensive training framework with:
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
-from transformers import get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup
+from torch.cuda.amp import autocast
+from torch.amp import grad_scaler
+from transformers import get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
 import wandb
 from tqdm import tqdm
 import os
@@ -26,6 +27,8 @@ from datetime import datetime
 from pathlib import Path
 
 from ..utils.seed_manager import SeedManager
+
+logger = logging.getLogger(__name__)
 
 # Import evaluation callbacks
 try:
@@ -39,9 +42,6 @@ try:
 except ImportError:
     EVAL_CALLBACKS_AVAILABLE = False
     logger.warning("Evaluation callbacks not available")
-
-logger = logging.getLogger(__name__)
-
 
 class HindiLanguageModelTrainer:
     """
@@ -103,7 +103,7 @@ class HindiLanguageModelTrainer:
 
         # Mixed precision training
         self.use_amp = config.get('use_amp', False)
-        self.scaler = GradScaler() if self.use_amp else None
+        self.scaler = grad_scaler() if self.use_amp else None
 
         # Checkpointing
         # Save checkpoints to results/{experiment_name}/models/
@@ -134,7 +134,7 @@ class HindiLanguageModelTrainer:
         }
 
         # W&B initialization flag
-        self.wandb_initialized = False
+        self.wandb_initialized = False #ToDo: change to use config file
 
         # Training state
         self.training_state = {
@@ -271,7 +271,6 @@ class HindiLanguageModelTrainer:
                 num_cycles=num_cycles
             )
         elif scheduler_type == 'constant':
-            from transformers import get_constant_schedule_with_warmup
             self.scheduler = get_constant_schedule_with_warmup(
                 self.optimizer,
                 num_warmup_steps=warmup_steps

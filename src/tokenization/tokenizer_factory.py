@@ -25,27 +25,6 @@ class TokenizerFactory:
 
         if self.tokenizer_type == "sentencepiece":
             return self._create_sentencepiece_tokenizer(training_texts)
-        elif self.tokenizer_type == "deberta":
-            # Create a DeBERTa-compatible tokenizer. We prefer to train a
-            # SentencePiece model and then load it via AutoTokenizer if a
-            # pretrained DeBERTa tokenizer isn't specified.
-            print("Creating DeBERTa tokenizer using SentencePiece backend...")
-            # Reuse sentencepiece trainer logic
-            tokenizer = self._create_sentencepiece_tokenizer(training_texts)
-            # Wrap as an AutoTokenizer-compatible object by saving model files
-            sp_model_path = os.path.join(self.tokenizer_dir, 'sentencepiece.model')
-            # AutoTokenizer can load from a local directory containing sentencepiece model
-            local_dir = os.path.join(self.tokenizer_dir, 'deberta')
-            os.makedirs(local_dir, exist_ok=True)
-            # Copy sentencepiece model to local dir
-            try:
-                from shutil import copyfile
-                copyfile(sp_model_path, os.path.join(local_dir, 'sentencepiece.model'))
-            except Exception:
-                pass
-
-            # Return the sentencepiece tokenizer wrapper (compatible API)
-            return tokenizer
         elif self.tokenizer_type == "wordpiece":
             return self._create_wordpiece_tokenizer(training_texts)
         elif self.tokenizer_type == "bpe":
@@ -58,12 +37,6 @@ class TokenizerFactory:
         print("Training SentencePiece tokenizer...")
 
         tokenizer = HindiSentencePieceTokenizer(vocab_size=self.vocab_size)
-
-        # Save training texts to temporary file
-        training_file = os.path.join(self.tokenizer_dir, 'training_corpus.txt')
-        with open(training_file, 'w', encoding='utf-8') as f:
-            for text in training_texts:
-                f.write(text + '\n')
 
         # Train tokenizer
         model_prefix = os.path.join(self.tokenizer_dir, 'sentencepiece')
@@ -84,13 +57,13 @@ class TokenizerFactory:
         from tokenizers.models import WordPiece
         from tokenizers.trainers import WordPieceTrainer
         from tokenizers.pre_tokenizers import Whitespace
-        from tokenizers.normalizers import NFD, Lowercase, StripAccents, Sequence
+        from tokenizers.normalizers import NFC, Lowercase, StripAccents, Sequence
 
         # Initialize tokenizer
         tokenizer = Tokenizer(WordPiece(unk_token="[UNK]"))
 
         # Set normalizer (don't lowercase for Hindi)
-        tokenizer.normalizer = Sequence([NFD()])
+        tokenizer.normalizer = Sequence([NFC()])
 
         # Set pre-tokenizer
         tokenizer.pre_tokenizer = Whitespace()
@@ -122,13 +95,13 @@ class TokenizerFactory:
         from tokenizers.models import BPE
         from tokenizers.trainers import BpeTrainer
         from tokenizers.pre_tokenizers import Whitespace
-        from tokenizers.normalizers import NFD, Sequence
+        from tokenizers.normalizers import NFC, Sequence
 
         # Initialize tokenizer
         tokenizer = Tokenizer(BPE(unk_token="<unk>"))
 
         # Set normalizer
-        tokenizer.normalizer = Sequence([NFD()])
+        tokenizer.normalizer = Sequence([NFC()])
 
         # Set pre-tokenizer
         tokenizer.pre_tokenizer = Whitespace()

@@ -18,8 +18,8 @@ project:
 # Directory Structure
 directories:
   data_dir: "data"
-  model_dir: "models"
-  tokenizer_dir: "tokenizers"
+  model_dir: "results/experiment_name/models"
+  tokenizer_dir: "results/experiment_name/tokenizers"
   results_dir: "results"
   checkpoint_dir: "checkpoints"
   logs_dir: "logs"
