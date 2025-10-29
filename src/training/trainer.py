@@ -85,10 +85,16 @@ class HindiLanguageModelTrainer:
         # Device setup
         self.device = torch.device(config.get('device', 'cuda' if torch.cuda.is_available() else 'cpu'))
         self.model.to(self.device)
-        logger.info(f"Model moved to device: {self.device}")
+
+        # BabyLM optimization: Native bfloat16 conversion for efficiency
+        if self.device.type == 'cuda':
+            self.model = self.model.to(dtype=torch.bfloat16)
+            logger.info(f"Model moved to device: {self.device} with bfloat16 precision")
+        else:
+            logger.info(f"Model moved to device: {self.device}")
 
         # Training configuration
-        self.batch_size = config.get('batch_size', 32)
+        self.batch_size = config.get('batch_size', 256)  # BabyLM optimization: increased from 32
         self.gradient_accumulation_steps = config.get('gradient_accumulation_steps', 1)
         self.num_epochs = config.get('num_epochs', 10)
         self.max_steps = config.get('max_steps', -1)
@@ -204,7 +210,7 @@ class HindiLanguageModelTrainer:
         """Create optimizer from configuration"""
         optimizer_config = self.config.get('optimizer', {})
         optimizer_type = optimizer_config.get('type', 'adamw').lower()
-        lr = optimizer_config.get('learning_rate', 3e-4)
+        lr = optimizer_config.get('learning_rate', 0.007)  # BabyLM optimization: increased from 3e-4
         weight_decay = optimizer_config.get('weight_decay', 0.01)
 
         # Parameter groups (can add custom logic here for layer-wise LR)
@@ -360,8 +366,8 @@ class HindiLanguageModelTrainer:
                 self.global_step += 1
                 current_lr = self.optimizer.param_groups[0]['lr']
 
-                # Log to W&B
-                if self.wandb_initialized:
+                # Log to W&B every 100 steps (BabyLM optimization)
+                if self.wandb_initialized and self.global_step % 100 == 0:
                     wandb.log({
                         'train/batch_loss': loss.item() * self.gradient_accumulation_steps,
                         'train/learning_rate': current_lr,

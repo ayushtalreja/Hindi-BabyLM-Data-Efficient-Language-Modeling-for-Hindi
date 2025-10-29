@@ -675,8 +675,9 @@ class CorpusBuilder:
             dataset,
             batch_size=batch_size,
             shuffle=shuffle,
-            num_workers=4,
-            pin_memory=True
+            num_workers=64,  # BabyLM optimization: increased from 4 for faster data loading
+            pin_memory=True,
+            persistent_workers=True  # Keep workers alive between epochs
         )
 
         return dataloader

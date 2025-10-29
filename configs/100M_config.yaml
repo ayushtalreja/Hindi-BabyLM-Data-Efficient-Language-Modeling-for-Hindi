@@ -187,15 +187,15 @@ model:
 # ==============================================================================
 training:
   # Basic Training Parameters
-  batch_size: 64  # Increased for larger dataset
-  gradient_accumulation_steps: 2  # Effective batch = 64 * 2 = 128
+  batch_size: 256  # BabyLM optimization: increased for better GPU utilization
+  gradient_accumulation_steps: 1  # Effective batch = 256 (was 64 * 2 = 128)
   num_epochs: 15  # More epochs for 100M dataset
   max_steps: -1
 
   # Optimization
   optimizer:
     type: "adamw"
-    learning_rate: 2.0e-4  # Slightly lower LR for larger model
+    learning_rate: 0.007  # BabyLM optimization: increased from 2.0e-4 for faster convergence
     weight_decay: 0.01
     beta1: 0.9
     beta2: 0.999
@@ -363,7 +363,7 @@ experiment_tracking:
 resources:
   # Device Configuration
   device: "cuda"
-  num_workers: 8  # Increased for larger dataset
+  num_workers: 64  # BabyLM optimization: increased from 8 for faster data loading
 
   # Memory Management
   pin_memory: true
