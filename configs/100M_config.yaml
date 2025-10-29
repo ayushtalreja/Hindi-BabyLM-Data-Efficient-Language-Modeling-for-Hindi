@@ -255,7 +255,7 @@ training:
   cuda_deterministic_algorithms: false
 
   # Evaluation Callbacks
-  enable_eval_callback: true
+  enable_eval_callback: false # Disabled to reduce overhead during training
   eval_frequency: 1
   eval_on_steps: []
   log_eval_to_wandb: true

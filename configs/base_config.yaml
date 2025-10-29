@@ -259,7 +259,7 @@ training:
   # ==============================================================================
 
   # Evaluation Callbacks
-  enable_eval_callback: true
+  enable_eval_callback: false  # Set to true to enable evaluation callbacks
   eval_frequency: 1  # Evaluate every N epochs
   eval_on_steps: []  # List of specific steps to evaluate on (empty = use frequency)
   log_eval_to_wandb: true
