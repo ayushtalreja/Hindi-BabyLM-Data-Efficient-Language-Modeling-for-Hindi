@@ -2,22 +2,76 @@ import json
 import pandas as pd
 from datetime import datetime
 import os
-from typing import Dict
+from typing import Dict, Any
+from dataclasses import is_dataclass, asdict
 from .indicglue_evaluator import IndicGLUEEvaluator
 from .multiblimp_evaluator import MultiBLiMPEvaluator
+
+
+class DataclassJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles dataclass objects and other non-serializable types"""
+
+    def default(self, obj):
+        # Handle dataclass objects
+        if is_dataclass(obj):
+            return asdict(obj)
+
+        # Handle datetime objects
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+
+        # Handle other common non-serializable types
+        if hasattr(obj, '__dict__'):
+            return obj.__dict__
+
+        # Let the base class handle other types or raise TypeError
+        return super().default(obj)
 
 class EvaluationManager:
     def __init__(self, model, tokenizer, config):
         self.model = model
         self.tokenizer = tokenizer
         self.config = config
-        
+
         # Initialize evaluators
         self.indicglue_evaluator = IndicGLUEEvaluator(model, tokenizer)
         self.multiblimp_evaluator = MultiBLiMPEvaluator(model, tokenizer)
-        
+
         # Results storage
         self.results = {}
+
+    @staticmethod
+    def _make_serializable(obj: Any) -> Any:
+        """
+        Recursively convert objects to JSON-serializable format.
+        Handles dataclasses, datetime objects, and nested structures.
+        """
+        # Handle None
+        if obj is None:
+            return None
+
+        # Handle dataclass objects
+        if is_dataclass(obj):
+            return asdict(obj)
+
+        # Handle datetime objects
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+
+        # Handle dictionaries recursively
+        if isinstance(obj, dict):
+            return {k: EvaluationManager._make_serializable(v) for k, v in obj.items()}
+
+        # Handle lists and tuples recursively
+        if isinstance(obj, (list, tuple)):
+            return [EvaluationManager._make_serializable(item) for item in obj]
+
+        # Handle objects with __dict__ attribute
+        if hasattr(obj, '__dict__') and not isinstance(obj, (str, int, float, bool)):
+            return EvaluationManager._make_serializable(obj.__dict__)
+
+        # Return primitive types as-is
+        return obj
     
     def run_comprehensive_evaluation(self) -> Dict:
         """Run all evaluation tasks and compile results"""
@@ -46,7 +100,7 @@ class EvaluationManager:
         """Generate evaluation summary"""
         summary = {
             'evaluation_date': datetime.now().isoformat(),
-            'model_config': self.config,
+            'model_config': self._make_serializable(self.config),
             'overall_scores': {}
         }
 
@@ -75,11 +129,14 @@ class EvaluationManager:
         experiment_name = self.config.get('experiment_name', 'default_experiment')
         results_dir = os.path.join(self.config.get('results_dir', 'results'), experiment_name)
         os.makedirs(results_dir, exist_ok=True)
-        
-        # Save comprehensive results as JSON
+
+        # Make results serializable before saving
+        serializable_results = self._make_serializable(self.results)
+
+        # Save comprehensive results as JSON with custom encoder as backup
         results_file = os.path.join(results_dir, 'evaluation_results.json')
         with open(results_file, 'w', encoding='utf-8') as f:
-            json.dump(self.results, f, indent=2, ensure_ascii=False)
+            json.dump(serializable_results, f, indent=2, ensure_ascii=False, cls=DataclassJSONEncoder)
         
         # Save summary as CSV for easy analysis
         summary_df = pd.DataFrame([self.results['summary']['overall_scores']])
