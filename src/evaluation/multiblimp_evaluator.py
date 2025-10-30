@@ -6,17 +6,14 @@ using minimal pair testing methodology. Each test consists of a grammatical
 sentence paired with an ungrammatical variant differing in a single linguistic
 feature.
 
-Phenomena Tested:
-- Subject-verb agreement (number, person, gender)
-- Case marking (ergative, nominative, accusative, dative)
-- Word order variations
-- Gender agreement (noun-adjective, noun-verb)
-- Number agreement
-- Honorific agreement
-- Binding principles
-- Control structures
-- Negation
-- Quantifier scope
+Phenomena Tested (from jumelet/multiblimp dataset):
+- SV-#: Subject-Verb Number Agreement (407 pairs)
+- SV-G: Subject-Verb Gender Agreement (419 pairs)
+- SV-P: Subject-Verb Person Agreement (412 pairs)
+- SP-#: Subject-Predicate Number Agreement (100 pairs)
+- SP-G: Subject-Predicate Gender Agreement (109 pairs)
+
+Total: 1447 minimal pairs across 5 phenomena
 
 Reference: https://github.com/alexwarstadt/blimp
 """
@@ -37,9 +34,9 @@ class MultiBLiMPEvaluator:
     Comprehensive evaluator for Hindi syntactic phenomena using minimal pairs
 
     Features:
-    - 10+ linguistic phenomena tested
+    - 5 linguistic phenomena tested (agreement phenomena)
     - Perplexity-based evaluation
-    - Comprehensive minimal pair database
+    - Comprehensive minimal pair database (1447 pairs total)
     - Statistical analysis
     - Per-phenomenon metrics
     - Overall syntactic competence score
@@ -69,22 +66,13 @@ class MultiBLiMPEvaluator:
         if self.max_examples_per_phenomenon:
             logger.info(f"Will limit to {self.max_examples_per_phenomenon} examples per phenomenon (from config)")
 
-        # Phenomena to test
+        # Phenomena to test (actual names from jumelet/multiblimp dataset)
         self.phenomena = [
-            'subject_verb_agreement_number',
-            'subject_verb_agreement_person',
-            'subject_verb_agreement_gender',
-            'case_marking_ergative',
-            'case_marking_accusative',
-            'case_marking_dative',
-            'word_order',
-            'gender_agreement_adjective',
-            'gender_agreement_verb',
-            'number_agreement',
-            'honorific_agreement',
-            'negation',
-            'binding',
-            'control'
+            'SV-#',   # Subject-Verb Number Agreement
+            'SV-G',   # Subject-Verb Gender Agreement
+            'SV-P',   # Subject-Verb Person Agreement
+            'SP-#',   # Subject-Predicate Number Agreement
+            'SP-G',   # Subject-Predicate Gender Agreement
         ]
 
         # Load or create minimal pairs
@@ -319,21 +307,21 @@ class MultiBLiMPEvaluator:
 
         Returns:
             Dictionary mapping phenomena to lists of minimal pairs
+
+        Raises:
+            RuntimeError: If the MultiBLiMP dataset cannot be loaded
         """
-        # Try loading from HuggingFace or external source
-        try:
-            dataset = self._load_multiblimp_dataset()
-            if dataset:
-                minimal_pairs = dataset
-            else:
-                # Use comprehensive built-in minimal pairs
-                logger.info("Using built-in Hindi minimal pairs database")
-                minimal_pairs = self._create_comprehensive_minimal_pairs()
-        except Exception as e:
-            logger.debug(f"Could not load external MultiBLiMP dataset: {e}")
-            # Use comprehensive built-in minimal pairs
-            logger.info("Using built-in Hindi minimal pairs database")
-            minimal_pairs = self._create_comprehensive_minimal_pairs()
+        # Load from HuggingFace
+        minimal_pairs = self._load_multiblimp_dataset()
+
+        if not minimal_pairs:
+            error_msg = (
+                "Failed to load MultiBLiMP dataset from HuggingFace (jumelet/multiblimp). "
+                "This dataset is required for evaluation. Please ensure you have internet "
+                "connectivity and the datasets library is installed."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
         # Apply limiting if configured
         if self.max_examples_per_phenomenon:
@@ -387,140 +375,3 @@ class MultiBLiMPEvaluator:
             logger.warning(f"Could not load external MultiBLiMP dataset: {e}")
             logger.info("Will fall back to built-in minimal pairs")
             return None
-
-    def _create_comprehensive_minimal_pairs(self) -> Dict[str, List[Dict]]:
-        """
-        Create comprehensive database of Hindi minimal pairs
-
-        Returns:
-            Dictionary mapping phenomena to minimal pairs
-        """
-        pairs = {
-            'subject_verb_agreement_number': [
-                # Singular vs Plural
-                {'good': 'लड़का खाता है', 'bad': 'लड़का खाते हैं', 'gloss': 'boy eats (sg)'},
-                {'good': 'लड़के खाते हैं', 'bad': 'लड़के खाता है', 'gloss': 'boys eat (pl)'},
-                {'good': 'लड़की पढ़ती है', 'bad': 'लड़की पढ़ती हैं', 'gloss': 'girl reads (sg)'},
-                {'good': 'लड़कियां पढ़ती हैं', 'bad': 'लड़कियां पढ़ती है', 'gloss': 'girls read (pl)'},
-                {'good': 'किताब मेज पर है', 'bad': 'किताब मेज पर हैं', 'gloss': 'book is on table (sg)'},
-                {'good': 'किताबें मेज पर हैं', 'bad': 'किताबें मेज पर है', 'gloss': 'books are on table (pl)'},
-            ],
-
-            'subject_verb_agreement_person': [
-                # 1st, 2nd, 3rd person
-                {'good': 'मैं जाता हूं', 'bad': 'मैं जाता है', 'gloss': 'I go (1st person)'},
-                {'good': 'तुम जाते हो', 'bad': 'तुम जाता है', 'gloss': 'you go (2nd person)'},
-                {'good': 'वह जाता है', 'bad': 'वह जाते हो', 'gloss': 'he goes (3rd person)'},
-                {'good': 'हम जाते हैं', 'bad': 'हम जाता है', 'gloss': 'we go (1st person pl)'},
-                {'good': 'आप जाते हैं', 'bad': 'आप जाता है', 'gloss': 'you go (2nd person honorific)'},
-            ],
-
-            'subject_verb_agreement_gender': [
-                # Masculine vs Feminine
-                {'good': 'लड़का गया', 'bad': 'लड़का गई', 'gloss': 'boy went (masc)'},
-                {'good': 'लड़की गई', 'bad': 'लड़की गया', 'gloss': 'girl went (fem)'},
-                {'good': 'राम आया', 'bad': 'राम आई', 'gloss': 'Ram came (masc)'},
-                {'good': 'सीता आई', 'bad': 'सीता आया', 'gloss': 'Sita came (fem)'},
-                {'good': 'कुत्ता भौंका', 'bad': 'कुत्ता भौंकी', 'gloss': 'dog barked (masc)'},
-                {'good': 'बिल्ली म्याऊं की', 'bad': 'बिल्ली म्याऊं किया', 'gloss': 'cat meowed (fem)'},
-            ],
-
-            'case_marking_ergative': [
-                # Ergative ne marker in perfective transitive
-                {'good': 'राम ने किताब पढ़ी', 'bad': 'राम किताब पढ़ी', 'gloss': 'Ram read book (ergative)'},
-                {'good': 'सीता ने खाना बनाया', 'bad': 'सीता खाना बनाया', 'gloss': 'Sita made food (ergative)'},
-                {'good': 'लड़के ने गाना गाया', 'bad': 'लड़के गाना गाया', 'gloss': 'boy sang song (ergative)'},
-                {'good': 'उसने पत्र लिखा', 'bad': 'उस पत्र लिखा', 'gloss': 'he wrote letter (ergative)'},
-            ],
-
-            'case_marking_accusative': [
-                # ko marker for specific/animate objects
-                {'good': 'मैंने राम को देखा', 'bad': 'मैंने राम देखा', 'gloss': 'I saw Ram (accusative)'},
-                {'good': 'उसने बच्चे को बुलाया', 'bad': 'उसने बच्चे बुलाया', 'gloss': 'he called child (acc)'},
-                {'good': 'राम किताब पढ़ता है', 'bad': 'राम किताब को पढ़ता है', 'gloss': 'Ram reads book (no acc for inanimate)'},
-            ],
-
-            'case_marking_dative': [
-                # ko marker for indirect objects
-                {'good': 'मैंने राम को किताब दी', 'bad': 'मैंने राम किताब दी', 'gloss': 'I gave book to Ram'},
-                {'good': 'उसने मुझे पत्र भेजा', 'bad': 'उसने मैं पत्र भेजा', 'gloss': 'he sent letter to me'},
-            ],
-
-            'word_order': [
-                # SOV is natural, OSV is marked but grammatical
-                {'good': 'राम ने किताब पढ़ी', 'bad': 'पढ़ी राम ने किताब', 'gloss': 'Ram read book (SOV)'},
-                {'good': 'लड़की स्कूल जाती है', 'bad': 'जाती है लड़की स्कूल', 'gloss': 'girl goes to school'},
-                {'good': 'मैं खाना खाता हूं', 'bad': 'खाता हूं मैं खाना', 'gloss': 'I eat food'},
-            ],
-
-            'gender_agreement_adjective': [
-                # Adjective agrees with noun gender
-                {'good': 'अच्छा लड़का', 'bad': 'अच्छी लड़का', 'gloss': 'good boy (masc adj)'},
-                {'good': 'अच्छी लड़की', 'bad': 'अच्छा लड़की', 'gloss': 'good girl (fem adj)'},
-                {'good': 'बड़ा घर', 'bad': 'बड़ी घर', 'gloss': 'big house (masc)'},
-                {'good': 'बड़ी किताब', 'bad': 'बड़ा किताब', 'gloss': 'big book (fem)'},
-                {'good': 'नया कपड़ा', 'bad': 'नई कपड़ा', 'gloss': 'new cloth (masc)'},
-                {'good': 'नई मेज', 'bad': 'नया मेज', 'gloss': 'new table (fem)'},
-            ],
-
-            'gender_agreement_verb': [
-                # Past tense verb agrees with subject gender
-                {'good': 'लड़का आया', 'bad': 'लड़का आई', 'gloss': 'boy came (masc verb)'},
-                {'good': 'लड़की आई', 'bad': 'लड़की आया', 'gloss': 'girl came (fem verb)'},
-                {'good': 'राम गया', 'bad': 'राम गई', 'gloss': 'Ram went (masc)'},
-                {'good': 'गीता गई', 'bad': 'गीता गया', 'gloss': 'Geeta went (fem)'},
-            ],
-
-            'number_agreement': [
-                # Plural marking consistency
-                {'good': 'दो लड़के आए', 'bad': 'दो लड़का आया', 'gloss': 'two boys came'},
-                {'good': 'तीन लड़कियां गईं', 'bad': 'तीन लड़की गई', 'gloss': 'three girls went'},
-                {'good': 'सभी बच्चे खेल रहे हैं', 'bad': 'सभी बच्चा खेल रहा है', 'gloss': 'all children playing'},
-            ],
-
-            'honorific_agreement': [
-                # Honorific vs non-honorific verb forms
-                {'good': 'आप जाते हैं', 'bad': 'आप जाता है', 'gloss': 'you go (honorific)'},
-                {'good': 'गुरुजी पढ़ाते हैं', 'bad': 'गुरुजी पढ़ाता है', 'gloss': 'teacher teaches (hon)'},
-                {'good': 'तुम जाते हो', 'bad': 'तुम जाते हैं', 'gloss': 'you go (familiar, not honorific)'},
-            ],
-
-            'negation': [
-                # Negation with नहीं
-                {'good': 'मैं नहीं जाता', 'bad': 'मैं जाता नहीं', 'gloss': 'I don\'t go (neg before verb)'},
-                {'good': 'वह नहीं आया', 'bad': 'वह आया नहीं', 'gloss': 'he didn\'t come'},
-                {'good': 'राम नहीं पढ़ता', 'bad': 'राम पढ़ता नहीं', 'gloss': 'Ram doesn\'t read'},
-            ],
-
-            'binding': [
-                # Reflexive pronoun binding
-                {'good': 'राम अपने आप को देखता है', 'bad': 'राम उसको देखता है', 'gloss': 'Ram sees himself (reflexive)'},
-                {'good': 'वह अपनी किताब पढ़ता है', 'bad': 'वह उसकी किताब पढ़ता है', 'gloss': 'he reads his own book'},
-            ],
-
-            'control': [
-                # Control structures with infinitives
-                {'good': 'मैं जाना चाहता हूं', 'bad': 'मैं जाता चाहता हूं', 'gloss': 'I want to go (infinitive)'},
-                {'good': 'वह खाना चाहती है', 'bad': 'वह खाती चाहती है', 'gloss': 'she wants to eat'},
-                {'good': 'हम पढ़ना पसंद करते हैं', 'bad': 'हम पढ़ते पसंद करते हैं', 'gloss': 'we like to read'},
-            ]
-        }
-
-        return pairs
-
-
-# For backward compatibility
-def evaluate_multiblimp(model, tokenizer, config: Optional[Dict] = None) -> Dict:
-    """
-    Convenience function to evaluate on MultiBLiMP
-
-    Args:
-        model: Model to evaluate
-        tokenizer: Tokenizer
-        config: Optional configuration
-
-    Returns:
-        Evaluation results
-    """
-    evaluator = MultiBLiMPEvaluator(model, tokenizer, config)
-    return evaluator.evaluate_all_phenomena()
