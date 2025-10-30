@@ -217,7 +217,7 @@ training:
   # Mixed Precision Training
   mixed_precision:
     enabled: true
-    dtype: "fp16"  # Options: fp16, bf16
+    dtype: "bf16"  # Options: fp16, bf16, float32 (was hardcoded to bf16 before, now configurable)
     opt_level: "O1"  # For apex mixed precision
 
   # Checkpointing
@@ -285,12 +285,11 @@ evaluation:
     indicglue:
       enabled: true
       tasks: ["IndicNews", "IndicHeadline", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
-      batch_size: 32
+      batch_size: 64
       max_samples_per_task: 1000  # For quick evaluation
 
     multiblimp:
       enabled: true
-      phenomena: ["agreement", "case_marking", "word_order", "binding", "control"]
       n_examples_per_phenomenon: 100
 
     # morphological_probes:  # REMOVED - No longer available
@@ -303,19 +302,6 @@ evaluation:
     enabled: true
     split: "test"
     report_per_source: true  # Report PPL per data source
-
-  # Zero-shot Evaluation
-  zero_shot:
-    enabled: true
-    tasks: ["text_classification", "ner", "pos_tagging"]
-
-  # Generation Quality
-  generation:
-    enabled: true
-    prompts_file: "evaluation/generation_prompts.txt"
-    max_length: 100
-    num_samples: 50
-    metrics: ["bleu", "rouge", "bertscore"]
 
   # ==============================================================================
   # NEW: Advanced Evaluation Features
@@ -372,14 +358,14 @@ resources:
   # Device Configuration
   device: "cuda"  # Options: cuda, cpu, mps (for Apple Silicon)
   gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]  # List of GPU IDs to use
-  num_workers: 64  # BabyLM optimization: increased from 4 for faster data loading
+  num_workers: 64  # DataLoader workers
 
   # Memory Management
   pin_memory: true
   prefetch_factor: 2  # DataLoader prefetch
 
   # Limits
-  max_memory_per_gpu: null  # GB, null for unlimited
+  max_memory_per_gpu: 16  # GB, null for unlimited
   cpu_memory_limit: null  # GB
 
 # ==============================================================================

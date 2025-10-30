@@ -86,10 +86,21 @@ class HindiLanguageModelTrainer:
         self.device = torch.device(config.get('device', 'cuda' if torch.cuda.is_available() else 'cpu'))
         self.model.to(self.device)
 
-        # BabyLM optimization: Native bfloat16 conversion for efficiency
+        # Mixed precision dtype configuration
         if self.device.type == 'cuda':
-            self.model = self.model.to(dtype=torch.bfloat16)
-            logger.info(f"Model moved to device: {self.device} with bfloat16 precision")
+            # Map config dtype string to torch dtype
+            dtype_str = config.get('mixed_precision_dtype', 'bf16')
+            dtype_map = {
+                'fp16': torch.float16,
+                'bf16': torch.bfloat16,
+                'bfloat16': torch.bfloat16,
+                'float16': torch.float16,
+                'float32': torch.float32,
+                'fp32': torch.float32
+            }
+            target_dtype = dtype_map.get(dtype_str, torch.bfloat16)
+            self.model = self.model.to(dtype=target_dtype)
+            logger.info(f"Model moved to device: {self.device} with {dtype_str} precision")
         else:
             logger.info(f"Model moved to device: {self.device}")
 
@@ -121,6 +132,9 @@ class HindiLanguageModelTrainer:
 
         # Evaluation
         self.eval_steps = config.get('eval_steps', 500)
+
+        # Logging
+        self.log_steps = config.get('log_steps', 100)
 
         # Early stopping
         self.early_stopping_patience = config.get('early_stopping_patience', 3)
@@ -366,8 +380,8 @@ class HindiLanguageModelTrainer:
                 self.global_step += 1
                 current_lr = self.optimizer.param_groups[0]['lr']
 
-                # Log to W&B every 100 steps (BabyLM optimization)
-                if self.wandb_initialized and self.global_step % 100 == 0:
+                # Log to W&B based on config log_steps
+                if self.wandb_initialized and self.global_step % self.log_steps == 0:
                     wandb.log({
                         'train/batch_loss': loss.item() * self.gradient_accumulation_steps,
                         'train/learning_rate': current_lr,

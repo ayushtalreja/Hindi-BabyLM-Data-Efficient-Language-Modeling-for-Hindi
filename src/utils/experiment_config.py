@@ -80,6 +80,17 @@ class ExperimentConfig:
     eval_steps: Optional[int] = None
     save_steps: Optional[int] = None
 
+    # Resource configuration
+    num_workers: Optional[int] = None
+    pin_memory: Optional[bool] = None
+    device: Optional[str] = None
+
+    # Logging configuration
+    log_steps: Optional[int] = None
+
+    # Mixed precision configuration
+    mixed_precision_dtype: Optional[str] = None
+
     def __post_init__(self):
         """Auto-populate model-specific config based on model_type"""
         if self.model_type == 'gpt' and self.gpt_config is None:
@@ -192,6 +203,27 @@ class ExperimentConfig:
                 checkpointing = training['checkpointing']
                 if 'save_steps' in checkpointing:
                     flat_config['save_steps'] = checkpointing['save_steps']
+            # Extract logging parameters
+            if 'logging' in training:
+                logging = training['logging']
+                if 'log_steps' in logging:
+                    flat_config['log_steps'] = logging['log_steps']
+            # Extract mixed precision parameters
+            if 'mixed_precision' in training:
+                mixed_precision = training['mixed_precision']
+                if 'dtype' in mixed_precision:
+                    flat_config['mixed_precision_dtype'] = mixed_precision['dtype']
+
+        # Extract resources configuration
+        if 'resources' in config_dict:
+            resources = config_dict.get('resources', {})
+            if 'num_workers' in resources:
+                flat_config['num_workers'] = resources['num_workers']
+            if 'pin_memory' in resources:
+                flat_config['pin_memory'] = resources['pin_memory']
+            if 'device' in resources:
+                flat_config['device'] = resources['device']
+
         if 'model' in config_dict:
             model_config = config_dict.get('model', {})
             # Add top-level model config

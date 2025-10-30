@@ -671,12 +671,16 @@ class CorpusBuilder:
         batch_size = self.config.batch_size
         shuffle = (split == 'train')
 
+        # Get num_workers and pin_memory from config, with fallback to defaults
+        num_workers = getattr(self.config, 'num_workers', 64)
+        pin_memory = getattr(self.config, 'pin_memory', True)
+
         dataloader = DataLoader(
             dataset,
             batch_size=batch_size,
             shuffle=shuffle,
-            num_workers=64,  # BabyLM optimization: increased from 4 for faster data loading
-            pin_memory=True,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
             persistent_workers=True  # Keep workers alive between epochs
         )
 
