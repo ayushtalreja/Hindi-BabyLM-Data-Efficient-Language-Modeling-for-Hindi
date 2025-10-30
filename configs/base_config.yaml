@@ -186,8 +186,8 @@ model:
 # ==============================================================================
 training:
   # Basic Training Parameters
-  batch_size: 256  # BabyLM optimization: increased from 64 for better GPU utilization
-  gradient_accumulation_steps: 1  # Effective batch = batch_size * grad_accum
+  batch_size: 64  # BabyLM optimization: increased from 64 for better GPU utilization
+  gradient_accumulation_steps: 8  # Effective batch = batch_size * grad_accum
   num_epochs: 10
   max_steps: -1  # -1 for epoch-based, or set specific step count
 
