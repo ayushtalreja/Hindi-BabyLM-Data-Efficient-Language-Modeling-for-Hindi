@@ -195,7 +195,7 @@ class CorpusBuilder:
             try:
                 # Read config
                 wiki_config = self.config.__dict__.get('sources', {}).get('wikipedia', {})
-                wiki_max_articles = wiki_config.get('max_articles', 5000)
+                wiki_max_articles = wiki_config.get('max_articles', 25000)
                 dataset_version = wiki_config.get('dataset_version', '20231101.hi')
 
                 # Use new downloader
