@@ -105,7 +105,7 @@ class HindiLanguageModelTrainer:
             logger.info(f"Model moved to device: {self.device}")
 
         # Training configuration
-        self.batch_size = config.get('batch_size', 256)  # BabyLM optimization: increased from 32
+        self.batch_size = config.get('batch_size', 32)  # Fixed from 256 - more reasonable default
         self.gradient_accumulation_steps = config.get('gradient_accumulation_steps', 1)
         self.num_epochs = config.get('num_epochs', 10)
         self.max_steps = config.get('max_steps', -1)
@@ -224,7 +224,7 @@ class HindiLanguageModelTrainer:
         """Create optimizer from configuration"""
         optimizer_config = self.config.get('optimizer', {})
         optimizer_type = optimizer_config.get('type', 'adamw').lower()
-        lr = optimizer_config.get('learning_rate', 0.007)  # BabyLM optimization: increased from 3e-4
+        lr = optimizer_config.get('learning_rate', 0.0003)  # Fixed from 0.007 - standard LM learning rate
         weight_decay = optimizer_config.get('weight_decay', 0.01)
 
         # Parameter groups (can add custom logic here for layer-wise LR)

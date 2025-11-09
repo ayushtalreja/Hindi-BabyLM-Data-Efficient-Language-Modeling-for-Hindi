@@ -80,8 +80,18 @@ class CorpusBuilder:
         self.test_ratio = config.test_ratio
 
         # Initialize components
-        self.quality_filter = QualityFilter()
-        self.deduplicator = TextDeduplicator()
+        filtering_config = self.config.__dict__.get('filtering', {})
+        self.quality_filter = QualityFilter(
+            min_length=filtering_config.get('min_length', 50),
+            max_length=filtering_config.get('max_length', 50000),
+            min_hindi_ratio=filtering_config.get('min_hindi_ratio', 0.8)
+        )
+
+        deduplication_config = self.config.__dict__.get('deduplication', {})
+        self.deduplicator = TextDeduplicator(
+            threshold=deduplication_config.get('similarity_threshold', 0.8),
+            num_perm=deduplication_config.get('num_permutations', 128)
+        )
 
         # Create directories
         os.makedirs(self.data_dir, exist_ok=True)
