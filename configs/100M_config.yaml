@@ -280,7 +280,7 @@ evaluation:
   benchmarks:
     indicglue:
       enabled: true
-      tasks: ["IndicNews", "IndicHeadline", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
+      tasks: ["IndicNews", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
       batch_size: 64
       max_samples_per_task: 1000
 

@@ -67,6 +67,19 @@ class GPTForSequenceClassification(nn.Module):
         nn.init.normal_(self.classifier.weight, std=0.02)
         nn.init.zeros_(self.classifier.bias)
 
+        # Match dtype of base model to avoid dtype mismatch errors
+        self._match_base_model_dtype()
+
+    def _match_base_model_dtype(self):
+        """Match the dtype of the classification head to the base model"""
+        # Get dtype from first parameter of base model
+        base_dtype = next(self.lm_model.parameters()).dtype
+
+        # Convert classification head to same dtype
+        self.classifier = self.classifier.to(dtype=base_dtype)
+
+        # Note: Dropout doesn't have parameters, so no conversion needed
+
     def forward(self,
                 input_ids: torch.Tensor,
                 attention_mask: Optional[torch.Tensor] = None,
@@ -182,6 +195,19 @@ class DeBERTaForSequenceClassification(nn.Module):
         nn.init.normal_(self.classifier.weight, std=0.02)
         nn.init.zeros_(self.classifier.bias)
 
+        # Match dtype of base model to avoid dtype mismatch errors
+        self._match_base_model_dtype()
+
+    def _match_base_model_dtype(self):
+        """Match the dtype of the classification head to the base model"""
+        # Get dtype from first parameter of base model
+        base_dtype = next(self.lm_model.parameters()).dtype
+
+        # Convert classification head to same dtype
+        self.classifier = self.classifier.to(dtype=base_dtype)
+
+        # Note: Dropout doesn't have parameters, so no conversion needed
+
     def pool_hidden_states(self,
                           hidden_states: torch.Tensor,
                           attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -199,7 +225,8 @@ class DeBERTaForSequenceClassification(nn.Module):
             # Mean pooling with attention mask
             if attention_mask is not None:
                 # Expand mask for broadcasting: [batch, seq_len, 1]
-                mask_expanded = attention_mask.unsqueeze(-1).float()
+                # Match dtype to hidden_states to support mixed precision (BFloat16/Float16)
+                mask_expanded = attention_mask.unsqueeze(-1).to(hidden_states.dtype)
                 # Sum over sequence length, weighted by mask
                 sum_hidden = (hidden_states * mask_expanded).sum(dim=1)
                 # Divide by number of non-padding tokens
@@ -213,7 +240,8 @@ class DeBERTaForSequenceClassification(nn.Module):
             # Max pooling
             if attention_mask is not None:
                 # Set padding positions to large negative value
-                mask_expanded = attention_mask.unsqueeze(-1).float()
+                # Match dtype to hidden_states to support mixed precision (BFloat16/Float16)
+                mask_expanded = attention_mask.unsqueeze(-1).to(hidden_states.dtype)
                 hidden_states = hidden_states.clone()
                 hidden_states[mask_expanded == 0] = -1e9
             pooled = hidden_states.max(dim=1)[0]

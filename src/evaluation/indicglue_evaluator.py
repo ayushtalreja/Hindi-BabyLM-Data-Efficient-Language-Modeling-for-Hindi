@@ -6,7 +6,6 @@ which includes multiple tasks for evaluating Indian language understanding.
 
 IndicGLUE Tasks:
 - IndicNews: Article genre classification
-- IndicHeadline: Headline prediction task
 - IndicWiki: Section title prediction
 - IndicCQ: Cloze-style question answering
 - IndicWNLI: Winograd Natural Language Inference
@@ -80,12 +79,6 @@ class IndicGLUEEvaluator:
                 'num_labels': 3,  # Sports, Business, Entertainment
                 'metric': 'accuracy',
                 'class_names': ['Sports', 'Business', 'Entertainment']
-            },
-            'IndicHeadline': {
-                'type': 'classification',
-                'num_labels': 3,  # Correct/Incorrect headline match
-                'metric': 'accuracy',
-                'class_names': ['Not Related', 'Partially Related', 'Fully Related']
             },
             'IndicWiki': {
                 'type': 'multiple_choice',
@@ -293,9 +286,8 @@ class IndicGLUEEvaluator:
         try:
             dataset = self._load_task_data(task_name)
         except Exception as e:
-            logger.warning(f"Could not load real data for {task_name}: {e}")
-            logger.info(f"Using synthetic data for {task_name}")
-            dataset = self._create_synthetic_data(task_name)
+            logger.error(f"Could not load data for {task_name}: {e}")
+            return {'error': str(e), 'status': 'failed'}
 
         if dataset is None or len(dataset) == 0:
             logger.warning(f"No data available for {task_name}")
@@ -333,7 +325,6 @@ class IndicGLUEEvaluator:
         # Updated to use new ai4bharat/indic_glue repository with correct config names
         dataset_map = {
             'IndicNews': ('ai4bharat/indic_glue', 'bbca.hi'),  # BBC Article Classification
-            'IndicHeadline': None,  # Not available in indic_glue, will use synthetic data
             'IndicWiki': ('ai4bharat/indic_glue', 'wstp.hi'),  # Wikipedia Section Title Prediction
             'IndicCQ': ('ai4bharat/indic_glue', 'csqa.hi'),  # Commonsense QA
             'IndicWNLI': ('ai4bharat/indic_glue', 'wnli.hi'),  # Winograd NLI
@@ -357,45 +348,8 @@ class IndicGLUEEvaluator:
             logger.info(f"Successfully loaded {task_name} with {len(dataset)} examples")
             return dataset
         except Exception as e:
-            logger.warning(f"Failed to load {task_name} from HuggingFace: {e}")
-            logger.info(f"Will use synthetic data for {task_name} instead")
+            logger.error(f"Failed to load {task_name} from HuggingFace: {e}")
             return None
-
-    def _create_synthetic_data(self, task_name: str) -> Dataset:
-        """
-        Create synthetic data for testing when real data is unavailable
-
-        Args:
-            task_name: Name of the task
-
-        Returns:
-            Synthetic dataset
-        """
-        task_config = self.tasks[task_name]
-        num_samples = 100
-
-        if task_config['type'] == 'classification':
-            data = {
-                'text': [f"यह परीक्षण वाक्य {i} है।" for i in range(num_samples)],
-                'label': np.random.randint(0, task_config['num_labels'], num_samples).tolist()
-            }
-        elif task_config['type'] == 'multiple_choice':
-            data = {
-                'premise': [f"प्रश्न {i}" for i in range(num_samples)],
-                'choice1': [f"विकल्प 1-{i}" for i in range(num_samples)],
-                'choice2': [f"विकल्प 2-{i}" for i in range(num_samples)],
-                'label': np.random.randint(0, 2, num_samples).tolist()
-            }
-        elif task_config['type'] == 'nli':
-            data = {
-                'premise': [f"पहला वाक्य {i}" for i in range(num_samples)],
-                'hypothesis': [f"दूसरा वाक्य {i}" for i in range(num_samples)],
-                'label': np.random.randint(0, 2, num_samples).tolist()
-            }
-        else:
-            data = {'text': [], 'label': []}
-
-        return Dataset.from_dict(data)
 
     def _evaluate_classification(self, dataset: Dataset, task_name: str) -> Dict:
         """
@@ -517,7 +471,8 @@ class IndicGLUEEvaluator:
                     # Generic choices field
                     choices = example['choices']
                 else:
-                    # Default for synthetic data
+                    # Fallback if choices field is missing
+                    logger.warning(f"No choices field found for {task_name}, using placeholder")
                     choices = [f"विकल्प {i}" for i in range(2)]
 
                 # Score each choice
@@ -682,8 +637,8 @@ class IndicGLUEEvaluator:
                 attention_masks.append([1] * len(ids) + [0] * padding_length)
 
             encoded = {
-                'input_ids': torch.tensor(padded_ids),
-                'attention_mask': torch.tensor(attention_masks)
+                'input_ids': torch.tensor(padded_ids, dtype=torch.long),
+                'attention_mask': torch.tensor(attention_masks, dtype=torch.long)
             }
 
         # Move to device
