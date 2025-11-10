@@ -19,7 +19,7 @@ project:
 directories:
   data_dir: "data"
   model_dir: "results/experiment_name/models"
-  tokenizer_dir: "results/experiment_name/tokenizers"
+  tokenizer_dir: "tokenizers"  # Temporary directory for tokenizer training files
   results_dir: "results"
   checkpoint_dir: "checkpoints"
   logs_dir: "logs"
@@ -284,7 +284,7 @@ evaluation:
   benchmarks:
     indicglue:
       enabled: true
-      tasks: ["IndicNews", "IndicHeadline", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
+      tasks: ["IndicNews", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
       batch_size: 64
       max_samples_per_task: 1000  # For quick evaluation
 

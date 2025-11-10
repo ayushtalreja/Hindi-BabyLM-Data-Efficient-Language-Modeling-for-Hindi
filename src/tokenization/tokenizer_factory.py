@@ -38,11 +38,12 @@ class TokenizerFactory:
 
         tokenizer = HindiSentencePieceTokenizer(vocab_size=self.vocab_size)
 
-        # Train tokenizer
+        # Train tokenizer to a temporary location
+        # The save_tokenizer method will copy it to the correct experiment-specific path
         model_prefix = os.path.join(self.tokenizer_dir, 'sentencepiece')
         tokenizer.train_tokenizer(training_texts, model_prefix)
 
-        print(f"SentencePiece tokenizer trained and saved to {model_prefix}")
+        print(f"SentencePiece tokenizer trained successfully")
 
         # Add vocab_size attribute for compatibility
         tokenizer.vocab_size = self.vocab_size
@@ -78,11 +79,7 @@ class TokenizerFactory:
         # Train on texts
         tokenizer.train_from_iterator(training_texts, trainer)
 
-        # Save tokenizer
-        tokenizer_path = os.path.join(self.tokenizer_dir, 'wordpiece.json')
-        tokenizer.save(tokenizer_path)
-
-        print(f"WordPiece tokenizer trained and saved to {tokenizer_path}")
+        print(f"WordPiece tokenizer trained successfully")
 
         # Wrap in a class for consistent interface
         return WordPieceTokenizerWrapper(tokenizer, self.vocab_size)
@@ -116,11 +113,7 @@ class TokenizerFactory:
         # Train on texts
         tokenizer.train_from_iterator(training_texts, trainer)
 
-        # Save tokenizer
-        tokenizer_path = os.path.join(self.tokenizer_dir, 'bpe.json')
-        tokenizer.save(tokenizer_path)
-
-        print(f"BPE tokenizer trained and saved to {tokenizer_path}")
+        print(f"BPE tokenizer trained successfully")
 
         # Wrap in a class for consistent interface
         return BPETokenizerWrapper(tokenizer, self.vocab_size)
@@ -195,6 +188,31 @@ class TokenizerFactory:
         # Extract experiment name from path (last directory component or use full path)
         experiment_name = os.path.basename(save_path.rstrip('/'))
 
+        # Save the actual tokenizer files to the correct path
+        if self.tokenizer_type == "sentencepiece":
+            # For SentencePiece, save the model file
+            model_path = os.path.join(save_path, 'sentencepiece.model')
+            if hasattr(tokenizer, 'model') and tokenizer.model is not None:
+                # Copy the model file if it exists elsewhere
+                import shutil
+                temp_model_path = os.path.join(self.tokenizer_dir, 'sentencepiece.model')
+                if os.path.exists(temp_model_path):
+                    shutil.copy(temp_model_path, model_path)
+                    print(f"SentencePiece model saved to {model_path}")
+        elif self.tokenizer_type == "wordpiece":
+            # For WordPiece, save the tokenizer JSON
+            tokenizer_path = os.path.join(save_path, 'wordpiece.json')
+            if hasattr(tokenizer, 'tokenizer'):
+                tokenizer.tokenizer.save(tokenizer_path)
+                print(f"WordPiece tokenizer saved to {tokenizer_path}")
+        elif self.tokenizer_type == "bpe":
+            # For BPE, save the tokenizer JSON
+            tokenizer_path = os.path.join(save_path, 'bpe.json')
+            if hasattr(tokenizer, 'tokenizer'):
+                tokenizer.tokenizer.save(tokenizer_path)
+                print(f"BPE tokenizer saved to {tokenizer_path}")
+
+        # Save metadata
         metadata = {
             'tokenizer_type': self.tokenizer_type,
             'vocab_size': self.vocab_size,
