@@ -173,7 +173,7 @@ class ModelFactory:
             raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
         # Load checkpoint
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        checkpoint = torch.load(checkpoint_path, map_location='cpu',weights_only=False)
 
         # Get vocab size from checkpoint if not provided
         if vocab_size is None:
