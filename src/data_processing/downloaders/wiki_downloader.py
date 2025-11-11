@@ -51,8 +51,8 @@ class WikiDownloader(BaseDownloader):
     def download(
         self,
         max_articles: Optional[int] = None,
-        min_length: int = 50,
-        max_length: int = 50000
+        min_length: int = 30,
+        max_length: int = 2000
     ) -> List[str]:
         """
         Download Hindi Wikipedia from HuggingFace.

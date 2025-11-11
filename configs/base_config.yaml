@@ -4,7 +4,7 @@
 
 # Experiment Configuration
 experiment:
-  name: "gpt_10M_baseline"  # Default experiment name (can be overridden via CLI)
+  name: "gpt_10M_baseline_finetuned"  # Default experiment name (can be overridden via CLI)
   description: "Baseline GPT model on 10M word corpus"
   tags: ["baseline", "gpt", "10M", "strict-small"]
 
