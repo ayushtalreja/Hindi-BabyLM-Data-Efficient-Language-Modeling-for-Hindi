@@ -79,10 +79,10 @@ class IndicGLUEEvaluator:
         self.tasks = {
             'BBCArticlesClassification': {
                 'type': 'classification',
-                'num_labels': 14,  # FIXED: BBC News has 14 categories
+                'num_labels': 14,  # 14 classes in BBC dataset
                 'metric': 'accuracy',
                 'class_names': ['india', 'pakistan', 'news', 'entertainment', 'sport',
-                               'international', 'science'],  # 7 main classes identified (14 total in dataset)
+                               'international', 'science', 'business', 'southasia'],  # 9 main classes identified (14 total in dataset)
                 'hf_config': 'bbca.hi'
             },
             'Wikipedia Section Title Prediction': {

@@ -8,7 +8,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64GB
+#SBATCH --mem=80GB
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=ayush1.kumar@tum.de
 
@@ -67,7 +67,7 @@ if [ -z "$EXPERIMENT_NAME" ]; then
         --config $CONFIG \
         --stage all \
         --device cuda \
-        --force-reprocess
+       # --force-reprocess
 else
     # Override with provided experiment name
     echo "Using experiment name: $EXPERIMENT_NAME"
