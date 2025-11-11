@@ -284,9 +284,38 @@ evaluation:
   benchmarks:
     indicglue:
       enabled: true
-      tasks: ["IndicNews", "IndicWiki", "IndicCQ", "IndicWNLI", "IndicCOPA"]
+      # Updated task names (descriptive)
+      tasks: ["BBCArticlesClassification", "Wikipedia Section Title Prediction", "CommonsenseQA", "WinogradNLI", "Choice of Plausible Alternatives", "MovieReviewSentiment", "ProductReviewSentiment", "DiscourseMode"]
+
+      # Evaluation settings
       batch_size: 64
-      max_samples_per_task: 1000  # For quick evaluation
+      max_samples_per_task: null  # null = use all data, or set a number for quick testing
+
+      # Fine-tuning configuration
+      fine_tuning:
+        enabled: true  # Toggle: true for fine-tuning, false for zero-shot
+
+        # Training hyperparameters
+        num_epochs: 10
+        early_stopping:
+          enabled: true
+          patience: 3
+          metric: "accuracy"  # Metric to monitor
+          mode: "max"  # "max" for accuracy, "min" for loss
+
+        # Optimization
+        learning_rate: 2e-5
+        batch_size: 32
+        weight_decay: 0.01
+        warmup_ratio: 0.1
+
+        # Model settings
+        freeze_base_model: true  # Only train classification heads
+        dropout: 0.1
+
+        # Checkpointing (optional)
+        save_finetuned_models: false
+        finetuned_models_dir: "finetuned_heads"
 
     multiblimp:
       enabled: true

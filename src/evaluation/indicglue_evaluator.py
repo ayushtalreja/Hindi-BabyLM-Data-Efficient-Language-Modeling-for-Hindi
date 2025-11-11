@@ -22,6 +22,8 @@ from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_su
 from datasets import load_dataset, Dataset
 import logging
 from pathlib import Path
+import time
+from torch.utils.data import DataLoader
 
 # Import new utilities
 from .metrics_utils import MetricsAggregator, Metric
@@ -73,33 +75,63 @@ class IndicGLUEEvaluator:
         logger.info(f"Model type detected: {'Language Model' if self.is_language_model else 'Classification Model'}")
 
         # Task configurations
+        # Using descriptive names mapped to HuggingFace configs
         self.tasks = {
-            'IndicNews': {
+            'BBCArticlesClassification': {
                 'type': 'classification',
-                'num_labels': 3,  # Sports, Business, Entertainment
+                'num_labels': 14,  # FIXED: BBC News has 14 categories
                 'metric': 'accuracy',
-                'class_names': ['Sports', 'Business', 'Entertainment']
+                'class_names': ['india', 'pakistan', 'news', 'entertainment', 'sport',
+                               'international', 'science'],  # 7 main classes identified (14 total in dataset)
+                'hf_config': 'bbca.hi'
             },
-            'IndicWiki': {
+            'Wikipedia Section Title Prediction': {
                 'type': 'multiple_choice',
-                'num_choices': 4,  # Four title choices (titleA, titleB, titleC, titleD)
-                'metric': 'accuracy'
+                'num_labels': 4,  # Four title choices (can be treated as 4-class classification)
+                'metric': 'accuracy',
+                'hf_config': 'wstp.hi'
             },
-            'IndicCQ': {
+            'CommonsenseQA': {
                 'type': 'multiple_choice',
-                'num_choices': 4,
-                'metric': 'accuracy'
+                'num_labels': 4,  # Four answer choices
+                'metric': 'accuracy',
+                'hf_config': 'csqa.hi'
             },
-            'IndicWNLI': {
+            'WinogradNLI': {
                 'type': 'nli',
                 'num_labels': 2,  # Entailment/Not Entailment
                 'metric': 'accuracy',
-                'class_names': ['Not Entailment', 'Entailment']
+                'class_names': ['Not Entailment', 'Entailment'],
+                'hf_config': 'wnli.hi'
             },
-            'IndicCOPA': {
+            'Choice of Plausible Alternatives': {
                 'type': 'multiple_choice',
-                'num_choices': 2,
-                'metric': 'accuracy'
+                'num_labels': 2,  # Two plausible alternatives
+                'metric': 'accuracy',
+                'hf_config': 'copa.hi'
+            },
+            # New tasks added
+            'MovieReviewSentiment': {
+                'type': 'classification',
+                'num_labels': 3,  # Positive, Negative, Neutral
+                'metric': 'accuracy',
+                'class_names': ['Negative', 'Neutral', 'Positive'],
+                'hf_config': 'iitp-mr.hi'
+            },
+            'ProductReviewSentiment': {
+                'type': 'classification',
+                'num_labels': 3,  # Positive, Negative, Neutral
+                'metric': 'accuracy',
+                'class_names': ['Negative', 'Neutral', 'Positive'],
+                'hf_config': 'iitp-pr.hi'
+            },
+            'DiscourseMode': {
+                'type': 'classification',
+                'num_labels': 6,  # FIXED: 6 classes, not 9
+                'metric': 'accuracy',
+                'class_names': ['Narrative', 'Descriptive', 'Dialogue',
+                               'Informative', 'Argumentative', 'Other'],
+                'hf_config': 'md.hi'
             }
         }
 
@@ -177,13 +209,15 @@ class IndicGLUEEvaluator:
             'model_type': model_type
         }
 
-    def _get_model_for_task(self, task_name: str):
+    def _get_model_for_task(self, task_name: str, for_training: bool = False):
         """
         Get the appropriate model for a specific task.
         If the base model is a language model, wrap it with a classification head.
 
         Args:
             task_name: Name of the task
+            for_training: If True, creates model with trainable head (frozen base)
+                         If False, creates fully frozen model for inference
 
         Returns:
             Model ready for the task
@@ -192,41 +226,78 @@ class IndicGLUEEvaluator:
             # Already a classification model, use as-is
             return self.base_model
 
-        # Check if we already have a wrapped model for this task
-        if task_name in self.wrapped_models:
-            return self.wrapped_models[task_name]
+        # Create separate cache keys for training vs evaluation
+        cache_key = f"{task_name}_{'train' if for_training else 'eval'}"
+
+        # Check if we already have a wrapped model for this task and mode
+        if cache_key in self.wrapped_models:
+            return self.wrapped_models[cache_key]
 
         # Wrap the language model with a classification head
         task_config = self.tasks[task_name]
         model_config = self._get_model_config()
 
         # Determine number of classes based on task type
-        if task_config['type'] in ['classification', 'nli']:
-            num_classes = task_config['num_labels']
-        elif task_config['type'] == 'multiple_choice':
-            # Multiple choice tasks don't need classification heads
-            # They use the language model as-is for scoring
-            return self.base_model
-        else:
-            raise ValueError(f"Unknown task type: {task_config['type']}")
+        task_type = task_config['type']
 
-        logger.info(f"Wrapping model for task {task_name} with {num_classes} classes...")
+        if task_type == 'classification':
+            # Text classification tasks (BBC, Sentiment, Discourse)
+            num_classes = task_config['num_labels']
+            logger.info(f"Task '{task_name}' is classification with {num_classes} classes")
+
+        elif task_type == 'nli':
+            # Natural Language Inference tasks (WinogradNLI)
+            num_classes = task_config['num_labels']
+            logger.info(f"Task '{task_name}' is NLI with {num_classes} classes")
+
+        elif task_type == 'multiple_choice':
+            # Multiple choice tasks (COPA, CSQA, Wikipedia Section Title)
+            # Treat as multi-class classification
+            num_classes = task_config['num_labels']
+            logger.info(f"Task '{task_name}' is multiple-choice, treating as {num_classes}-class classification")
+
+        else:
+            # Unknown task type
+            raise ValueError(
+                f"Unknown task type '{task_type}' for task '{task_name}'. "
+                f"Supported types: 'classification', 'nli', 'multiple_choice'"
+            )
+
+        logger.info(f"Wrapping model for task '{task_name}' with {num_classes} classes "
+                   f"(mode: {'training' if for_training else 'evaluation'})...")
+
+        # Get fine-tuning config for dropout
+        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
+                        .get('indicglue', {}).get('fine_tuning', {})
+
+        # Set dropout based on mode
+        if for_training:
+            dropout = ft_config.get('dropout', 0.1)
+        else:
+            dropout = self.config.get('eval_dropout', 0.0)
 
         wrapped_model = wrap_model_for_classification(
             lm_model=self.base_model,
             model_type=model_config['model_type'],
             num_classes=num_classes,
             hidden_size=model_config['hidden_size'],
-            dropout=self.config.get('eval_dropout', 0.0),  # No dropout during evaluation
-            freeze_base=True,  # Freeze base model during evaluation
+            dropout=dropout,
+            freeze_base=True,  # Always freeze base model (only train heads)
             pooling_strategy='auto'
         )
 
         # Move to correct device
         wrapped_model = wrapped_model.to(self.device)
 
+        # For training mode, ensure classification head has gradients enabled
+        if for_training:
+            for param in wrapped_model.classifier.parameters():
+                param.requires_grad = True
+            num_trainable = sum(p.numel() for p in wrapped_model.classifier.parameters())
+            logger.info(f"Enabled gradients for classification head ({num_trainable:,} trainable parameters)")
+
         # Cache the wrapped model
-        self.wrapped_models[task_name] = wrapped_model
+        self.wrapped_models[cache_key] = wrapped_model
 
         return wrapped_model
 
@@ -269,7 +340,7 @@ class IndicGLUEEvaluator:
 
     def evaluate_task(self, task_name: str) -> Dict:
         """
-        Evaluate model on a specific IndicGLUE task
+        Evaluate model on a specific IndicGLUE task (with optional fine-tuning)
 
         Args:
             task_name: Name of the task to evaluate
@@ -282,53 +353,131 @@ class IndicGLUEEvaluator:
 
         task_config = self.tasks[task_name]
 
-        # Load task data
-        try:
-            dataset = self._load_task_data(task_name)
-        except Exception as e:
-            logger.error(f"Could not load data for {task_name}: {e}")
-            return {'error': str(e), 'status': 'failed'}
+        # Check if fine-tuning is enabled
+        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
+                        .get('indicglue', {}).get('fine_tuning', {})
+        fine_tune_enabled = ft_config.get('enabled', False)
 
-        if dataset is None or len(dataset) == 0:
-            logger.warning(f"No data available for {task_name}")
-            return {'status': 'no_data'}
+        # Fine-tuning applies to all task types now (classification, NLI, and multiple-choice)
+        if fine_tune_enabled:
+            logger.info(f"Fine-tuning mode enabled for {task_name}")
 
-        # Limit samples if configured
-        if self.max_samples and len(dataset) > self.max_samples:
-            dataset = dataset.select(range(self.max_samples))
+            # Load all splits
+            splits = self._load_all_splits(task_name)
 
-        logger.info(f"Evaluating on {len(dataset)} examples")
+            if 'train' not in splits or 'validation' not in splits:
+                logger.warning(f"Missing train or validation split for {task_name}, "
+                              f"falling back to zero-shot evaluation")
+                fine_tune_enabled = False
+            else:
+                # Fine-tune on train/val
+                logger.info(f"Fine-tuning on {task_name}...")
+                start_time = time.time()
 
-        # Evaluate based on task type
-        if task_config['type'] == 'classification':
-            results = self._evaluate_classification(dataset, task_name)
-        elif task_config['type'] == 'multiple_choice':
-            results = self._evaluate_multiple_choice(dataset, task_name)
-        elif task_config['type'] == 'nli':
-            results = self._evaluate_nli(dataset, task_name)
-        else:
-            raise ValueError(f"Unknown task type: {task_config['type']}")
+                finetuned_model = self.fine_tune_task(
+                    task_name,
+                    splits['train'],
+                    splits['validation']
+                )
+
+                fine_tune_time = time.time() - start_time
+
+                # Evaluate on test split
+                logger.info(f"Evaluating fine-tuned model on test set...")
+                test_dataset = splits.get('test')
+
+                if test_dataset is None:
+                    logger.error(f"No test split for {task_name}")
+                    return {'status': 'no_test_data'}
+
+                # Apply sample limit if configured
+                if self.max_samples and len(test_dataset) > self.max_samples:
+                    test_dataset = test_dataset.select(range(self.max_samples))
+
+                # Evaluate with fine-tuned model
+                results = self._evaluate_with_model(
+                    finetuned_model,
+                    test_dataset,
+                    task_name
+                )
+
+                results['fine_tuned'] = True
+                results['fine_tuning_time_seconds'] = fine_tune_time
+
+        if not fine_tune_enabled:
+            # Zero-shot evaluation (original behavior)
+            logger.info(f"Zero-shot mode for {task_name}")
+
+            # Load test data
+            try:
+                dataset = self._load_task_data(task_name, split='test')
+            except Exception as e:
+                logger.error(f"Could not load data for {task_name}: {e}")
+                return {'error': str(e), 'status': 'failed'}
+
+            if dataset is None or len(dataset) == 0:
+                logger.warning(f"No data available for {task_name}")
+                return {'status': 'no_data'}
+
+            # Apply sample limit if configured
+            if self.max_samples and len(dataset) > self.max_samples:
+                dataset = dataset.select(range(self.max_samples))
+
+            # Get model for zero-shot evaluation
+            model = self._get_model_for_task(task_name, for_training=False)
+
+            # Evaluate
+            results = self._evaluate_with_model(model, dataset, task_name)
+            results['fine_tuned'] = False
 
         return results
 
-    def _load_task_data(self, task_name: str) -> Optional[Dataset]:
+    def _evaluate_with_model(self, model, dataset: Dataset, task_name: str) -> Dict:
+        """
+        Unified evaluation routing based on task type
+
+        Args:
+            model: Model to evaluate
+            dataset: Dataset to evaluate on
+            task_name: Name of the task
+
+        Returns:
+            Dictionary with evaluation metrics
+        """
+        logger.info(f"Evaluating on {len(dataset)} examples")
+
+        task_config = self.tasks[task_name]
+
+        # Route to task-type-specific evaluation
+        # All tasks now use classification heads, so we can use _evaluate_classification for all
+        if task_config['type'] in ['classification', 'nli', 'multiple_choice']:
+            return self._evaluate_classification(dataset, task_name, model)
+        else:
+            raise ValueError(f"Unknown task type: {task_config['type']}")
+
+    def _load_task_data(self, task_name: str, split: str = 'test') -> Optional[Dataset]:
         """
         Load real IndicGLUE task data from Hugging Face
 
         Args:
             task_name: Name of the task
+            split: Dataset split to load ('train', 'validation', 'test')
 
         Returns:
             Dataset or None if not available
         """
         # Mapping of task names to HuggingFace dataset paths
-        # Updated to use new ai4bharat/indic_glue repository with correct config names
+        # Using descriptive task names mapped to ai4bharat/indic_glue configs
         dataset_map = {
-            'IndicNews': ('ai4bharat/indic_glue', 'bbca.hi'),  # BBC Article Classification
-            'IndicWiki': ('ai4bharat/indic_glue', 'wstp.hi'),  # Wikipedia Section Title Prediction
-            'IndicCQ': ('ai4bharat/indic_glue', 'csqa.hi'),  # Commonsense QA
-            'IndicWNLI': ('ai4bharat/indic_glue', 'wnli.hi'),  # Winograd NLI
-            'IndicCOPA': ('ai4bharat/indic_glue', 'copa.hi')  # Choice of Plausible Alternatives
+            'BBCArticlesClassification': ('ai4bharat/indic_glue', 'bbca.hi'),
+            'Wikipedia Section Title Prediction': ('ai4bharat/indic_glue', 'wstp.hi'),
+            'CommonsenseQA': ('ai4bharat/indic_glue', 'csqa.hi'),
+            'WinogradNLI': ('ai4bharat/indic_glue', 'wnli.hi'),
+            'Choice of Plausible Alternatives': ('ai4bharat/indic_glue', 'copa.hi'),
+            # New tasks
+            'MovieReviewSentiment': ('ai4bharat/indic_glue', 'iitp-mr.hi'),
+            'ProductReviewSentiment': ('ai4bharat/indic_glue', 'iitp-pr.hi'),
+            'DiscourseMode': ('ai4bharat/indic_glue', 'md.hi')
         }
 
         if task_name not in dataset_map:
@@ -343,21 +492,316 @@ class IndicGLUEEvaluator:
 
         try:
             dataset_name, config_name = dataset_info
-            logger.info(f"Attempting to load {task_name} from {dataset_name} with config '{config_name}'")
-            dataset = load_dataset(dataset_name, config_name, split='test')
-            logger.info(f"Successfully loaded {task_name} with {len(dataset)} examples")
+            logger.info(f"Attempting to load {task_name} from {dataset_name} with config '{config_name}' (split={split})")
+            dataset = load_dataset(dataset_name, config_name, split=split)
+            logger.info(f"Successfully loaded {task_name} {split} split with {len(dataset)} examples")
             return dataset
         except Exception as e:
-            logger.error(f"Failed to load {task_name} from HuggingFace: {e}")
+            logger.error(f"Failed to load {task_name} {split} split from HuggingFace: {e}")
             return None
 
-    def _evaluate_classification(self, dataset: Dataset, task_name: str) -> Dict:
+    def _load_all_splits(self, task_name: str) -> Dict[str, Dataset]:
+        """
+        Load train, validation, and test splits for a task
+
+        Args:
+            task_name: Name of the task
+
+        Returns:
+            Dictionary with 'train', 'validation', and 'test' keys (if available)
+        """
+        splits = {}
+        for split_name in ['train', 'validation', 'test']:
+            try:
+                dataset = self._load_task_data(task_name, split=split_name)
+                if dataset is not None:
+                    splits[split_name] = dataset
+                    logger.info(f"Loaded {split_name} split for {task_name}: {len(dataset)} examples")
+            except Exception as e:
+                logger.warning(f"Could not load {split_name} split for {task_name}: {e}")
+
+        return splits
+
+    def fine_tune_task(self, task_name: str, train_dataset: Dataset,
+                       val_dataset: Dataset) -> 'torch.nn.Module':
+        """
+        Fine-tune classification head on train/val splits
+
+        Features:
+        - Freezes base model (only train classification head)
+        - Early stopping based on validation accuracy
+        - 10 epoch maximum (configurable)
+        - Batch size and LR from config
+
+        Args:
+            task_name: Name of the task
+            train_dataset: Training dataset
+            val_dataset: Validation dataset
+
+        Returns:
+            Fine-tuned model (best checkpoint based on validation)
+        """
+        # Get fine-tuning config
+        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
+                        .get('indicglue', {}).get('fine_tuning', {})
+
+        num_epochs = ft_config.get('num_epochs', 10)
+        learning_rate = ft_config.get('learning_rate', 2e-5)
+        batch_size = ft_config.get('batch_size', 32)
+        weight_decay = ft_config.get('weight_decay', 0.01)
+
+        # Early stopping config
+        es_config = ft_config.get('early_stopping', {})
+        patience = es_config.get('patience', 3)
+
+        logger.info(f"Starting fine-tuning for {task_name}")
+        logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
+        logger.info(f"Epochs: {num_epochs}, LR: {learning_rate}, Batch size: {batch_size}")
+
+        # Get model with trainable head, frozen base
+        model = self._get_model_for_task(task_name, for_training=True)
+
+        # Create dataloaders
+        train_loader = self._create_task_dataloader(train_dataset, task_name,
+                                                     shuffle=True, batch_size=batch_size)
+        val_loader = self._create_task_dataloader(val_dataset, task_name,
+                                                   shuffle=False, batch_size=batch_size*2)
+
+        # Setup optimizer
+        optimizer = torch.optim.AdamW(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=learning_rate,
+            weight_decay=weight_decay
+        )
+
+        # Training loop with early stopping
+        best_val_acc = 0.0
+        best_model_state = None
+        patience_counter = 0
+        best_epoch = 0
+
+        for epoch in range(num_epochs):
+            # Training phase
+            model.train()
+            train_loss = 0.0
+            num_batches = 0
+
+            for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Train]"):
+                outputs = model(**batch, labels=batch['labels'])
+                loss = outputs.loss
+
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+
+                train_loss += loss.item()
+                num_batches += 1
+
+            avg_train_loss = train_loss / num_batches if num_batches > 0 else 0.0
+
+            # Validation phase
+            val_metrics = self._validate_model(model, val_loader, task_name)
+            val_acc = val_metrics['accuracy']
+            val_loss = val_metrics['loss']
+
+            logger.info(f"Epoch {epoch+1}/{num_epochs}: "
+                       f"train_loss={avg_train_loss:.4f}, "
+                       f"val_acc={val_acc:.4f}, "
+                       f"val_loss={val_loss:.4f}")
+
+            # Early stopping check
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+                patience_counter = 0
+                best_epoch = epoch + 1
+                logger.info(f"  → New best validation accuracy: {best_val_acc:.4f}")
+            else:
+                patience_counter += 1
+                logger.info(f"  → No improvement (patience: {patience_counter}/{patience})")
+
+                if patience_counter >= patience:
+                    logger.info(f"Early stopping triggered at epoch {epoch+1}")
+                    break
+
+        # Restore best model
+        if best_model_state is not None:
+            model.load_state_dict(best_model_state)
+            logger.info(f"Restored best model from epoch {best_epoch} with val_acc={best_val_acc:.4f}")
+
+        # Store fine-tuning metadata for later use
+        self._current_fine_tuning_info = {
+            'epochs_trained': epoch + 1,
+            'best_epoch': best_epoch,
+            'best_val_accuracy': best_val_acc,
+            'early_stopped': patience_counter >= patience,
+            'train_samples': len(train_dataset),
+            'val_samples': len(val_dataset)
+        }
+
+        return model
+
+    def _validate_model(self, model: 'torch.nn.Module', val_loader: DataLoader,
+                        task_name: str) -> Dict[str, float]:
+        """
+        Run validation and return metrics
+
+        Args:
+            model: Model to validate
+            val_loader: Validation data loader
+            task_name: Name of the task
+
+        Returns:
+            Dictionary with 'accuracy' and 'loss'
+        """
+        model.eval()
+        predictions = []
+        labels = []
+        total_loss = 0.0
+        num_batches = 0
+
+        with torch.no_grad():
+            for batch in val_loader:
+                outputs = model(**batch, labels=batch['labels'])
+                logits = outputs.logits
+
+                preds = torch.argmax(logits, dim=-1)
+                predictions.extend(preds.cpu().numpy())
+                labels.extend(batch['labels'].cpu().numpy())
+                total_loss += outputs.loss.item()
+                num_batches += 1
+
+        accuracy = accuracy_score(labels, predictions)
+        avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
+
+        return {'accuracy': accuracy, 'loss': avg_loss}
+
+    def _create_task_dataloader(self, dataset: Dataset, task_name: str,
+                                shuffle: bool = False,
+                                batch_size: Optional[int] = None) -> DataLoader:
+        """
+        Create DataLoader for a task dataset
+
+        Args:
+            dataset: Dataset to create loader for
+            task_name: Name of the task
+            shuffle: Whether to shuffle the data
+            batch_size: Batch size (defaults to self.batch_size)
+
+        Returns:
+            DataLoader
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+
+        task_config = self.tasks[task_name]
+
+        def collate_fn(examples):
+            """
+            Collate function that handles multiple dataset field name variations
+
+            Supports:
+            - BBC/Sentiment/Discourse: 'text' or 'sentence'
+            - NLI tasks: 'premise' + 'hypothesis'
+            - COPA: 'premise' + 'question' + 'choice1' + 'choice2' (concatenated)
+            - CSQA: 'title' + 'category' + 'question' + 'options' + 'out_of_context_options' (concatenated)
+            - WSTP: 'sectionText' + 'titleA' + 'titleB' + 'titleC' + 'titleD' (concatenated)
+            """
+            texts = []
+            labels = []
+
+            for example in examples:
+                text = None
+
+                # Check if this is a multiple-choice task (COPA, CSQA, WSTP)
+                # Multiple-choice tasks need context + all choices concatenated
+
+                if 'premise' in example and 'choice1' in example and 'choice2' in example:
+                    # COPA: concatenate premise + question + all choices
+                    question = example.get('question', '')
+                    choices = [example['choice1'], example['choice2']]
+                    text = f"{example['premise']} [SEP] {question} [SEP] " + " [SEP] ".join(choices)
+
+                elif 'question' in example and 'options' in example:
+                    # CSQA: concatenate title + category + question + options + out_of_context_options
+                    # Include all available fields for maximum context
+                    title = example.get('title', '')
+                    category = example.get('category', '')
+                    question = example['question']
+                    options = example['options']
+                    out_of_context = example.get('out_of_context_options', [])
+
+                    # Build comprehensive input
+                    parts = []
+                    if title:
+                        parts.append(f"Title: {title}")
+                    if category:
+                        parts.append(f"Category: {category}")
+                    parts.append(question)
+
+                    if isinstance(options, list):
+                        parts.append(" [SEP] ".join(options))
+
+                    # Add out-of-context options if available
+                    if out_of_context and isinstance(out_of_context, list) and len(out_of_context) > 0:
+                        parts.append(" [SEP] ".join(out_of_context))
+
+                    text = " [SEP] ".join(parts)
+
+                elif 'sectionText' in example and 'titleA' in example:
+                    # WSTP: concatenate sectionText + all title choices
+                    titles = [
+                        example.get('titleA', ''),
+                        example.get('titleB', ''),
+                        example.get('titleC', ''),
+                        example.get('titleD', '')
+                    ]
+                    # Filter out empty titles
+                    titles = [t for t in titles if t]
+                    text = f"{example['sectionText']} [SEP] " + " [SEP] ".join(titles)
+
+                # Standard text fields (classification and NLI tasks)
+                elif 'text' in example:
+                    text = example['text']
+                elif 'sentence' in example:
+                    text = example['sentence']
+                elif 'premise' in example and 'hypothesis' in example:
+                    # NLI tasks (WinogradNLI)
+                    text = f"{example['premise']} [SEP] {example['hypothesis']}"
+
+                else:
+                    # Fallback: use first non-label string field
+                    text_fields = [k for k in example.keys() if k != 'label' and isinstance(example[k], str)]
+                    if text_fields:
+                        text = example[text_fields[0]]
+                    else:
+                        text = ""
+
+                texts.append(text if text is not None else "")
+                labels.append(example['label'])
+
+            # Tokenize
+            encoded = self._tokenize_batch(texts)
+            encoded['labels'] = torch.tensor(labels, dtype=torch.long).to(self.device)
+
+            return encoded
+
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            collate_fn=collate_fn,
+            num_workers=8  # Set to 0 to avoid multiprocessing issues
+        )
+
+    def _evaluate_classification(self, dataset: Dataset, task_name: str, model=None) -> Dict:
         """
         Evaluate classification task
 
         Args:
             dataset: Dataset to evaluate on
             task_name: Name of the task
+            model: Optional model to use (if None, creates one)
 
         Returns:
             Dictionary with metrics
@@ -365,8 +809,10 @@ class IndicGLUEEvaluator:
         predictions = []
         labels = []
 
-        # Get the appropriate model for this task (wrapped with classification head if needed)
-        model = self._get_model_for_task(task_name)
+        # Get the appropriate model for this task if not provided
+        if model is None:
+            model = self._get_model_for_task(task_name)
+
         model.eval()
 
         with torch.no_grad():
@@ -531,13 +977,14 @@ class IndicGLUEEvaluator:
         # Compute metrics
         return self._compute_classification_metrics(predictions, labels, task_name)
 
-    def _evaluate_nli(self, dataset: Dataset, task_name: str) -> Dict:
+    def _evaluate_nli(self, dataset: Dataset, task_name: str, model=None) -> Dict:
         """
         Evaluate Natural Language Inference task (IndicWNLI)
 
         Args:
             dataset: Dataset to evaluate on
             task_name: Name of the task
+            model: Optional model to use (if None, creates one)
 
         Returns:
             Dictionary with metrics
@@ -545,8 +992,10 @@ class IndicGLUEEvaluator:
         predictions = []
         labels = []
 
-        # Get the appropriate model for this task (wrapped with classification head if needed)
-        model = self._get_model_for_task(task_name)
+        # Get the appropriate model for this task if not provided
+        if model is None:
+            model = self._get_model_for_task(task_name)
+
         model.eval()
 
         with torch.no_grad():
@@ -742,6 +1191,10 @@ class IndicGLUEEvaluator:
                 for class_idx, metrics in per_class_metrics.items()
             }
         }
+
+        # Add fine-tuning metadata if available
+        if hasattr(self, '_current_fine_tuning_info') and self._current_fine_tuning_info:
+            results['fine_tuning_info'] = self._current_fine_tuning_info
 
         return results
 
