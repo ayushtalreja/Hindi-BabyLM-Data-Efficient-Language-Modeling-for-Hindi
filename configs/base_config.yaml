@@ -4,8 +4,8 @@
 
 # Experiment Configuration
 experiment:
-  name: "gpt_10M_baseline_zero_shot"  # Default experiment name (can be overridden via CLI)
-  description: "Baseline GPT model on 10M word corpus with zero shot on IndicGLUE"
+  name: "gpt_10M_baseline_finetuned"  # Default experiment name (can be overridden via CLI)
+  description: "Baseline GPT model on 10M word corpus with fine tuning on IndicGLUE"
   tags: ["baseline", "gpt", "10M", "strict-small"]
 
 # Project Metadata
@@ -293,7 +293,7 @@ evaluation:
 
       # Fine-tuning configuration
       fine_tuning:
-        enabled: false  # Toggle: true for fine-tuning, false for zero-shot
+        enabled: true  # Toggle: true for fine-tuning, false for zero-shot
 
         # Training hyperparameters
         num_epochs: 10
@@ -314,7 +314,7 @@ evaluation:
         dropout: 0.1
 
         # Checkpointing (optional)
-        save_finetuned_models: false
+        save_finetuned_models: true 
         finetuned_models_dir: "finetuned_heads"
 
     multiblimp:
