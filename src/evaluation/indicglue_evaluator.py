@@ -35,6 +35,27 @@ from ..models.classification_models import wrap_model_for_classification
 logger = logging.getLogger(__name__)
 
 
+# BBCA (BBC Articles Classification) label mapping
+# The IndicGLUE BBCA dataset uses string labels, but models return integer predictions
+# This mapping converts string labels to integer indices for metric computation
+BBCA_LABEL_MAP = {
+    'business': 0,
+    'china': 1,
+    'entertainment': 2,
+    'india': 3,
+    'institutional': 4,
+    'international': 5,
+    'learningenglish': 6,
+    'multimedia': 7,
+    'news': 8,
+    'pakistan': 9,
+    'science': 10,
+    'social': 11,
+    'southasia': 12,
+    'sport': 13
+}
+
+
 class IndicGLUEEvaluator:
     """
     Comprehensive evaluator for IndicGLUE benchmark tasks
@@ -81,8 +102,9 @@ class IndicGLUEEvaluator:
                 'type': 'classification',
                 'num_labels': 14,  # 14 classes in BBC dataset
                 'metric': 'accuracy',
-                'class_names': ['india', 'pakistan', 'news', 'entertainment', 'sport',
-                               'international', 'science', 'business', 'southasia'],  # 9 main classes identified (14 total in dataset)
+                'class_names': ['business', 'china', 'entertainment', 'india', 'institutional',
+                               'international', 'learningenglish', 'multimedia', 'news', 'pakistan',
+                               'science', 'social', 'southasia', 'sport'],  # All 14 classes in order matching BBCA_LABEL_MAP
                 'hf_config': 'bbca.hi'
             },
             'Wikipedia Section Title Prediction': {
@@ -99,9 +121,9 @@ class IndicGLUEEvaluator:
             },
             'WinogradNLI': {
                 'type': 'nli',
-                'num_labels': 2,  # Entailment/Not Entailment
+                'num_labels': 3,  # Not Entailment, Entailment, None
                 'metric': 'accuracy',
-                'class_names': ['Not Entailment', 'Entailment'],
+                'class_names': ['Not Entailment', 'Entailment', 'None'],
                 'hf_config': 'wnli.hi'
             },
             'Choice of Plausible Alternatives': {
@@ -208,6 +230,42 @@ class IndicGLUEEvaluator:
             'hidden_size': hidden_size,
             'model_type': model_type
         }
+
+    def _convert_bbca_labels_to_int(self, labels):
+        """
+        Convert BBCA string labels to integer indices.
+
+        The IndicGLUE BBCA dataset stores labels as strings (e.g., 'india', 'pakistan'),
+        but models return integer predictions. This method converts string labels to
+        integers using BBCA_LABEL_MAP.
+
+        Args:
+            labels: Single label (str) or list of labels (List[str])
+
+        Returns:
+            Integer label or list of integer labels
+        """
+        # Handle single label
+        if isinstance(labels, str):
+            if labels not in BBCA_LABEL_MAP:
+                logger.warning(f"Unknown BBCA label '{labels}', defaulting to 0 (business)")
+                return 0
+            return BBCA_LABEL_MAP[labels]
+
+        # Handle list of labels
+        converted_labels = []
+        for label in labels:
+            if isinstance(label, str):
+                if label not in BBCA_LABEL_MAP:
+                    logger.warning(f"Unknown BBCA label '{label}', defaulting to 0 (business)")
+                    converted_labels.append(0)
+                else:
+                    converted_labels.append(BBCA_LABEL_MAP[label])
+            else:
+                # Already an integer
+                converted_labels.append(label)
+
+        return converted_labels
 
     def _get_model_for_task(self, task_name: str, for_training: bool = False):
         """
@@ -495,6 +553,25 @@ class IndicGLUEEvaluator:
             logger.info(f"Attempting to load {task_name} from {dataset_name} with config '{config_name}' (split={split})")
             dataset = load_dataset(dataset_name, config_name, split=split)
             logger.info(f"Successfully loaded {task_name} {split} split with {len(dataset)} examples")
+
+            # COPA test set is corrupted (all labels are 0 instead of mixed 0/1)
+            # Skip this test set to avoid invalid evaluation results
+            if task_name == 'Choice of Plausible Alternatives' and split == 'test':
+                logger.warning(f"SKIPPING {task_name} test set: Dataset is corrupted (all labels are 0). "
+                              f"This is a known issue with the ai4bharat/indic_glue copa.hi test split. "
+                              f"Please use validation set for evaluation or report this issue to dataset maintainers.")
+                return None
+
+            # WinogradNLI test set has mismatched labels (train/val: label=1, test: label=2)
+            # Since model never sees label=2 during training, evaluation would be meaningless
+            if task_name == 'WinogradNLI' and split == 'test':
+                logger.warning(f"SKIPPING {task_name} test set: Dataset has label mismatch. "
+                              f"Train/validation sets only contain label=1 (Entailment), but test set only contains label=2 (None). "
+                              f"Model cannot learn to predict unseen labels. "
+                              f"This is a known issue with the ai4bharat/indic_glue wnli.hi test split. "
+                              f"Please use validation set for evaluation or report this issue to dataset maintainers.")
+                return None
+
             return dataset
         except Exception as e:
             logger.error(f"Failed to load {task_name} {split} split from HuggingFace: {e}")
@@ -778,7 +855,42 @@ class IndicGLUEEvaluator:
                         text = ""
 
                 texts.append(text if text is not None else "")
-                labels.append(example['label'])
+
+                # Extract label based on task-specific field names
+                label = None
+
+                # Wikipedia Section Title Prediction: uses 'correctTitle' field
+                if 'correctTitle' in example:
+                    # Map titleA/B/C/D to indices 0/1/2/3
+                    title_to_idx = {'titleA': 0, 'titleB': 1, 'titleC': 2, 'titleD': 3}
+                    correct_title = example['correctTitle']
+                    label = title_to_idx.get(correct_title, 0)
+                    if correct_title not in title_to_idx:
+                        logger.warning(f"Unknown correctTitle value '{correct_title}' for WSTP, defaulting to 0")
+
+                # CommonsenseQA: uses 'answer' field (need to find index in 'options')
+                elif 'answer' in example and 'options' in example:
+                    answer = example['answer']
+                    options = example['options']
+                    try:
+                        label = options.index(answer)
+                    except (ValueError, AttributeError):
+                        logger.warning(f"Answer '{answer}' not found in options for CSQA, defaulting to 0")
+                        label = 0
+
+                # Standard tasks: use 'label' field
+                elif 'label' in example:
+                    label = example['label']
+                    # Convert BBCA string labels to integers
+                    if task_name == 'BBCArticlesClassification' and isinstance(label, str):
+                        label = self._convert_bbca_labels_to_int(label)
+
+                else:
+                    # Fallback: no label found
+                    logger.warning(f"No label field found in example for {task_name}, using 0")
+                    label = 0
+
+                labels.append(label)
 
             # Tokenize
             encoded = self._tokenize_batch(texts)
@@ -815,30 +927,18 @@ class IndicGLUEEvaluator:
 
         model.eval()
 
+        # Use dataloader with proper collate function to handle different field names
+        dataloader = self._create_task_dataloader(
+            dataset,
+            task_name,
+            shuffle=False,
+            batch_size=self.batch_size
+        )
+
         with torch.no_grad():
-            for i in tqdm(range(0, len(dataset), self.batch_size), desc=f"Evaluating {task_name}"):
-                batch = dataset[i:i + self.batch_size]
-
-                # Get texts and labels
-                if 'text' in batch:
-                    texts = batch['text']
-                elif 'sentence' in batch:
-                    texts = batch['sentence']
-                else:
-                    # Try to construct from available fields
-                    texts = [str(batch[k][0]) for k in batch.keys() if k != 'label']
-
-                batch_labels = batch['label']
-
-                # Tokenize
-                try:
-                    inputs = self._tokenize_batch(texts)
-                except Exception as e:
-                    logger.warning(f"Tokenization error: {e}, skipping batch")
-                    continue
-
+            for batch in tqdm(dataloader, desc=f"Evaluating {task_name}"):
                 # Get model predictions
-                outputs = model(**inputs)
+                outputs = model(**batch, labels=batch['labels'])
                 logits = outputs.logits if hasattr(outputs, 'logits') else outputs[0]
 
                 # Get predicted classes
@@ -858,7 +958,7 @@ class IndicGLUEEvaluator:
                     raise ValueError(f"Unexpected logits shape: {logits.shape}")
 
                 predictions.extend(batch_preds.tolist())
-                labels.extend(batch_labels if isinstance(batch_labels, list) else batch_labels.tolist())
+                labels.extend(batch['labels'].cpu().numpy().tolist())
 
         # Validate predictions and labels have same length
         assert len(predictions) == len(labels), \

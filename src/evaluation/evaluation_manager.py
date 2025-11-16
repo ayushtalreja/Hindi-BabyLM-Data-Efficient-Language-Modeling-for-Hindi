@@ -34,8 +34,8 @@ class EvaluationManager:
         self.config = config
 
         # Initialize evaluators
-        self.indicglue_evaluator = IndicGLUEEvaluator(model, tokenizer)
-        self.multiblimp_evaluator = MultiBLiMPEvaluator(model, tokenizer)
+        self.indicglue_evaluator = IndicGLUEEvaluator(model, tokenizer, config)
+        self.multiblimp_evaluator = MultiBLiMPEvaluator(model, tokenizer, config)
 
         # Results storage
         self.results = {}

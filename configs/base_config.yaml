@@ -319,7 +319,7 @@ evaluation:
 
     multiblimp:
       enabled: true
-      n_examples_per_phenomenon: 100
+      n_examples_per_phenomenon: null  # null = use all, or set a number for quick testing
 
     # morphological_probes:  # REMOVED - No longer available
     #   enabled: true
@@ -363,7 +363,7 @@ experiment_tracking:
   wandb:
     enabled: true
     project: "hindi-babylm"
-    entity: ayushtalreja1  # Your wandb username/team
+    # entity: ayushtalreja1  # Commented out - W&B will use your authenticated username
     tags: ["babylm", "hindi", "10m-tokens"]
     notes: "Baseline experiment"
     mode: "online"  # Options: online, offline, disabled

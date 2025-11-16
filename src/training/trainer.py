@@ -546,13 +546,6 @@ class HindiLanguageModelTrainer:
                 self.epochs_without_improvement += 1
                 logger.info(f"No improvement for {self.epochs_without_improvement} epoch(s)")
 
-                # Save regular checkpoint
-                checkpoint_path = self.save_checkpoint(epoch, val_metrics, is_best=False)
-
-                # Register with checkpoint selector
-                if self.checkpoint_selector is not None and eval_results is not None:
-                    self.checkpoint_selector.register_checkpoint(checkpoint_path, eval_results)
-
             # Check evaluation-based early stopping
             should_stop_eval = False
             if self.eval_early_stopping is not None and eval_results is not None:
@@ -604,9 +597,6 @@ class HindiLanguageModelTrainer:
                         logger.error(f"Error loading best checkpoint: {e}")
 
         logger.info("="*60)
-
-        # Save final model
-        self.save_checkpoint(self.current_epoch, val_metrics, is_final=True)
 
         # Finish W&B run
         if self.wandb_initialized:

@@ -3,7 +3,7 @@ from typing import List, Dict, Tuple
 from .utils import HindiValidator
 
 class QualityFilter:
-    def __init__(self, min_length=10, max_length=1000, min_hindi_ratio=0.8):
+    def __init__(self, min_length=30, max_length=2000, min_hindi_ratio=0.8):
         self.min_length = min_length
         self.max_length = max_length
         self.min_hindi_ratio = min_hindi_ratio

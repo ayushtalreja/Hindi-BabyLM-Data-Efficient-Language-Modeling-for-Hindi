@@ -90,7 +90,7 @@ class CorpusBuilder:
         deduplication_config = self.config.__dict__.get('deduplication', {})
         self.deduplicator = TextDeduplicator(
             threshold=deduplication_config.get('similarity_threshold', 0.8),
-            num_perm=deduplication_config.get('num_permutations', 128)
+            num_perm=deduplication_config.get('num_permutations', 256)
         )
 
         # Create directories

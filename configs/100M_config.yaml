@@ -355,7 +355,7 @@ experiment_tracking:
   wandb:
     enabled: true
     project: "hindi-babylm"
-    entity: ayushtalreja1
+    # entity: ayushtalreja1  # Commented out - W&B will use your authenticated username
     tags: ["babylm", "hindi", "100m-words", "large-scale"]
     notes: "100M word training experiment"
     mode: "online"
