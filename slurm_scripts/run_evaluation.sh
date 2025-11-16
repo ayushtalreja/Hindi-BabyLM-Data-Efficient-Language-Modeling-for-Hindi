@@ -8,7 +8,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32GB
+#SBATCH --mem=80GB
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=ayush1.kumar@tum.de
 
