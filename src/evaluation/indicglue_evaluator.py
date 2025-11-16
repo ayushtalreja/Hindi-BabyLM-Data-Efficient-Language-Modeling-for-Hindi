@@ -903,7 +903,7 @@ class IndicGLUEEvaluator:
             batch_size=batch_size,
             shuffle=shuffle,
             collate_fn=collate_fn,
-            num_workers=8  # Set to 0 to avoid multiprocessing issues
+            num_workers=0  # Set to 0 to avoid multiprocessing issues
         )
 
     def _evaluate_classification(self, dataset: Dataset, task_name: str, model=None) -> Dict:
