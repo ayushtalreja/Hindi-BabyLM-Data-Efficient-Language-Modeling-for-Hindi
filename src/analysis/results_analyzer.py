@@ -149,6 +149,35 @@ class ResultsAnalyzer:
             self.load_experiment(experiment_name)
 
         training_data = self.experiments[experiment_name].get('training', {})
+
+        # Try new structure first (metrics_history)
+        metrics_history = training_data.get('metrics_history', {})
+
+        if metrics_history:
+            # Build DataFrame from metrics_history structure
+            data = {}
+
+            # Get epoch count from first available metric
+            n_epochs = 0
+            for metric_values in metrics_history.values():
+                if metric_values:
+                    n_epochs = len(metric_values)
+                    break
+
+            if n_epochs == 0:
+                return pd.DataFrame()
+
+            # Add epoch column
+            data['epoch'] = list(range(1, n_epochs + 1))
+
+            # Add all available metrics (only non-empty ones)
+            for metric_name, values in metrics_history.items():
+                if values:  # Only add non-empty metrics
+                    data[metric_name] = values
+
+            return pd.DataFrame(data)
+
+        # Fall back to old structure (history as list of dicts)
         history = training_data.get('history', [])
 
         if not history:
