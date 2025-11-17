@@ -664,7 +664,7 @@ class IndicGLUEEvaluator:
             num_batches = 0
 
             for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Train]"):
-                outputs = model(**batch, labels=batch['labels'])
+                outputs = model(**batch)
                 loss = outputs.loss
 
                 loss.backward()
@@ -739,7 +739,7 @@ class IndicGLUEEvaluator:
 
         with torch.no_grad():
             for batch in val_loader:
-                outputs = model(**batch, labels=batch['labels'])
+                outputs = model(**batch)
                 logits = outputs.logits
 
                 preds = torch.argmax(logits, dim=-1)
@@ -938,7 +938,7 @@ class IndicGLUEEvaluator:
         with torch.no_grad():
             for batch in tqdm(dataloader, desc=f"Evaluating {task_name}"):
                 # Get model predictions
-                outputs = model(**batch, labels=batch['labels'])
+                outputs = model(**batch)
                 logits = outputs.logits if hasattr(outputs, 'logits') else outputs[0]
 
                 # Get predicted classes
