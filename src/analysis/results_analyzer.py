@@ -531,9 +531,15 @@ class ResultsAnalyzer:
             report += "## Training Summary\n\n"
             training = exp['training']
             report += f"- **Epochs**: {training.get('num_epochs', 'N/A')}\n"
-            report += f"- **Final Loss**: {training.get('final_loss', 'N/A'):.4f}\n"
-            report += f"- **Best Val Loss**: {training.get('best_val_loss', 'N/A'):.4f}\n"
-            report += f"- **Training Time**: {training.get('total_time', 'N/A'):.2f}s\n\n"
+
+            final_loss = training.get('final_loss', 'N/A')
+            report += f"- **Final Loss**: {final_loss if final_loss == 'N/A' else f'{final_loss:.4f}'}\n"
+
+            best_val_loss = training.get('best_val_loss', 'N/A')
+            report += f"- **Best Val Loss**: {best_val_loss if best_val_loss == 'N/A' else f'{best_val_loss:.4f}'}\n"
+
+            total_time = training.get('total_time', 'N/A')
+            report += f"- **Training Time**: {total_time if total_time == 'N/A' else f'{total_time:.2f}s'}\n\n"
 
         # Evaluation results
         if 'evaluation' in exp:
@@ -546,7 +552,8 @@ class ResultsAnalyzer:
                 if isinstance(eval_results, dict):
                     for task, task_results in eval_results.items():
                         if isinstance(task_results, dict) and 'accuracy' in task_results:
-                            report += f"- **{task}**: {task_results['accuracy']:.4f}\n"
+                            accuracy = task_results['accuracy']
+                            report += f"- **{task}**: {accuracy if accuracy == 'N/A' or isinstance(accuracy, str) else f'{accuracy:.4f}'}\n"
 
                 report += "\n"
 
