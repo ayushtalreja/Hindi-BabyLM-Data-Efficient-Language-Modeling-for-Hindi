@@ -157,22 +157,24 @@ class IndicGLUEEvaluator:
             }
         }
 
-        # Batch size for evaluation
-        self.batch_size = self.config.get('eval_batch_size', 32)
-        self.max_samples = self.config.get('max_samples_per_task', None)
+        # Batch size for evaluation - explicitly convert to int
+        self.batch_size = int(self.config.get('eval_batch_size', 32))
+        # max_samples can be None or int
+        max_samples_val = self.config.get('max_samples_per_task', None)
+        self.max_samples = int(max_samples_val) if max_samples_val is not None else None
 
         # Initialize metrics aggregator
         eval_config = self.config.get('evaluation', {})
         self.metrics_aggregator = MetricsAggregator(
-            bootstrap_samples=eval_config.get('bootstrap_samples', 1000),
-            confidence_level=eval_config.get('confidence_level', 0.95)
+            bootstrap_samples=int(eval_config.get('bootstrap_samples', 1000)),
+            confidence_level=float(eval_config.get('confidence_level', 0.95))
         )
 
         # Initialize cache manager
         self.cache_manager = EvaluationCache(
             cache_dir=eval_config.get('cache_dir', '.eval_cache'),
-            max_cache_age_days=eval_config.get('max_cache_age_days', 30),
-            enable_cache=eval_config.get('use_eval_cache', True)
+            max_cache_age_days=int(eval_config.get('max_cache_age_days', 30)),
+            enable_cache=bool(eval_config.get('use_eval_cache', True))
         )
 
         # Visualization settings
@@ -328,11 +330,11 @@ class IndicGLUEEvaluator:
         ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
                         .get('indicglue', {}).get('fine_tuning', {})
 
-        # Set dropout based on mode
+        # Set dropout based on mode - explicitly convert to float
         if for_training:
-            dropout = ft_config.get('dropout', 0.1)
+            dropout = float(ft_config.get('dropout', 0.1))
         else:
-            dropout = self.config.get('eval_dropout', 0.0)
+            dropout = float(self.config.get('eval_dropout', 0.0))
 
         wrapped_model = wrap_model_for_classification(
             lm_model=self.base_model,
@@ -629,10 +631,11 @@ class IndicGLUEEvaluator:
         # Get split configuration
         ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
                         .get('indicglue', {}).get('fine_tuning', {})
-        train_ratio = ft_config.get('train_ratio', 0.7)
-        val_ratio = ft_config.get('val_ratio', 0.15)
-        test_ratio = ft_config.get('test_ratio', 0.15)
-        split_seed = ft_config.get('split_seed', 42)
+        # Explicitly convert to correct types to avoid type comparison errors
+        train_ratio = float(ft_config.get('train_ratio', 0.7))
+        val_ratio = float(ft_config.get('val_ratio', 0.15))
+        test_ratio = float(ft_config.get('test_ratio', 0.15))
+        split_seed = int(ft_config.get('split_seed', 42))
 
         # Validate ratios sum to 1.0
         total_ratio = train_ratio + val_ratio + test_ratio
@@ -738,14 +741,15 @@ class IndicGLUEEvaluator:
         ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
                         .get('indicglue', {}).get('fine_tuning', {})
 
-        num_epochs = ft_config.get('num_epochs', 10)
-        learning_rate = ft_config.get('learning_rate', 2e-5)
-        batch_size = ft_config.get('batch_size', 32)
-        weight_decay = ft_config.get('weight_decay', 0.01)
+        # Explicitly convert config values to correct types to avoid type comparison errors
+        num_epochs = int(ft_config.get('num_epochs', 10))
+        learning_rate = float(ft_config.get('learning_rate', 2e-5))
+        batch_size = int(ft_config.get('batch_size', 32))
+        weight_decay = float(ft_config.get('weight_decay', 0.01))
 
         # Early stopping config
         es_config = ft_config.get('early_stopping', {})
-        patience = es_config.get('patience', 3)
+        patience = int(es_config.get('patience', 3))
 
         logger.info(f"Starting fine-tuning for {task_name}")
         logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
