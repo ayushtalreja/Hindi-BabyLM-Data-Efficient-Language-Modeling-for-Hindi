@@ -278,7 +278,8 @@ def stage_evaluation(
     model,
     tokenizer,
     splits: Dict,
-    experiment_dir: Path
+    experiment_dir: Path,
+    full_config_yaml: Optional[Dict] = None
 ):
     """
     Stage 3: Comprehensive Evaluation
@@ -289,13 +290,26 @@ def stage_evaluation(
         tokenizer: Trained tokenizer
         splits: Data splits dictionary
         experiment_dir: Directory to save results
+        full_config_yaml: Full YAML config dict (for sections not in ExperimentConfig)
     """
     print_banner("STAGE 3: EVALUATION")
     logging.info("Starting evaluation stage...")
 
     # Create evaluator
     logging.info("\n📋 Initializing evaluation manager...")
-    evaluator = EvaluationManager(model, tokenizer, config.__dict__)
+
+    # Merge ExperimentConfig with full YAML (including evaluation section)
+    evaluator_config = config.__dict__.copy()
+    if full_config_yaml:
+        # Add evaluation section if it exists in the full YAML
+        if 'evaluation' in full_config_yaml:
+            evaluator_config['evaluation'] = full_config_yaml['evaluation']
+            logging.info("   Added evaluation config to evaluator")
+        # Add any other sections that might be needed
+        if 'experiment_tracking' in full_config_yaml:
+            evaluator_config['experiment_tracking'] = full_config_yaml['experiment_tracking']
+
+    evaluator = EvaluationManager(model, tokenizer, evaluator_config)
 
     # Run comprehensive evaluation
     logging.info("\n🔍 Running comprehensive evaluation...")
@@ -516,7 +530,8 @@ Examples:
                 model,
                 tokenizer,
                 splits,
-                experiment_dir
+                experiment_dir,
+                full_config_yaml
             )
 
         # Mark experiment as completed
