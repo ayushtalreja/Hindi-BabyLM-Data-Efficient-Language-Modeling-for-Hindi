@@ -554,32 +554,136 @@ class IndicGLUEEvaluator:
             dataset = load_dataset(dataset_name, config_name, split=split)
             logger.info(f"Successfully loaded {task_name} {split} split with {len(dataset)} examples")
 
-            # COPA test set is corrupted (all labels are 0 instead of mixed 0/1)
-            # Skip this test set to avoid invalid evaluation results
-            if task_name == 'Choice of Plausible Alternatives' and split == 'test':
-                logger.warning(f"SKIPPING {task_name} test set: Dataset is corrupted (all labels are 0). "
-                              f"This is a known issue with the ai4bharat/indic_glue copa.hi test split. "
-                              f"Please use validation set for evaluation or report this issue to dataset maintainers.")
-                return None
-
-            # WinogradNLI test set has mismatched labels (train/val: label=1, test: label=2)
-            # Since model never sees label=2 during training, evaluation would be meaningless
-            if task_name == 'WinogradNLI' and split == 'test':
-                logger.warning(f"SKIPPING {task_name} test set: Dataset has label mismatch. "
-                              f"Train/validation sets only contain label=1 (Entailment), but test set only contains label=2 (None). "
-                              f"Model cannot learn to predict unseen labels. "
-                              f"This is a known issue with the ai4bharat/indic_glue wnli.hi test split. "
-                              f"Please use validation set for evaluation or report this issue to dataset maintainers.")
-                return None
-
             return dataset
         except Exception as e:
-            logger.error(f"Failed to load {task_name} {split} split from HuggingFace: {e}")
+            logger.debug(f"Failed to load {task_name} {split} split from HuggingFace: {e}")
             return None
+
+    def _load_complete_dataset(self, task_name: str) -> Optional[Dataset]:
+        """
+        Load ALL available splits from HuggingFace and combine them.
+
+        This creates a complete dataset by concatenating train, validation,
+        and test splits (whichever are available). This solves issues with:
+        - Missing validation splits (BBCA)
+        - Corrupted test sets (COPA, WNLI)
+        - Missing train/val splits (CSQA)
+
+        Args:
+            task_name: Name of the task
+
+        Returns:
+            Combined dataset with all available examples, or None if no data
+        """
+        from datasets import concatenate_datasets
+
+        logger.info(f"Loading complete dataset for {task_name} (all available splits)...")
+
+        available_datasets = []
+        split_info = []
+
+        # Try loading all possible splits
+        for split_name in ['train', 'validation', 'test']:
+            try:
+                dataset = self._load_task_data(task_name, split=split_name)
+                if dataset is not None and len(dataset) > 0:
+                    available_datasets.append(dataset)
+                    split_info.append(f"{split_name}({len(dataset)})")
+                    logger.info(f"  Loaded {split_name}: {len(dataset)} examples")
+            except Exception as e:
+                logger.debug(f"  Split '{split_name}' not available: {e}")
+
+        if not available_datasets:
+            logger.error(f"No data available for {task_name}")
+            return None
+
+        # Combine all available datasets
+        if len(available_datasets) == 1:
+            combined = available_datasets[0]
+        else:
+            combined = concatenate_datasets(available_datasets)
+
+        logger.info(f"  Combined dataset: {len(combined)} total examples from [{', '.join(split_info)}]")
+
+        return combined
+
+    def _create_custom_splits_from_complete(self, task_name: str) -> Dict[str, Dataset]:
+        """
+        Create custom train/val/test splits from complete dataset.
+
+        Strategy:
+        1. Load ALL available data from HuggingFace (combine all splits)
+        2. Shuffle with reproducible seed
+        3. Split according to configured ratios
+
+        Args:
+            task_name: Name of the task
+
+        Returns:
+            Dictionary with 'train', 'validation', 'test' keys
+        """
+        import numpy as np
+
+        logger.info(f"Creating custom splits for {task_name}...")
+
+        # Get split configuration
+        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
+                        .get('indicglue', {}).get('fine_tuning', {})
+        train_ratio = ft_config.get('train_ratio', 0.7)
+        val_ratio = ft_config.get('val_ratio', 0.15)
+        test_ratio = ft_config.get('test_ratio', 0.15)
+        split_seed = ft_config.get('split_seed', 42)
+
+        # Validate ratios sum to 1.0
+        total_ratio = train_ratio + val_ratio + test_ratio
+        assert abs(total_ratio - 1.0) < 1e-6, \
+            f"Split ratios must sum to 1.0, got {total_ratio} (train={train_ratio}, val={val_ratio}, test={test_ratio})"
+
+        # Load complete dataset (all available splits combined)
+        complete_dataset = self._load_complete_dataset(task_name)
+
+        if complete_dataset is None or len(complete_dataset) == 0:
+            logger.error(f"No data available for {task_name}")
+            return {}
+
+        # Create shuffled indices with reproducible seed
+        total_size = len(complete_dataset)
+        indices = np.arange(total_size)
+        rng = np.random.RandomState(split_seed)
+        rng.shuffle(indices)
+
+        # Calculate split sizes
+        train_size = int(total_size * train_ratio)
+        val_size = int(total_size * val_ratio)
+        # test_size is the remainder to avoid rounding issues
+
+        # Split indices
+        train_indices = indices[:train_size]
+        val_indices = indices[train_size:train_size + val_size]
+        test_indices = indices[train_size + val_size:]
+
+        # Create splits
+        custom_train = complete_dataset.select(train_indices.tolist())
+        custom_val = complete_dataset.select(val_indices.tolist())
+        custom_test = complete_dataset.select(test_indices.tolist())
+
+        logger.info(f"Custom splits created for {task_name}:")
+        logger.info(f"  Train:      {len(custom_train):5d} examples ({len(custom_train)/total_size*100:.1f}%)")
+        logger.info(f"  Validation: {len(custom_val):5d} examples ({len(custom_val)/total_size*100:.1f}%)")
+        logger.info(f"  Test:       {len(custom_test):5d} examples ({len(custom_test)/total_size*100:.1f}%)")
+        logger.info(f"  Total:      {total_size:5d} examples")
+
+        return {
+            'train': custom_train,
+            'validation': custom_val,
+            'test': custom_test
+        }
 
     def _load_all_splits(self, task_name: str) -> Dict[str, Dataset]:
         """
-        Load train, validation, and test splits for a task
+        Load train, validation, and test splits for a task.
+
+        Uses custom split creation if configured, otherwise loads from HuggingFace.
 
         Args:
             task_name: Name of the task
@@ -587,17 +691,29 @@ class IndicGLUEEvaluator:
         Returns:
             Dictionary with 'train', 'validation', and 'test' keys (if available)
         """
-        splits = {}
-        for split_name in ['train', 'validation', 'test']:
-            try:
-                dataset = self._load_task_data(task_name, split=split_name)
-                if dataset is not None:
-                    splits[split_name] = dataset
-                    logger.info(f"Loaded {split_name} split for {task_name}: {len(dataset)} examples")
-            except Exception as e:
-                logger.warning(f"Could not load {split_name} split for {task_name}: {e}")
+        # Check split strategy from config
+        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
+                        .get('indicglue', {}).get('fine_tuning', {})
+        split_strategy = ft_config.get('split_strategy', 'custom')
 
-        return splits
+        if split_strategy == 'custom':
+            # Use custom split creation from complete dataset
+            logger.info(f"Using custom split strategy for {task_name}")
+            return self._create_custom_splits_from_complete(task_name)
+        else:
+            # Original behavior: load splits directly from HuggingFace
+            logger.info(f"Using original HuggingFace splits for {task_name}")
+            splits = {}
+            for split_name in ['train', 'validation', 'test']:
+                try:
+                    dataset = self._load_task_data(task_name, split=split_name)
+                    if dataset is not None:
+                        splits[split_name] = dataset
+                        logger.info(f"Loaded {split_name} split for {task_name}: {len(dataset)} examples")
+                except Exception as e:
+                    logger.warning(f"Could not load {split_name} split for {task_name}: {e}")
+
+            return splits
 
     def fine_tune_task(self, task_name: str, train_dataset: Dataset,
                        val_dataset: Dataset) -> 'torch.nn.Module':

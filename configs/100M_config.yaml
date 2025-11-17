@@ -291,6 +291,19 @@ evaluation:
       fine_tuning:
         enabled: true  # Toggle: true for fine-tuning, false for zero-shot
 
+        # Custom split creation strategy
+        # "custom" = combine all available splits, then re-split by ratios
+        # "original" = use HuggingFace splits as-is (old behavior)
+        split_strategy: "custom"
+
+        # Split ratios for custom splitting (must sum to 1.0)
+        train_ratio: 0.7    # 70% for training
+        val_ratio: 0.15     # 15% for validation
+        test_ratio: 0.15    # 15% for test/evaluation
+
+        # Random seed for reproducible splits
+        split_seed: 42
+
         # Training hyperparameters
         num_epochs: 10
         early_stopping:
