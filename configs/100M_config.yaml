@@ -150,7 +150,7 @@ model:
   type: "gpt"  # Options: gpt, deberta
 
   # Model Size - Using same 'large' architecture as base_config for fair comparison
-  model_size: "large"  # Options: tiny, small, medium/base, large
+  model_size: "small"  # Options: tiny, small, medium/base, large
 
   # Core Architecture Hyperparameters (matching base_config's 'large' model)
   architecture:

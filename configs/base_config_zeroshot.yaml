@@ -149,7 +149,7 @@ model:
   # Model Size Preset (optional - overrides individual architecture params)
   # GPT sizes: tiny (50M params), small (110M params), medium (350M params)
   # DeBERTa sizes: tiny (22M params), small (86M params), base (86M params), large (304M params)
-  model_size: "large"  # Options: tiny, small, medium/base, large
+  model_size: "small"  # Options: tiny, small, medium/base, large
 
   # Core Architecture Hyperparameters
   architecture:
