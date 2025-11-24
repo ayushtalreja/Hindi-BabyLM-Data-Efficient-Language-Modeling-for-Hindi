@@ -55,6 +55,16 @@ BBCA_LABEL_MAP = {
     'sport': 13
 }
 
+# Task-specific split remappings for corrupted datasets
+# Format: {task_name: {requested_split: actual_split_to_load}}
+SPLIT_REMAPPING = {
+    'Choice of Plausible Alternatives': {
+        'test': 'validation',      # Test corrupted → use validation (88 examples)
+        'validation': 'test',       # Use corrupted test as validation (449 examples)
+        'train': 'train'           # Train is fine, keep unchanged (362 examples)
+    }
+}
+
 
 class IndicGLUEEvaluator:
     """
@@ -542,6 +552,8 @@ class IndicGLUEEvaluator:
         """
         Load real IndicGLUE task data from Hugging Face
 
+        Automatically applies split remapping for tasks with corrupted data.
+
         Args:
             task_name: Name of the task
             split: Dataset split to load ('train', 'validation', 'test')
@@ -549,6 +561,18 @@ class IndicGLUEEvaluator:
         Returns:
             Dataset or None if not available
         """
+        # Apply split remapping if configured for this task
+        original_split = split
+        if task_name in SPLIT_REMAPPING:
+            remap_config = SPLIT_REMAPPING[task_name]
+            split = remap_config.get(split, split)
+
+            if split != original_split:
+                logger.info(
+                    f"{task_name}: Remapping split '{original_split}' → '{split}' "
+                    f"(working around corrupted dataset)"
+                )
+
         # Mapping of task names to HuggingFace dataset paths
         # Using descriptive task names mapped to ai4bharat/indic_glue configs
         dataset_map = {
