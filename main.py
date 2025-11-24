@@ -518,6 +518,7 @@ Examples:
                 logging.info("\nLoading trained model and tokenizer...")
                 model_factory = ModelFactory(config)
                 model = model_factory.load_trained_model(experiment_name)
+                model = model.to(device)
                 tokenizer = TokenizerFactory.load_tokenizer(experiment_name)
 
             # Load splits if needed

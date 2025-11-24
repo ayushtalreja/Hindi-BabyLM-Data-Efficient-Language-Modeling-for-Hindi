@@ -1,0 +1,400 @@
+# ==============================================================================
+# Hindi BabyLM - DeBERTa 10M Configuration
+# ==============================================================================
+# DeBERTa model trained on 10M words for architecture comparison with GPT baseline
+
+# Experiment Configuration
+experiment:
+  name: "deberta_10M_baseline"
+  description: "DeBERTa model on 10M word corpus - architecture comparison"
+  tags: ["baseline", "deberta", "10M", "strict-small", "mlm"]
+
+# Project Metadata
+project:
+  name: "hindi-babylm"
+  description: "Data-efficient language modeling for Hindi (BabyLM Challenge)"
+  version: "1.0.0"
+  track: "strict-small"  # 10M token limit
+
+# Directory Structure
+directories:
+  data_dir: "data"
+  model_dir: "results/experiment_name/models"
+  tokenizer_dir: "tokenizers"
+  results_dir: "results"
+  checkpoint_dir: "checkpoints"
+  logs_dir: "logs"
+
+# ==============================================================================
+# DATA CONFIGURATION
+# ==============================================================================
+data:
+  # Word Budget (BabyLM Strict-Small Track)
+  max_words: 10_000_000
+
+  # Separate word limits for each split
+  train_word_limit: 10_000_000
+  val_word_limit: 10_000_000
+  test_word_limit: 10_000_000
+
+  # Data Splits
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+
+  # Source Mixing Ratios (for training data only)
+  train_source_ratios:
+    indiccorp: 0.50
+    wikipedia: 0.30
+    indicdialogue: 0.15
+    childrens_books: 0.05
+
+  # Data Sources & Mixing Ratios
+  sources:
+    indiccorp:
+      enabled: true
+      ratio: 0.5
+      max_samples: 50000
+
+    wikipedia:
+      enabled: true
+      ratio: 0.3
+      dataset_version: "20231101.hi"
+      max_articles: 25000
+
+    indicdialogue:
+      enabled: true
+      ratio: 0.15
+      max_movies: null
+      combine_dialogues: false
+      min_dialogue_length: 10
+
+    childrens_books:
+      enabled: true
+      ratio: 0.05
+      max_stories: 8000
+
+  # Quality Filtering
+  filtering:
+    min_length: 30
+    max_length: 2000
+    min_hindi_ratio: 0.8
+    min_word_count: 2
+    max_word_count: 10000
+
+  # Deduplication
+  deduplication:
+    enabled: true
+    similarity_threshold: 0.8
+    num_permutations: 256
+
+  # Data Processing
+  processing:
+    unicode_normalization: "NFC"
+    remove_urls: true
+    remove_emails: true
+    normalize_whitespace: true
+    max_workers: 4
+
+# ==============================================================================
+# TOKENIZATION CONFIGURATION
+# ==============================================================================
+tokenization:
+  type: "bpe"
+  vocab_size: 32000
+  character_coverage: 0.9995
+
+  special_tokens:
+    pad_token: "<pad>"
+    unk_token: "<unk>"
+    bos_token: "<s>"
+    eos_token: "</s>"
+    mask_token: "<mask>"
+    sep_token: "<sep>"
+    cls_token: "<cls>"
+
+  sentencepiece:
+    model_type: "bpe"
+    split_by_whitespace: true
+    split_by_unicode_script: true
+    byte_fallback: true
+    normalization_rule_name: "nfkc"
+    treat_whitespace_as_suffix: false
+    split_digits: true
+
+  wordpiece:
+    min_frequency: 2
+    limit_alphabet: 10000
+    continuing_subword_prefix: "##"
+
+  bpe:
+    min_frequency: 2
+    dropout: 0.0
+
+# ==============================================================================
+# MODEL ARCHITECTURE CONFIGURATION - DeBERTa
+# ==============================================================================
+model:
+  # Model Type - DeBERTa (masked language model)
+  type: "deberta"
+
+  # Model Size Preset
+  model_size: "small"  # Options: tiny, small, base, large
+
+  # Core Architecture Hyperparameters
+  architecture:
+    hidden_size: 768
+    num_hidden_layers: 12
+    num_attention_heads: 12
+    intermediate_size: 3072
+    max_position_embeddings: 512
+
+  # Regularization
+  regularization:
+    hidden_dropout_prob: 0.1
+    attention_probs_dropout_prob: 0.1
+    layer_norm_eps: 1.0e-12
+    initializer_range: 0.02
+
+  # Activation Functions
+  activation: "gelu"
+
+  # Layer Normalization
+  layer_norm_type: "layernorm"
+
+  # DeBERTa-Specific Configurations
+  deberta:
+    relative_attention: true
+    position_buckets: 256
+    max_relative_positions: 512
+    pooler_hidden_size: 768
+    pooler_dropout: 0.1
+    pooler_hidden_act: "gelu"
+
+# ==============================================================================
+# TRAINING CONFIGURATION
+# ==============================================================================
+training:
+  batch_size: 32
+  gradient_accumulation_steps: 8
+  num_epochs: 10
+  max_steps: -1
+
+  # Optimization
+  optimizer:
+    type: "adamw"
+    learning_rate: 0.0003
+    weight_decay: 0.01
+    beta1: 0.9
+    beta2: 0.999
+    epsilon: 1.0e-8
+    amsgrad: false
+
+  # Learning Rate Scheduling
+  lr_scheduler:
+    type: "cosine_with_warmup"
+    warmup_steps: 1000
+    warmup_ratio: 0.1
+    num_cycles: 0.5
+    min_lr_ratio: 0.0
+
+  # Gradient Management
+  gradient:
+    max_grad_norm: 1.0
+    gradient_checkpointing: false
+
+  # Mixed Precision Training
+  mixed_precision:
+    enabled: true
+    dtype: "bf16"
+    opt_level: "O1"
+
+  # Checkpointing
+  checkpointing:
+    save_strategy: "steps"
+    save_steps: 1000
+    save_total_limit: 1
+    load_best_model_at_end: true
+    metric_for_best_model: "eval_loss"
+    greater_is_better: false
+
+  # Evaluation
+  evaluation:
+    eval_strategy: "steps"
+    eval_steps: 500
+    per_device_eval_batch_size: 32
+    eval_accumulation_steps: null
+
+  # Logging
+  logging:
+    log_level: "info"
+    log_steps: 100
+    report_to: ["wandb", "tensorboard"]
+
+  # Early Stopping
+  early_stopping:
+    enabled: true
+    patience: 3
+    threshold: 0.001
+    mode: "max"
+
+  # Reproducibility
+  seed: 42
+  deterministic: true
+  cuda_deterministic_algorithms: false
+
+  # Evaluation Callbacks
+  enable_eval_callback: false
+  eval_frequency: 1
+  eval_on_steps: []
+  log_eval_to_wandb: true
+
+  # Evaluation-Based Early Stopping
+  eval_early_stopping: true
+  eval_early_stopping_metric: "overall.average_accuracy"
+  eval_early_stopping_patience: 3
+  eval_early_stopping_mode: "max"
+  eval_early_stopping_min_delta: 0.001
+
+  # Checkpoint Selection Based on Evaluation
+  checkpoint_metric: "overall.average_accuracy"
+  checkpoint_metric_mode: "max"
+  load_best_checkpoint_at_end: true
+
+# ==============================================================================
+# EVALUATION CONFIGURATION
+# ==============================================================================
+evaluation:
+  benchmarks:
+    indicglue:
+      enabled: true
+      tasks: ["BBCArticlesClassification", "Wikipedia Section Title Prediction", "CommonsenseQA", "WinogradNLI", "Choice of Plausible Alternatives", "MovieReviewSentiment", "ProductReviewSentiment", "DiscourseMode"]
+      batch_size: 64
+      max_samples_per_task: null
+
+      fine_tuning:
+        enabled: true
+        split_strategy: "original"
+        train_ratio: 0.7
+        val_ratio: 0.15
+        test_ratio: 0.15
+        split_seed: 42
+        num_epochs: 10
+        early_stopping:
+          enabled: true
+          patience: 3
+          metric: "accuracy"
+          mode: "max"
+        learning_rate: 2e-5
+        batch_size: 32
+        weight_decay: 0.01
+        warmup_ratio: 0.1
+        freeze_base_model: true
+        dropout: 0.1
+        save_finetuned_models: true
+        finetuned_models_dir: "finetuned_heads"
+
+    multiblimp:
+      enabled: true
+      n_examples_per_phenomenon: null
+
+  perplexity:
+    enabled: true
+    split: "test"
+    report_per_source: true
+
+  use_eval_cache: true
+  cache_dir: ".eval_cache"
+  max_cache_age_days: 30
+
+  bootstrap_samples: 1000
+  confidence_level: 0.95
+  aggregation_method: "macro"
+
+  save_visualizations: true
+  visualization_format: ["png", "html"]
+
+  enable_comparative_reports: true
+  report_formats: ["html", "pdf"]
+  comparative_analysis_dir: "comparative_analysis"
+
+# ==============================================================================
+# EXPERIMENT TRACKING
+# ==============================================================================
+experiment_tracking:
+  wandb:
+    enabled: true
+    project: "hindi-babylm"
+    tags: ["babylm", "hindi", "10m-tokens", "deberta", "mlm"]
+    notes: "DeBERTa baseline experiment for architecture comparison"
+    mode: "online"
+    log_model: "checkpoint"
+
+  tensorboard:
+    enabled: true
+    log_dir: "logs/tensorboard"
+
+  mlflow:
+    enabled: false
+    tracking_uri: null
+    experiment_name: "hindi-babylm"
+
+# ==============================================================================
+# RESOURCE MANAGEMENT
+# ==============================================================================
+resources:
+  device: "cuda"
+  gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]
+  num_workers: 64
+
+  pin_memory: true
+  prefetch_factor: 2
+
+  max_memory_per_gpu: 16
+  cpu_memory_limit: null
+
+# ==============================================================================
+# ANALYSIS & VISUALIZATION
+# ==============================================================================
+analysis:
+  corpus_statistics:
+    enabled: true
+    compute_vocab_stats: true
+    compute_length_distribution: true
+    compute_morphological_stats: true
+
+  training_analysis:
+    plot_learning_curves: true
+    plot_gradient_norms: true
+    plot_attention_weights: false
+
+  tokenization_analysis:
+    compare_tokenizers: true
+    analyze_morphological_boundaries: true
+    coverage_analysis: true
+
+  evaluation_analysis:
+    generate_confusion_matrices: true
+    error_analysis: true
+    statistical_significance_tests: true
+
+# ==============================================================================
+# REPRODUCIBILITY & DEBUGGING
+# ==============================================================================
+reproducibility:
+  seed: 42
+  set_deterministic: true
+  track_git_commit: true
+  save_git_diff: true
+  save_environment: true
+  save_system_info: true
+
+debugging:
+  debug_mode: false
+  profile_training: false
+  profile_evaluation: false
+  validate_data_loader: true
+  check_data_distribution: true
+  detect_anomalies: false
+  overfit_small_batch: false
+  fast_dev_run: false
