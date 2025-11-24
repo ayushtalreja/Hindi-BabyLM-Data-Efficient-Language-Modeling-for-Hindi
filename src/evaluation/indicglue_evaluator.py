@@ -441,19 +441,23 @@ class IndicGLUEEvaluator:
             # Load all splits
             splits = self._load_all_splits(task_name)
 
-            if 'train' not in splits or 'validation' not in splits:
-                logger.warning(f"Missing train or validation split for {task_name}, "
+            if 'train' not in splits:
+                logger.warning(f"Missing train split for {task_name}, "
                               f"falling back to zero-shot evaluation")
                 fine_tune_enabled = False
             else:
-                # Fine-tune on train/val
+                # Check if validation set is available
+                has_validation = 'validation' in splits
+                if not has_validation:
+                    logger.info(f"Fine-tuning {task_name} without validation set")
+                # Fine-tune on train (and val if available)
                 logger.info(f"Fine-tuning on {task_name}...")
                 start_time = time.time()
 
                 finetuned_model = self.fine_tune_task(
                     task_name,
                     splits['train'],
-                    splits['validation']
+                    splits.get('validation', None)  # Pass None if no validation set
                 )
 
                 fine_tune_time = time.time() - start_time
@@ -735,23 +739,24 @@ class IndicGLUEEvaluator:
             return splits
 
     def fine_tune_task(self, task_name: str, train_dataset: Dataset,
-                       val_dataset: Dataset) -> 'torch.nn.Module':
+                       val_dataset: Optional[Dataset] = None) -> 'torch.nn.Module':
         """
         Fine-tune classification head on train/val splits
 
         Features:
         - Freezes base model (only train classification head)
-        - Early stopping based on validation accuracy
+        - Early stopping based on validation accuracy (if validation set available)
+        - If no validation set: trains for fixed num_epochs without early stopping
         - 10 epoch maximum (configurable)
         - Batch size and LR from config
 
         Args:
             task_name: Name of the task
             train_dataset: Training dataset
-            val_dataset: Validation dataset
+            val_dataset: Validation dataset (optional, if None trains without validation)
 
         Returns:
-            Fine-tuned model (best checkpoint based on validation)
+            Fine-tuned model (best checkpoint based on validation, or final model if no validation)
         """
         # Get fine-tuning config
         ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
@@ -767,8 +772,15 @@ class IndicGLUEEvaluator:
         es_config = ft_config.get('early_stopping', {})
         patience = int(es_config.get('patience', 3))
 
+        # Determine if we have validation data
+        has_validation = val_dataset is not None and len(val_dataset) > 0
+
         logger.info(f"Starting fine-tuning for {task_name}")
-        logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
+        if has_validation:
+            logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
+        else:
+            logger.info(f"Train samples: {len(train_dataset)}, No validation set")
+            logger.info(f"Training for {num_epochs} epochs (no early stopping)")
         logger.info(f"Epochs: {num_epochs}, LR: {learning_rate}, Batch size: {batch_size}")
 
         # Get model with trainable head, frozen base
@@ -777,8 +789,10 @@ class IndicGLUEEvaluator:
         # Create dataloaders
         train_loader = self._create_task_dataloader(train_dataset, task_name,
                                                      shuffle=True, batch_size=batch_size)
-        val_loader = self._create_task_dataloader(val_dataset, task_name,
-                                                   shuffle=False, batch_size=batch_size*2)
+        val_loader = None
+        if has_validation:
+            val_loader = self._create_task_dataloader(val_dataset, task_name,
+                                                       shuffle=False, batch_size=batch_size*2)
 
         # Setup optimizer
         optimizer = torch.optim.AdamW(
@@ -787,11 +801,12 @@ class IndicGLUEEvaluator:
             weight_decay=weight_decay
         )
 
-        # Training loop with early stopping
+        # Training loop with early stopping (if validation available)
         best_val_acc = 0.0
         best_model_state = None
         patience_counter = 0
         best_epoch = 0
+        final_epoch = 0
 
         for epoch in range(num_epochs):
             # Training phase
@@ -811,45 +826,53 @@ class IndicGLUEEvaluator:
                 num_batches += 1
 
             avg_train_loss = train_loss / num_batches if num_batches > 0 else 0.0
+            final_epoch = epoch + 1
 
-            # Validation phase
-            val_metrics = self._validate_model(model, val_loader, task_name)
-            val_acc = val_metrics['accuracy']
-            val_loss = val_metrics['loss']
+            if has_validation:
+                # Validation phase (only if validation set available)
+                val_metrics = self._validate_model(model, val_loader, task_name)
+                val_acc = val_metrics['accuracy']
+                val_loss = val_metrics['loss']
 
-            logger.info(f"Epoch {epoch+1}/{num_epochs}: "
-                       f"train_loss={avg_train_loss:.4f}, "
-                       f"val_acc={val_acc:.4f}, "
-                       f"val_loss={val_loss:.4f}")
+                logger.info(f"Epoch {epoch+1}/{num_epochs}: "
+                           f"train_loss={avg_train_loss:.4f}, "
+                           f"val_acc={val_acc:.4f}, "
+                           f"val_loss={val_loss:.4f}")
 
-            # Early stopping check
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-                patience_counter = 0
-                best_epoch = epoch + 1
-                logger.info(f"  → New best validation accuracy: {best_val_acc:.4f}")
+                # Early stopping check
+                if val_acc > best_val_acc:
+                    best_val_acc = val_acc
+                    best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+                    patience_counter = 0
+                    best_epoch = epoch + 1
+                    logger.info(f"  → New best validation accuracy: {best_val_acc:.4f}")
+                else:
+                    patience_counter += 1
+                    logger.info(f"  → No improvement (patience: {patience_counter}/{patience})")
+
+                    if patience_counter >= patience:
+                        logger.info(f"Early stopping triggered at epoch {epoch+1}")
+                        break
             else:
-                patience_counter += 1
-                logger.info(f"  → No improvement (patience: {patience_counter}/{patience})")
+                # No validation set - just log training loss
+                logger.info(f"Epoch {epoch+1}/{num_epochs}: train_loss={avg_train_loss:.4f}")
 
-                if patience_counter >= patience:
-                    logger.info(f"Early stopping triggered at epoch {epoch+1}")
-                    break
-
-        # Restore best model
-        if best_model_state is not None:
+        # Restore best model (if validation was used) or use final model
+        if has_validation and best_model_state is not None:
             model.load_state_dict(best_model_state)
             logger.info(f"Restored best model from epoch {best_epoch} with val_acc={best_val_acc:.4f}")
+        else:
+            logger.info(f"Using final model from epoch {final_epoch} (no validation set)")
 
         # Store fine-tuning metadata for later use
         self._current_fine_tuning_info = {
-            'epochs_trained': epoch + 1,
-            'best_epoch': best_epoch,
-            'best_val_accuracy': best_val_acc,
-            'early_stopped': patience_counter >= patience,
+            'epochs_trained': final_epoch,
+            'best_epoch': best_epoch if has_validation else final_epoch,
+            'best_val_accuracy': best_val_acc if has_validation else None,
+            'early_stopped': has_validation and patience_counter >= patience,
             'train_samples': len(train_dataset),
-            'val_samples': len(val_dataset)
+            'val_samples': len(val_dataset) if has_validation else 0,
+            'had_validation': has_validation
         }
 
         return model
