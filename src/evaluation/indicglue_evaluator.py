@@ -398,6 +398,12 @@ class IndicGLUEEvaluator:
 
         return results
 
+    # Tasks to skip due to dataset issues
+    SKIP_TASKS = {
+        'WinogradNLI': 'WNLI contains only entailment class for train and validation sets while the test set contains None',
+        'CommonsenseQA': 'CSQA does not contain the train,validation sets. All examples are provided in the test set.'
+    }
+
     def evaluate_task(self, task_name: str) -> Dict:
         """
         Evaluate model on a specific IndicGLUE task (with optional fine-tuning)
@@ -410,6 +416,16 @@ class IndicGLUEEvaluator:
         """
         if task_name not in self.tasks:
             raise ValueError(f"Unknown task: {task_name}")
+
+        # Check if this task should be skipped due to dataset issues
+        if task_name in self.SKIP_TASKS:
+            skip_reason = self.SKIP_TASKS[task_name]
+            logger.warning(f"Skipping {task_name}: {skip_reason}")
+            return {
+                'status': 'skipped',
+                'reason': skip_reason,
+                'task': task_name
+            }
 
         task_config = self.tasks[task_name]
 
