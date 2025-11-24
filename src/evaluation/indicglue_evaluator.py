@@ -529,8 +529,11 @@ class IndicGLUEEvaluator:
         task_config = self.tasks[task_name]
 
         # Route to task-type-specific evaluation
-        # All tasks now use classification heads, so we can use _evaluate_classification for all
-        if task_config['type'] in ['classification', 'nli', 'multiple_choice']:
+        if task_config['type'] == 'multiple_choice':
+            # Multiple-choice tasks use perplexity-based scoring (proper zero-shot)
+            return self._evaluate_multiple_choice(dataset, task_name)
+        elif task_config['type'] in ['classification', 'nli']:
+            # Classification and NLI tasks use classification heads
             return self._evaluate_classification(dataset, task_name, model)
         else:
             raise ValueError(f"Unknown task type: {task_config['type']}")
@@ -1180,26 +1183,48 @@ class IndicGLUEEvaluator:
                     logger.warning(f"No choices field found for {task_name}, using placeholder")
                     choices = [f"विकल्प {i}" for i in range(2)]
 
-                # Score each choice
+                # Score each choice using perplexity
                 choice_scores = []
                 for choice in choices:
                     # Combine premise and choice
-                    text = f"{premise} {choice}"
+                    # For COPA, include the question if available
+                    if 'question' in example and 'premise' in example:
+                        # COPA format: premise + question + choice
+                        text = f"{premise} {example['question']} {choice}"
+                    else:
+                        text = f"{premise} {choice}"
 
-                    # Tokenize and get score
+                    # Tokenize and compute perplexity
                     try:
                         inputs = self._tokenize_batch([text])
                         outputs = self.base_model(**inputs)
 
-                        # Use loss or logits to score
+                        # Compute perplexity (negative log likelihood)
                         if hasattr(outputs, 'logits'):
-                            score = outputs.logits.mean().item()
+                            logits = outputs.logits  # [1, seq_len, vocab_size]
+
+                            # Shift logits and labels for next-token prediction
+                            shift_logits = logits[:, :-1, :].contiguous()
+                            shift_labels = inputs['input_ids'][:, 1:].contiguous()
+
+                            # Compute cross-entropy loss (negative log likelihood)
+                            loss_fct = torch.nn.CrossEntropyLoss(reduction='mean')
+                            loss = loss_fct(
+                                shift_logits.view(-1, shift_logits.size(-1)),
+                                shift_labels.view(-1)
+                            )
+
+                            # Lower loss = higher likelihood = better choice
+                            # Use negative loss as score (higher is better)
+                            score = -loss.item()
                         else:
+                            # Fallback if logits not available
                             score = -outputs.loss.item() if hasattr(outputs, 'loss') else 0
 
                         choice_scores.append(score)
-                    except:
-                        choice_scores.append(0)
+                    except Exception as e:
+                        logger.warning(f"Error scoring choice for {task_name}: {e}")
+                        choice_scores.append(-float('inf'))  # Very low score for failed choices
 
                 # Predict choice with highest score
                 pred = np.argmax(choice_scores)
