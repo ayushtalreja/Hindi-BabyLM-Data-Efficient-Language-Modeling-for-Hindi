@@ -206,12 +206,34 @@ class MultiBLiMPEvaluator:
             good_inputs = self._tokenize_sentence(good_sentence)
             bad_inputs = self._tokenize_sentence(bad_sentence)
 
-            # Get losses
-            good_outputs = self.model(**good_inputs, labels=good_inputs['input_ids'])
-            bad_outputs = self.model(**bad_inputs, labels=bad_inputs['input_ids'])
+            # Get model outputs WITHOUT labels parameter
+            good_outputs = self.model(**good_inputs)
+            bad_outputs = self.model(**bad_inputs)
 
-            good_loss = good_outputs.loss.item()
-            bad_loss = bad_outputs.loss.item()
+            # Extract logits [batch_size, seq_len, vocab_size]
+            good_logits = good_outputs.logits
+            bad_logits = bad_outputs.logits
+
+            # Compute loss for good sentence
+            # Shift logits and labels for next-token prediction
+            good_shift_logits = good_logits[:, :-1, :].contiguous()
+            good_shift_labels = good_inputs['input_ids'][:, 1:].contiguous()
+
+            # Compute cross-entropy loss
+            loss_fct = torch.nn.CrossEntropyLoss(reduction='mean')
+            good_loss = loss_fct(
+                good_shift_logits.view(-1, good_shift_logits.size(-1)),
+                good_shift_labels.view(-1)
+            ).item()
+
+            # Compute loss for bad sentence
+            bad_shift_logits = bad_logits[:, :-1, :].contiguous()
+            bad_shift_labels = bad_inputs['input_ids'][:, 1:].contiguous()
+
+            bad_loss = loss_fct(
+                bad_shift_logits.view(-1, bad_shift_logits.size(-1)),
+                bad_shift_labels.view(-1)
+            ).item()
 
             # Model should prefer (assign lower loss to) grammatical sentence
             is_correct = good_loss < bad_loss
