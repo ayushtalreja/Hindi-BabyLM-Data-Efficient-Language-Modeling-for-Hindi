@@ -1,0 +1,9 @@
+{
+  "num_train": 128916,
+  "num_val": 130099,
+  "num_test": 128739,
+  "train_ratio": 0.8,
+  "val_ratio": 0.1,
+  "test_ratio": 0.1,
+  "max_words": 10000000
+}

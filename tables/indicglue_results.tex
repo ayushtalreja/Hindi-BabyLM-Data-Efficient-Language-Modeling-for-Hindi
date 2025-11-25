@@ -1,0 +1,21 @@
+\begin{table}[htbp]
+\centering
+\caption{IndicGLUE Benchmark Results: Zero-shot vs Fine-tuned Performance}
+\label{tab:indicglue_results}
+\begin{tabular}{lcc}
+\toprule
+Task & gpt_10M_baseline_zeroshot & gpt_10M_baseline_finetuned \\
+\midrule
+BBCArticlesClassification & 0.068 & \textbf{0.382} \\
+Wikipedia Section Title Prediction & \textbf{0.248} & 0.244 \\
+CommonsenseQA & 0.246 & \textbf{0.250} \\
+WinogradNLI & 0.021 & \textbf{0.705} \\
+Choice of Plausible Alternatives & \textbf{0.922} & 0.721 \\
+MovieReviewSentiment & 0.274 & \textbf{0.394} \\
+ProductReviewSentiment & 0.229 & \textbf{0.429} \\
+DiscourseMode & 0.025 & \textbf{0.989} \\
+\midrule
+Average & 0.254 & 0.514 \\
+\bottomrule
+\end{tabular}
+\end{table}

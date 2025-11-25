@@ -3,7 +3,7 @@
 #SBATCH --output=logs/pipeline_%j.out
 #SBATCH --error=logs/pipeline_%j.err
 #SBATCH --time=14:00:00
-#SBATCH --partition=lrz-dgx-a100-80x8
+#SBATCH --partition=lrz-hgx-a100-80x4
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -54,7 +54,7 @@ echo "Starting Hindi BabyLM Pipeline"
 echo "=========================================="
 
 # Parse arguments - allow config file override
-CONFIG=${1:-configs/base_config.yaml}
+CONFIG=${1:-configs/100M_config.yaml}
 EXPERIMENT_NAME=${2:-}  # Optional experiment name override
 
 echo "Using config: $CONFIG"

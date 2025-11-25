@@ -3,7 +3,7 @@
 #SBATCH --output=logs/eval_%j.out
 #SBATCH --error=logs/eval_%j.err
 #SBATCH --time=14:00:00
-#SBATCH --partition=lrz-lrz-dgx-a100-80x8   # Adjust partition as needed   
+#SBATCH --partition=lrz-dgx-a100-80x8   # Adjust partition as needed   
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -46,7 +46,7 @@ echo "Starting Evaluation"
 echo "=========================================="
 
 # Parse arguments
-CONFIG=${1:-configs/base_config.yaml}
+CONFIG=${1:-configs/deberta_10M_config.yaml}
 EXPERIMENT_NAME=${2:-}  # Optional experiment name override
 
 echo "Using config: $CONFIG"

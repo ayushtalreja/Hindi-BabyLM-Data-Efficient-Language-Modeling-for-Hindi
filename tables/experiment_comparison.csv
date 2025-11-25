@@ -1,0 +1,6 @@
+Metric,Zero-shot,Fine-tuned,Improvement
+Final Train Loss,0.3418,0.3419,0.0000
+Best Val Loss,0.3821,0.3821,0.0000
+Final Perplexity,1.4655,1.4655,-0.0000
+IndicGLUE Avg,0.2542,0.5144,+0.2602
+MultiBLiMP Avg,0.9336,0.9422,+0.0086
