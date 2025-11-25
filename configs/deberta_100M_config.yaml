@@ -18,7 +18,7 @@ project:
 
 # Directory Structure
 directories:
-  data_dir: "data_100M"
+  data_dir: "data"  # Shared data directory - reuses 10M data for training
   model_dir: "results/experiment_name/models"
   tokenizer_dir: "tokenizers"
   results_dir: "results"

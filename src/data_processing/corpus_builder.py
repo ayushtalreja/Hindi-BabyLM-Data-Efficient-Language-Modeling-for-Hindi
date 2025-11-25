@@ -246,7 +246,7 @@ class CorpusBuilder:
 
                 # Use new loader
                 loader = IndicDialogueLoader(
-                    jsonl_path='data/raw/hindi.jsonl',
+                    jsonl_path=os.path.join(self.data_dir, 'raw', 'hindi.jsonl'),
                     output_dir=os.path.join(self.data_dir, 'raw')
                 )
 

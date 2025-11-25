@@ -19,7 +19,7 @@ project:
 
 # Directory Structure
 directories:
-  data_dir: "data_100M"  # Use separate directory to avoid conflicts
+  data_dir: "data"  # Shared data directory - reuses 10M data for training
   model_dir: "results/experiment_name/models"
   tokenizer_dir: "tokenizers"  # Temporary directory for tokenizer training files
   results_dir: "results"

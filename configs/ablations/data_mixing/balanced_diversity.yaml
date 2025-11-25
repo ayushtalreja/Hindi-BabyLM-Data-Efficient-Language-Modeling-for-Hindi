@@ -16,7 +16,7 @@ project:
   track: "strict-small"
 
 directories:
-  data_dir: "data_balanced"
+  data_dir: "data"  # Shared data directory
   model_dir: "results/experiment_name/models"
   tokenizer_dir: "tokenizers"
   results_dir: "results"

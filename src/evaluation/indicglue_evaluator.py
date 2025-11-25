@@ -55,6 +55,18 @@ BBCA_LABEL_MAP = {
     'sport': 13
 }
 
+# DiscourseMode label mapping
+# The IndicGLUE DiscourseMode dataset uses string labels, but models return integer predictions
+# This mapping converts string labels to integer indices for metric computation
+DISCOURSE_MODE_LABEL_MAP = {
+    'Narrative': 0,
+    'Descriptive': 1,
+    'Dialogue': 2,
+    'Informative': 3,
+    'Argumentative': 4,
+    'Other': 5
+}
+
 # Task-specific split remappings for corrupted datasets
 # Format: {task_name: {requested_split: actual_split_to_load}}
 SPLIT_REMAPPING = {
@@ -273,6 +285,42 @@ class IndicGLUEEvaluator:
                     converted_labels.append(0)
                 else:
                     converted_labels.append(BBCA_LABEL_MAP[label])
+            else:
+                # Already an integer
+                converted_labels.append(label)
+
+        return converted_labels
+
+    def _convert_discourse_mode_labels_to_int(self, labels):
+        """
+        Convert DiscourseMode string labels to integer indices.
+
+        The IndicGLUE DiscourseMode dataset stores labels as strings (e.g., 'Narrative', 'Descriptive'),
+        but models return integer predictions. This method converts string labels to
+        integers using DISCOURSE_MODE_LABEL_MAP.
+
+        Args:
+            labels: Single label (str) or list of labels (List[str])
+
+        Returns:
+            Integer label or list of integer labels
+        """
+        # Handle single label
+        if isinstance(labels, str):
+            if labels not in DISCOURSE_MODE_LABEL_MAP:
+                logger.warning(f"Unknown DiscourseMode label '{labels}', defaulting to 0 (Narrative)")
+                return 0
+            return DISCOURSE_MODE_LABEL_MAP[labels]
+
+        # Handle list of labels
+        converted_labels = []
+        for label in labels:
+            if isinstance(label, str):
+                if label not in DISCOURSE_MODE_LABEL_MAP:
+                    logger.warning(f"Unknown DiscourseMode label '{label}', defaulting to 0 (Narrative)")
+                    converted_labels.append(0)
+                else:
+                    converted_labels.append(DISCOURSE_MODE_LABEL_MAP[label])
             else:
                 # Already an integer
                 converted_labels.append(label)
@@ -1064,6 +1112,12 @@ class IndicGLUEEvaluator:
                         logger.warning(f"Answer '{answer}' not found in options for CSQA, defaulting to 0")
                         label = 0
 
+                # DiscourseMode: uses 'discourse_mode' field with string values
+                elif 'discourse_mode' in example:
+                    label = example['discourse_mode']
+                    # Convert string label to integer
+                    label = self._convert_discourse_mode_labels_to_int(label)
+
                 # Standard tasks: use 'label' field
                 elif 'label' in example:
                     label = example['label']
@@ -1188,17 +1242,25 @@ class IndicGLUEEvaluator:
                 if 'choice1' in example and 'choice2' in example:
                     # IndicCOPA format
                     choices = [example['choice1'], example['choice2']]
-                elif task_name == 'IndicWiki' and 'titleA' in example:
-                    # IndicWiki format: titleA, titleB, titleC, titleD
+                elif task_name == 'Wikipedia Section Title Prediction' and 'titleA' in example:
+                    # Wikipedia Section Title Prediction format: titleA, titleB, titleC, titleD
                     choices = [
                         example['titleA'],
                         example['titleB'],
                         example['titleC'],
                         example['titleD']
                     ]
-                elif task_name == 'IndicCQ' and 'options' in example:
-                    # IndicCQ format: options is a list
+                elif task_name == 'CommonsenseQA' and 'options' in example:
+                    # CommonsenseQA format: options is a list
                     choices = example['options']
+                elif 'sectionText' in example and 'titleA' in example:
+                    # WSTP format: field-based fallback (works even if task name changes)
+                    choices = [
+                        example.get('titleA', ''),
+                        example.get('titleB', ''),
+                        example.get('titleC', ''),
+                        example.get('titleD', '')
+                    ]
                 elif 'choices' in example:
                     # Generic choices field
                     choices = example['choices']
@@ -1255,14 +1317,14 @@ class IndicGLUEEvaluator:
                 predictions.append(pred)
 
                 # Convert label to numeric format based on task
-                if task_name == 'IndicWiki' and 'correctTitle' in example:
-                    # IndicWiki: correctTitle is 'titleA', 'titleB', 'titleC', or 'titleD'
+                if task_name == 'Wikipedia Section Title Prediction' and 'correctTitle' in example:
+                    # Wikipedia Section Title Prediction: correctTitle is 'titleA', 'titleB', 'titleC', or 'titleD'
                     # Map to indices: titleA->0, titleB->1, titleC->2, titleD->3
                     label_map = {'titleA': 0, 'titleB': 1, 'titleC': 2, 'titleD': 3}
                     numeric_label = label_map.get(example['correctTitle'], 0)
                     labels.append(numeric_label)
-                elif task_name == 'IndicCQ' and 'answer' in example and 'options' in example:
-                    # IndicCQ: answer is the text, find its index in options
+                elif task_name == 'CommonsenseQA' and 'answer' in example and 'options' in example:
+                    # CommonsenseQA: answer is the text, find its index in options
                     try:
                         numeric_label = example['options'].index(example['answer'])
                         labels.append(numeric_label)
@@ -1270,6 +1332,13 @@ class IndicGLUEEvaluator:
                         # If answer not in options, log warning and use 0
                         logger.warning(f"Answer '{example.get('answer')}' not found in options for IndicCQ")
                         labels.append(0)
+                elif 'correctTitle' in example:
+                    # WSTP: field-based fallback (works even if task name changes)
+                    label_map = {'titleA': 0, 'titleB': 1, 'titleC': 2, 'titleD': 3}
+                    numeric_label = label_map.get(example['correctTitle'], 0)
+                    if example['correctTitle'] not in label_map:
+                        logger.warning(f"Unknown correctTitle value '{example['correctTitle']}' for WSTP")
+                    labels.append(numeric_label)
                 elif 'label' in example:
                     # Standard label field (IndicCOPA)
                     labels.append(example['label'])
