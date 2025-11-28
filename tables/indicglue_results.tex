@@ -1,21 +1,19 @@
 \begin{table}[htbp]
 \centering
-\caption{IndicGLUE Benchmark Results: Zero-shot vs Fine-tuned Performance}
+\caption{IndicGLUE Benchmark Results: Performance Comparison Across Experiments}
 \label{tab:indicglue_results}
-\begin{tabular}{lcc}
+\begin{tabular}{lccccc}
 \toprule
-Task & gpt_10M_baseline_zeroshot & gpt_10M_baseline_finetuned \\
+Task & deberta_100M_large & deberta_10M_baseline & gpt_100M_large & gpt_10M_baseline_finetuned & gpt_10M_baseline_zeroshot \\
 \midrule
-BBCArticlesClassification & 0.068 & \textbf{0.382} \\
-Wikipedia Section Title Prediction & \textbf{0.248} & 0.244 \\
-CommonsenseQA & 0.246 & \textbf{0.250} \\
-WinogradNLI & 0.021 & \textbf{0.705} \\
-Choice of Plausible Alternatives & \textbf{0.922} & 0.721 \\
-MovieReviewSentiment & 0.274 & \textbf{0.394} \\
-ProductReviewSentiment & 0.229 & \textbf{0.429} \\
-DiscourseMode & 0.025 & \textbf{0.989} \\
+BBCArticlesClassification & 0.311 & 0.412 & 0.278 & \textbf{0.488} & 0.129 \\
+Wikipedia Section Title Prediction & 0.246 & 0.253 & 0.289 & \textbf{0.296} & 0.288 \\
+Choice of Plausible Alternatives & \textbf{0.602} & \textbf{0.602} & 0.432 & 0.455 & 0.443 \\
+MovieReviewSentiment & 0.306 & 0.397 & 0.329 & \textbf{0.432} & 0.406 \\
+ProductReviewSentiment & 0.449 & 0.501 & 0.474 & \textbf{0.537} & 0.201 \\
+DiscourseMode & 0.311 & 0.505 & 0.432 & \textbf{0.638} & 0.039 \\
 \midrule
-Average & 0.254 & 0.514 \\
+Average & 0.371 & 0.445 & 0.372 & 0.474 & 0.251 \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -1,6 +1,6 @@
-Metric,Zero-shot,Fine-tuned,Improvement
-Final Train Loss,0.3418,0.3419,0.0000
-Best Val Loss,0.3821,0.3821,0.0000
-Final Perplexity,1.4655,1.4655,-0.0000
-IndicGLUE Avg,0.2542,0.5144,+0.2602
-MultiBLiMP Avg,0.9336,0.9422,+0.0086
+Metric,deberta_100M_large,deberta_10M_baseline,gpt_100M_large,gpt_10M_baseline_finetuned,gpt_10M_baseline_zeroshot
+Final Train Loss,0.0024,0.0021,0.3125,0.3419,0.3418
+Best Val Loss,0.0019,0.0015,0.3719,0.3821,0.3821
+Final Perplexity,1.0016,1.0015,1.4507,1.4655,1.4655
+IndicGLUE Avg,0.3709,0.4449,0.3724,0.4744,0.2511
+MultiBLiMP Avg,0.0000,0.0000,0.9300,0.9469,0.9376

@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- **Timestamp**: 2025-11-17T16:57:40.735393
+- **Timestamp**: 2025-11-25T10:39:04.291604
 - **Git Commit**: N/A
 - **Device**: N/A
 
@@ -17,22 +17,20 @@
 
 ### INDICGLUE
 
-- **BBCArticlesClassification**: 0.3825
-- **Wikipedia Section Title Prediction**: 0.2444
-- **CommonsenseQA**: 0.2499
-- **WinogradNLI**: 0.7054
-- **Choice of Plausible Alternatives**: 0.7206
-- **MovieReviewSentiment**: 0.3935
-- **ProductReviewSentiment**: 0.4293
-- **DiscourseMode**: 0.9893
+- **BBCArticlesClassification**: 0.4885
+- **Wikipedia Section Title Prediction**: 0.2962
+- **Choice of Plausible Alternatives**: 0.4545
+- **MovieReviewSentiment**: 0.4323
+- **ProductReviewSentiment**: 0.5373
+- **DiscourseMode**: 0.6379
 
 ### MULTIBLIMP
 
-- **SV-#**: 0.9066
-- **SV-G**: 0.9236
-- **SV-P**: 0.9757
+- **SV-#**: 0.9115
+- **SV-G**: 0.9284
+- **SV-P**: 0.9806
 - **SP-#**: 0.9600
-- **SP-G**: 0.9450
+- **SP-G**: 0.9541
 
 ### SUMMARY
 

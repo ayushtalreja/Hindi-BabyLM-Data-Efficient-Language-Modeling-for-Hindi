@@ -1,18 +1,18 @@
 \begin{table}[htbp]
 \centering
-\caption{MultiBLiMP Syntactic Phenomena Results: Zero-shot vs Fine-tuned}
+\caption{MultiBLiMP Syntactic Phenomena Results: Performance Comparison Across Experiments}
 \label{tab:multiblimp_results}
-\begin{tabular}{lcc}
+\begin{tabular}{lccccc}
 \toprule
-Task & gpt_10M_baseline_zeroshot & gpt_10M_baseline_finetuned \\
+Task & deberta_100M_large & deberta_10M_baseline & gpt_100M_large & gpt_10M_baseline_finetuned & gpt_10M_baseline_zeroshot \\
 \midrule
-SV-# & 0.899 & \textbf{0.907} \\
-SV-G & \textbf{0.924} & \textbf{0.924} \\
-SV-P & 0.968 & \textbf{0.976} \\
-SP-# & 0.950 & \textbf{0.960} \\
-SP-G & 0.927 & \textbf{0.945} \\
+SV-# & 0.000 & 0.000 & \textbf{0.960} & 0.912 & 0.904 \\
+SV-G & 0.000 & 0.000 & 0.910 & \textbf{0.928} & 0.919 \\
+SV-P & 0.000 & 0.000 & 0.910 & \textbf{0.981} & 0.968 \\
+SP-# & 0.000 & 0.000 & 0.950 & 0.960 & \textbf{0.970} \\
+SP-G & 0.000 & 0.000 & 0.920 & \textbf{0.954} & 0.927 \\
 \midrule
-Average & 0.934 & 0.942 \\
+Average & 0.000 & 0.000 & 0.930 & 0.947 & 0.938 \\
 \bottomrule
 \end{tabular}
 \end{table}
