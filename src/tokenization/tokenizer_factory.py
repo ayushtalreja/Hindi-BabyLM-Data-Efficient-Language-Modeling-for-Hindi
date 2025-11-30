@@ -5,6 +5,8 @@ from transformers import AutoTokenizer
 import sentencepiece as spm
 
 from .sentencepiece_tokenizer import HindiSentencePieceTokenizer
+from .character_tokenizer import DevanagariCharacterTokenizer
+from .character_bigram_tokenizer import CharacterBigramTokenizer
 
 
 class TokenizerFactory:
@@ -29,6 +31,10 @@ class TokenizerFactory:
             return self._create_wordpiece_tokenizer(training_texts)
         elif self.tokenizer_type == "bpe":
             return self._create_bpe_tokenizer(training_texts)
+        elif self.tokenizer_type == "character":
+            return self._create_character_tokenizer(training_texts)
+        elif self.tokenizer_type == "character_bigram":
+            return self._create_character_bigram_tokenizer(training_texts)
         else:
             raise ValueError(f"Unknown tokenizer type: {self.tokenizer_type}")
 
@@ -118,6 +124,38 @@ class TokenizerFactory:
         # Wrap in a class for consistent interface
         return BPETokenizerWrapper(tokenizer, self.vocab_size)
 
+    def _create_character_tokenizer(self, training_texts: List[str]):
+        """Create pure character-level tokenizer"""
+        print("Creating character-level tokenizer...")
+
+        tokenizer = DevanagariCharacterTokenizer(
+            preserve_grapheme_clusters=True
+        )
+
+        print(f"Character tokenizer created with vocab size: {tokenizer.vocab_size}")
+        return tokenizer
+
+    def _create_character_bigram_tokenizer(self, training_texts: List[str]):
+        """Create hybrid character-bigram tokenizer"""
+        print("Training character-bigram tokenizer...")
+
+        # Determine bigram count based on vocab_size config
+        # vocab_size includes ~200 base chars, rest are bigrams
+        target_bigrams = max(self.vocab_size - 200, 500)
+
+        tokenizer = CharacterBigramTokenizer(
+            target_bigrams=target_bigrams,
+            min_frequency=100,
+            morphological_aware=True,
+            preserve_grapheme_clusters=True
+        )
+
+        # Train on corpus to extract bigrams
+        tokenizer.train_bigrams(training_texts)
+
+        print(f"Character-bigram tokenizer trained with vocab size: {tokenizer.vocab_size}")
+        return tokenizer
+
     @staticmethod
     def load_tokenizer(experiment_name: str, results_dir: str = 'results'):
         """Load a saved tokenizer
@@ -171,6 +209,10 @@ class TokenizerFactory:
             tokenizer_path = os.path.join(tokenizer_dir, 'bpe.json')
             tokenizer = Tokenizer.from_file(tokenizer_path)
             return BPETokenizerWrapper(tokenizer, metadata['vocab_size'])
+        elif tokenizer_type == "character":
+            return DevanagariCharacterTokenizer.load(tokenizer_dir)
+        elif tokenizer_type == "character_bigram":
+            return CharacterBigramTokenizer.load(tokenizer_dir)
         else:
             raise ValueError(f"Unknown tokenizer type: {tokenizer_type}")
 
@@ -211,6 +253,12 @@ class TokenizerFactory:
             if hasattr(tokenizer, 'tokenizer'):
                 tokenizer.tokenizer.save(tokenizer_path)
                 print(f"BPE tokenizer saved to {tokenizer_path}")
+        elif self.tokenizer_type == "character":
+            # For character tokenizer, use its save method
+            tokenizer.save(save_path)
+        elif self.tokenizer_type == "character_bigram":
+            # For character-bigram tokenizer, use its save method
+            tokenizer.save(save_path)
 
         # Save metadata
         metadata = {
