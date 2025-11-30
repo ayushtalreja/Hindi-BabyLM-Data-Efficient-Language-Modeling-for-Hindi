@@ -47,10 +47,29 @@ class MultiBLiMPEvaluator:
         Initialize MultiBLiMP evaluator
 
         Args:
-            model: Language model to evaluate
+            model: Language model to evaluate (will unwrap if classification-wrapped)
             tokenizer: Tokenizer for the model
             config: Optional configuration dictionary
+
+        Note:
+            MultiBLiMP evaluation requires language modeling capabilities (per-token logits).
+            If you pass a classification-wrapped model, it will be automatically unwrapped
+            to access the base language model. If unwrapping fails, you'll need to pass
+            the base LM directly.
         """
+        # Detect and unwrap classification models
+        if self._is_classification_wrapper(model):
+            logger.warning(
+                f"Detected classification-wrapped model ({model.__class__.__name__}). "
+                f"MultiBLiMP requires language modeling capabilities. Attempting to unwrap..."
+            )
+            try:
+                model = self._unwrap_classification_model(model)
+                logger.info(f"Successfully unwrapped to {model.__class__.__name__}")
+            except ValueError as e:
+                logger.error(str(e))
+                raise
+
         self.model = model
         self.tokenizer = tokenizer
         self.config = config or {}
@@ -90,6 +109,58 @@ class MultiBLiMPEvaluator:
                 logger.info(f"  {phenomenon}: {count} pairs")
         else:  # Built-in dataset (summary only)
             logger.info(f"Using built-in test suite ({total_pairs} pairs total)")
+
+    def _is_classification_wrapper(self, model) -> bool:
+        """
+        Detect if model is a classification wrapper.
+
+        Returns:
+            True if model is wrapped for classification
+        """
+        # Check for classification wrapper classes
+        wrapper_classes = [
+            'GPTForSequenceClassification',
+            'DeBERTaForSequenceClassification',
+            'SequenceClassification'  # Generic pattern
+        ]
+
+        model_class_name = model.__class__.__name__
+        return any(wrapper in model_class_name for wrapper in wrapper_classes)
+
+    def _unwrap_classification_model(self, model):
+        """
+        Extract base language model from classification wrapper.
+
+        Args:
+            model: Classification-wrapped model
+
+        Returns:
+            Unwrapped language model
+
+        Raises:
+            ValueError: If unwrapping fails
+        """
+        # Try to access lm_model attribute (our wrapper pattern)
+        if hasattr(model, 'lm_model'):
+            logger.info("Detected classification wrapper, extracting base LM...")
+            return model.lm_model
+
+        # Try to access base_model (HuggingFace pattern)
+        if hasattr(model, 'base_model'):
+            logger.info("Detected HuggingFace classification wrapper, extracting base model...")
+            return model.base_model
+
+        # Try to access model attribute (HuggingFace GPT2LMHeadModel pattern)
+        if hasattr(model, 'model'):
+            logger.info("Extracting base model from 'model' attribute...")
+            return model.model
+
+        raise ValueError(
+            f"Model appears to be a classification wrapper ({model.__class__.__name__}) "
+            f"but could not extract base language model. MultiBLiMP requires a language "
+            f"model that outputs per-token logits [batch, seq_len, vocab_size]. "
+            f"Available attributes: {list(model.__dict__.keys())}"
+        )
 
     def evaluate_all_phenomena(self) -> Dict[str, Dict]:
         """
@@ -155,25 +226,40 @@ class MultiBLiMPEvaluator:
         self.model.eval()
 
         with torch.no_grad():
-            for pair in tqdm(pairs, desc=f"Evaluating {phenomenon}"):
-                # Evaluate minimal pair
-                is_correct, good_loss, bad_loss, loss_diff = self._evaluate_minimal_pair_detailed(
-                    pair['good'],
-                    pair['bad']
-                )
+            for idx, pair in enumerate(tqdm(pairs, desc=f"Evaluating {phenomenon}")):
+                try:
+                    # Evaluate minimal pair
+                    is_correct, good_loss, bad_loss, loss_diff = self._evaluate_minimal_pair_detailed(
+                        pair['good'],
+                        pair['bad']
+                    )
 
-                if is_correct:
-                    correct_predictions += 1
+                    if is_correct:
+                        correct_predictions += 1
 
-                loss_differences.append(loss_diff)
-                pair_results.append({
-                    'good': pair['good'],
-                    'bad': pair['bad'],
-                    'correct': is_correct,
-                    'good_loss': good_loss,
-                    'bad_loss': bad_loss,
-                    'loss_difference': loss_diff
-                })
+                    loss_differences.append(loss_diff)
+                    pair_results.append({
+                        'good': pair['good'],
+                        'bad': pair['bad'],
+                        'correct': is_correct,
+                        'good_loss': good_loss,
+                        'bad_loss': bad_loss,
+                        'loss_difference': loss_diff
+                    })
+
+                except ValueError as e:
+                    # Dimension validation error - this is fatal
+                    logger.error(
+                        f"Dimension validation failed on {phenomenon} pair {idx+1}/{total_pairs}: {e}"
+                    )
+                    raise  # Re-raise to stop evaluation
+
+                except Exception as e:
+                    # Other errors - log and continue
+                    logger.warning(
+                        f"Failed to evaluate {phenomenon} pair {idx+1}/{total_pairs}: {e}"
+                    )
+                    # Don't count as correct, but continue evaluation
 
         # Compute metrics
         accuracy = correct_predictions / total_pairs if total_pairs > 0 else 0
@@ -210,9 +296,32 @@ class MultiBLiMPEvaluator:
             good_outputs = self.model(**good_inputs)
             bad_outputs = self.model(**bad_inputs)
 
-            # Extract logits [batch_size, seq_len, vocab_size]
-            good_logits = good_outputs.logits
-            bad_logits = bad_outputs.logits
+            # Extract logits
+            good_logits = good_outputs.logits if hasattr(good_outputs, 'logits') else good_outputs[0]
+            bad_logits = bad_outputs.logits if hasattr(bad_outputs, 'logits') else bad_outputs[0]
+
+            # DEFENSIVE CHECK: Verify logits are 3D tensors
+            if good_logits.dim() != 3:
+                raise ValueError(
+                    f"MultiBLiMP requires 3D logits [batch, seq_len, vocab_size]. "
+                    f"Got {good_logits.dim()}D tensor with shape {good_logits.shape}. "
+                    f"Model: {self.model.__class__.__name__}. "
+                    f"This usually means a classification wrapper wasn't unwrapped."
+                )
+
+            if bad_logits.dim() != 3:
+                raise ValueError(
+                    f"MultiBLiMP requires 3D logits [batch, seq_len, vocab_size]. "
+                    f"Got {bad_logits.dim()}D tensor with shape {bad_logits.shape}."
+                )
+
+            # Verify reasonable vocabulary size
+            vocab_size = good_logits.size(-1)
+            if vocab_size < 100:
+                logger.warning(
+                    f"Small vocabulary size ({vocab_size}). Expected 10k-50k for LM. "
+                    f"This might indicate a classification model."
+                )
 
             # Compute loss for good sentence
             # Shift logits and labels for next-token prediction
@@ -241,7 +350,12 @@ class MultiBLiMPEvaluator:
 
             return is_correct, good_loss, bad_loss, loss_difference
 
+        except ValueError as e:
+            # Re-raise ValueError with context (dimension validation errors)
+            logger.error(f"Validation error in minimal pair evaluation: {e}")
+            raise
         except Exception as e:
+            # Log other errors but return failure gracefully
             logger.warning(f"Error evaluating pair: {e}")
             return False, float('inf'), float('inf'), 0.0
 
