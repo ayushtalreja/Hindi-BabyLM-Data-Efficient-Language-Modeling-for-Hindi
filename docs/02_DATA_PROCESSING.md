@@ -223,37 +223,137 @@ print(f"Loaded {len(texts)} samples from cache")
 - May contain some web scraping noise
 - Requires internet connection for initial download
 
-### 2. Hindi Wikipedia (`wiki_scraper.py`)
+### 2. Hindi Wikipedia (`wiki_downloader.py`)
+<!-- Updated: 2025-12-01 -->
 
-**Description**: Encyclopedia articles from Hindi Wikipedia.
+**Description**: Encyclopedia articles from Hindi Wikipedia using HuggingFace Datasets.
 
-**Implementation**: `src/data_processing/wiki_scraper.py:25`
+**Implementation**: `src/data_processing/downloaders/wiki_downloader.py`
 
-**Key Function**:
+**Dataset Information**:
+- **Source**: HuggingFace `wikimedia/wikipedia` (version: 20231101.hi)
+- **Language**: Hindi (hi)
+- **Content**: Pre-processed Wikipedia dump
+- **Quality**: High, edited content
+
+**Key Class: `WikipediaDownloader`**
+
+Extends `BaseDownloader` with Wikipedia-specific functionality:
+
 ```python
-def scrape_hindi_wikipedia(categories: List[str], max_articles: int = 5000):
-    """Scrape Hindi Wikipedia articles from specified categories"""
-    # Categories: विज्ञान (Science), इतिहास (History), भूगोल (Geography),
-    #             साहित्य (Literature), कला (Arts)
+def download(self, max_articles: Optional[int] = None) -> List[str]:
+    """
+    Download Hindi Wikipedia articles from HuggingFace.
+
+    Args:
+        max_articles: Maximum number of articles to download (None for all)
+
+    Returns:
+        List of article texts
+    """
+    dataset = load_dataset(
+        'wikimedia/wikipedia',
+        '20231101.hi',
+        split='train',
+        streaming=True
+    )
 ```
 
+**Filtering Parameters**:
+- `min_length`: Minimum article length (default: 100 characters)
+- `max_length`: Maximum article length (default: 50,000 characters)
+- Filters out stub articles and disambiguation pages
+
 **Characteristics**:
-- Source: Hindi Wikipedia
-- Size: Medium (configurable, default 5000 articles)
-- Quality: High, well-structured
-- Language: Encyclopedic Hindi
+- Source: Pre-processed Wikipedia dumps
+- Size: Configurable (thousands of articles available)
+- Quality: High, well-structured, edited content
+- Language: Formal encyclopedic Hindi
 
 **Pros**:
-- High quality, edited content
-- Structured information
-- Diverse topics
+- ✅ No web scraping needed (uses HuggingFace dataset)
+- ✅ Pre-processed and cleaned
+- ✅ High quality, edited content
+- ✅ Structured information
+- ✅ Diverse topics
+- ✅ Reliable and reproducible
 
 **Cons**:
-- Formal register
-- May contain technical jargon
-- Encyclopedia style may not match natural language
+- ❌ Formal register
+- ❌ May contain technical jargon
+- ❌ Encyclopedia style may not match natural language
 
-### 3. Children's Books (`childrens_books.py`)
+### 3. IndicDialogue - Conversational Hindi (`indicdialogue_loader.py`)
+<!-- Updated: 2025-12-01 - NEW SECTION -->
+
+**Description**: Movie subtitle data providing conversational and informal Hindi.
+
+**Implementation**: `src/data_processing/downloaders/indicdialogue_loader.py`
+
+**Dataset Information**:
+- **Source**: Local JSONL file (`hindi.jsonl`) from Mendeley dataset
+- **Content**: Movie subtitles (dialogues)
+- **Language**: Conversational/informal Hindi
+- **Size**: Configurable based on local file
+
+**Key Class: `IndicDialogueLoader`**
+
+Extends `BaseDownloader` for dialogue data:
+
+```python
+def load(
+    self,
+    aggregation: str = 'dialogue',
+    min_length: int = 10,
+    max_length: int = 500
+) -> List[str]:
+    """
+    Load IndicDialogue data from local JSONL file.
+
+    Args:
+        aggregation: 'dialogue' (line-by-line) or 'movie' (aggregate per movie)
+        min_length: Minimum dialogue length in characters
+        max_length: Maximum dialogue length in characters
+
+    Returns:
+        List of dialogue texts
+    """
+```
+
+**Aggregation Modes**:
+1. **Dialogue-level**: Each dialogue turn as separate text
+   - More samples, shorter texts
+   - Better for learning conversational patterns
+
+2. **Movie-level**: All dialogues from a movie aggregated
+   - Fewer samples, longer texts
+   - Preserves narrative context
+
+**Characteristics**:
+- **Register**: Conversational, informal
+- **Style**: Natural spoken Hindi with code-mixing
+- **Quality**: Variable (subtitle quality)
+- **Unique feature**: Captures spoken language patterns not found in written corpora
+
+**Pros**:
+- ✅ Conversational/informal register
+- ✅ Natural spoken language patterns
+- ✅ Complements formal written sources (IndicCorp, Wikipedia)
+- ✅ Captures code-mixing and colloquialisms
+- ✅ Dialogue structure
+
+**Cons**:
+- ❌ Subtitle quality varies
+- ❌ May contain transcription errors
+- ❌ Requires local file (not downloadable)
+- ❌ Limited to movie domain
+
+**Why Include This Source?**
+- Provides **register diversity**: Balances formal written Hindi with conversational patterns
+- Important for **language learning**: Models should understand both formal and informal Hindi
+- Captures **code-mixing**: Common in modern Hindi usage
+
+### 4. Children's Books (`childrens_books.py`)
 
 **Description**: Collection of children's literature in Hindi.
 

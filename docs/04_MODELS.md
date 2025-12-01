@@ -1,26 +1,30 @@
 # Model Architectures
+<!-- Updated: 2025-12-01 -->
 
 ## Overview
 
-This project implements three transformer-based model architectures for Hindi language modeling:
+This project implements two transformer-based model architectures for Hindi language modeling:
 
-1. **GPT-2 Style**: Autoregressive (causal) language modeling
-2. **BERT Style**: Masked language modeling (bidirectional)
-3. **Hybrid**: Combined causal and masked objectives
+1. **GPT-2**: Autoregressive (causal) language modeling
+2. **DeBERTa**: Disentangled attention with enhanced mask decoding
 
-Each architecture is designed to explore different aspects of language understanding and generation with limited training data.
+Additionally, classification adapters wrap these base models for downstream tasks (IndicGLUE evaluation).
+
+Each architecture is designed to explore different aspects of language understanding and generation with limited training data (~10M tokens).
 
 ## Architecture Comparison
 
-| Feature | GPT-2 | BERT | Hybrid |
-|---------|-------|------|--------|
-| **Objective** | Causal LM | Masked LM | Both |
-| **Attention** | Causal (unidirectional) | Bidirectional | Both |
-| **Generation** | Yes | No | Yes |
-| **Understanding** | Moderate | Strong | Strong |
-| **Training** | Simpler | More complex | Most complex |
-| **Parameters** | ~110M | ~110M | ~220M |
-| **Use Case** | Text generation | Classification, NER | Versatile |
+| Feature | GPT-2 | DeBERTa |
+|---------|-------|---------|
+| **Objective** | Causal LM | Masked LM |
+| **Attention** | Causal (unidirectional) | Disentangled Bidirectional |
+| **Position Encoding** | Learned absolute | Relative (disentangled) |
+| **Generation** | Yes | No |
+| **Understanding** | Moderate | Strong |
+| **Training** | Simpler | More complex |
+| **Parameters** | ~110M (Small) | ~110M (Small) |
+| **Use Case** | Text generation, LM | Classification, understanding tasks |
+| **Key Innovation** | Standard autoregressive | Disentangled attention mechanism |
 
 ## Model Factory
 
@@ -298,21 +302,28 @@ generated_text = tokenizer.decode(output_ids[0])
 - ❌ Less effective for understanding tasks
 - ❌ Cannot use future context
 
-## 2. BERT Style Model
+## 2. DeBERTa Model
+<!-- Updated: 2025-12-01 -->
 
 ### Overview
 
-**Location**: `src/models/bert_model.py:5`
+**Location**: `src/models/deberta_model.py:19`
 
-**Class**: `HindiBERTModel`
+**Class**: `HindiDeBERTaModel`
 
-**Objective**: Masked language modeling
+**Objective**: Masked language modeling with disentangled attention
 
-**Training Task**: Predict masked tokens using bidirectional context
+**Training Task**: Predict masked tokens using bidirectional context with enhanced position encoding
+
+**Key Innovation**: DeBERTa (Decoding-enhanced BERT with disentangled attention) improves upon BERT:
+- **Disentangled attention mechanism**: Separately encodes content and position
+- **Enhanced mask decoder**: Better handling of absolute positions for predictions
+- **Relative position encoding**: More flexible position representation
 
 **Formula**:
 ```
 P(xᵢ | x₁, ..., xᵢ₋₁, xᵢ₊₁, ..., xₙ) for masked positions
+with disentangled content-position attention
 ```
 
 ### Architecture
@@ -320,50 +331,104 @@ P(xᵢ | x₁, ..., xᵢ₋₁, xᵢ₊₁, ..., xₙ) for masked positions
 ```
 Input Tokens (with [MASK])
     ↓
-Token + Position + Segment Embeddings
+Token Embeddings (content)
     ↓
-┌─────────────────────────┐
-│  Transformer Layers     │
-│  (Bidirectional)        │
-│                         │
-│  ┌─────────────────┐   │
-│  │ Self-Attention  │   │ ← Bidirectional (all positions)
-│  └────────┬────────┘   │
-│           ↓             │
-│  ┌─────────────────┐   │
-│  │   Feed-Forward  │   │
-│  └────────┬────────┘   │
-│           ↓             │
-│  [Repeated 12x]         │
-└─────────┬───────────────┘
+┌───────────────────────────────┐
+│  DeBERTa Transformer Layers   │
+│  (Disentangled Attention)     │
+│                               │
+│  ┌─────────────────────────┐ │
+│  │ Disentangled Attention  │ │ ← Separate content & position
+│  │  - Content-to-Content   │ │
+│  │  - Content-to-Position  │ │
+│  │  - Position-to-Content  │ │
+│  └────────┬────────────────┘ │
+│           ↓                   │
+│  ┌─────────────────┐         │
+│  │   Feed-Forward  │         │
+│  └────────┬────────┘         │
+│           ↓                   │
+│  [Repeated 12x]               │
+└─────────┬─────────────────────┘
           ↓
-  Masked LM Head
+  Enhanced Mask Decoder
+  (with absolute positions)
           ↓
   Masked Token Predictions
 ```
+
+**Disentangled Attention**: Unlike BERT's standard attention, DeBERTa computes attention scores using three separate components:
+1. **Content-to-Content** (C2C): How each word attends to other words
+2. **Content-to-Position** (C2P): How each word attends to positions
+3. **Position-to-Content** (P2C): How positions influence word attention
+
+This allows the model to better capture both semantic and positional information.
 
 ### Implementation
 
 ```python
 import torch
 import torch.nn as nn
-from transformers import BertConfig, BertForMaskedLM
+from transformers import DebertaV2Config, DebertaV2ForMaskedLM
 
-class HindiBERTModel(nn.Module):
+class HindiDeBERTaModel(nn.Module):
+    """DeBERTa model for Hindi with configurable sizes"""
+
+    # Model size presets
+    MODEL_SIZES = {
+        'tiny': {
+            'hidden_size': 384,
+            'num_layers': 6,
+            'num_heads': 6,
+            'intermediate_size': 1536,
+        },
+        'small': {
+            'hidden_size': 768,
+            'num_layers': 12,
+            'num_heads': 12,
+            'intermediate_size': 3072,
+        },
+        'base': {
+            'hidden_size': 768,
+            'num_layers': 12,
+            'num_heads': 12,
+            'intermediate_size': 3072,
+        },
+        'large': {
+            'hidden_size': 1024,
+            'num_layers': 24,
+            'num_heads': 16,
+            'intermediate_size': 4096,
+        },
+    }
+
     def __init__(self, vocab_size: int, config: dict):
         super().__init__()
-        self.config = BertConfig(
+
+        # Get model size preset
+        model_size = config.get('model_size', 'small')
+        size_preset = self.MODEL_SIZES.get(model_size, self.MODEL_SIZES['small'])
+
+        # Create DeBERTaV2 config
+        self.config = DebertaV2Config(
             vocab_size=vocab_size,
-            hidden_size=config.get('hidden_size', 768),
-            num_hidden_layers=config.get('num_layers', 12),
-            num_attention_heads=config.get('num_heads', 12),
-            intermediate_size=config.get('intermediate_size', 3072),
+            hidden_size=config.get('hidden_size', size_preset['hidden_size']),
+            num_hidden_layers=config.get('num_layers', size_preset['num_layers']),
+            num_attention_heads=config.get('num_heads', size_preset['num_heads']),
+            intermediate_size=config.get('intermediate_size', size_preset['intermediate_size']),
             max_position_embeddings=config.get('max_length', 512),
             hidden_dropout_prob=config.get('dropout', 0.1),
             attention_probs_dropout_prob=config.get('dropout', 0.1),
+            # DeBERTa-specific parameters
+            position_buckets=config.get('position_buckets', 256),
+            relative_attention=config.get('relative_attention', True),
+            max_relative_positions=config.get('max_relative_positions', 512),
+            pooler_hidden_size=config.get('pooler_hidden_size', size_preset['hidden_size']),
+            pooler_dropout=config.get('pooler_dropout', 0.1),
+            pooler_hidden_act=config.get('pooler_hidden_act', 'gelu'),
         )
 
-        self.model = BertForMaskedLM(self.config)
+        self.model = DebertaV2ForMaskedLM(self.config)
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         return self.model(
@@ -467,805 +532,251 @@ logits = token_classifier(token_outputs)
 - ❌ More complex training (masking)
 - ❌ Slower inference than GPT
 
-## 3. Hybrid Model
+## 3. Classification Model Adapters
+<!-- Updated: 2025-12-01 -->
 
 ### Overview
 
-**Location**: `src/models/hybrid_model.py:5`
+**Location**: `src/models/classification_models.py`
 
-**Class**: `HybridGPTBERTModel`
+**Classes**: `GPTForSequenceClassification`, `DeBERTaForSequenceClassification`
 
-**Objective**: Combined causal and masked language modeling
+**Purpose**: Adapt language models for sequence-level classification tasks (IndicGLUE evaluation)
 
-**Training Task**: Learn both generation and understanding
+**Architecture**: Language Model + Pooling Layer + Classification Head
 
 ### Architecture
 
+**Problem**: Language models output per-token predictions `[batch, seq_len, hidden_size]`, but classification needs per-example predictions `[batch, num_classes]`.
+
+**Solution**: Add pooling + classification head
+
 ```
-Input Tokens
+Input Sequence: [batch, seq_len]
     ↓
-Shared Embeddings
+Language Model (GPT or DeBERTa)
     ↓
-    ├─────────────────────────┐
-    │                         │
-    ↓                         ↓
-┌────────────────┐   ┌───────────────┐
-│  BERT Encoder  │   │  GPT Decoder  │
-│ (Bidirectional)│   │   (Causal)    │
-└────────┬───────┘   └───────┬───────┘
-         │                   │
-         ↓                   ↓
-    ┌────────┐         ┌─────────┐
-    │ MLM    │         │  CLM    │
-    │ Head   │         │  Head   │
-    └────┬───┘         └────┬────┘
-         │                  │
-         ↓                  ↓
-   Masked Preds       Next Token Preds
+Hidden States: [batch, seq_len, hidden_size]
+    ↓
+Pooling Layer (reduce sequence dimension)
+    ↓
+Pooled Output: [batch, hidden_size]
+    ↓
+Dropout
+    ↓
+Classification Head (Linear)
+    ↓
+Logits: [batch, num_classes]
 ```
 
-### Implementation
+### A. GPTForSequenceClassification
+
+**Location**: `classification_models.py:29`
+
+**Pooling Strategy**: Last-token pooling (causal LM pattern)
 
 ```python
-import torch
-import torch.nn as nn
-from transformers import BertModel, GPT2Model
+class GPTForSequenceClassification(nn.Module):
+    """GPT model with classification head using last-token pooling"""
 
-class HybridGPTBERTModel(nn.Module):
-    """Hybrid model combining causal and masked language modeling"""
-
-    def __init__(self, vocab_size: int, config: dict):
+    def __init__(self,
+                 lm_model: nn.Module,
+                 num_classes: int,
+                 hidden_size: int,
+                 dropout: float = 0.1,
+                 freeze_base: bool = False):
         super().__init__()
-        self.vocab_size = vocab_size
 
-        # Shared embedding layer
-        self.embeddings = nn.Embedding(vocab_size, config['hidden_size'])
+        self.lm_model = lm_model
+        self.num_classes = num_classes
 
-        # BERT encoder for bidirectional understanding
-        self.bert_encoder = BertModel(config['bert_config'])
+        # Freeze base model if requested
+        if freeze_base:
+            for param in self.lm_model.parameters():
+                param.requires_grad = False
 
-        # GPT decoder for causal generation
-        self.gpt_decoder = GPT2Model(config['gpt_config'])
+        # Classification head
+        self.dropout = nn.Dropout(dropout)
+        self.classifier = nn.Linear(hidden_size, num_classes)
 
-        # Task-specific heads
-        self.mlm_head = nn.Linear(config['hidden_size'], vocab_size)  # Masked LM
-        self.lm_head = nn.Linear(config['hidden_size'], vocab_size)   # Causal LM
+        # Initialize classification head
+        nn.init.normal_(self.classifier.weight, std=0.02)
+        nn.init.zeros_(self.classifier.bias)
 
-        # Loss weights
-        self.loss_weights = {'mlm': 0.5, 'clm': 0.5}
+    def forward(self, input_ids, attention_mask=None, labels=None):
+        # Get language model outputs
+        lm_outputs = self.lm_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask
+        )
+        hidden_states = lm_outputs.last_hidden_state  # [batch, seq_len, hidden]
 
-    def forward(self, input_ids, attention_mask=None, task='both'):
-        if task == 'mlm' or task == 'both':
-            # Bidirectional encoding
-            mlm_outputs = self.bert_encoder(
-                input_ids=input_ids,
-                attention_mask=attention_mask
-            )
-            mlm_logits = self.mlm_head(mlm_outputs.last_hidden_state)
-
-        if task == 'clm' or task == 'both':
-            # Causal decoding
-            clm_outputs = self.gpt_decoder(
-                input_ids=input_ids,
-                attention_mask=attention_mask
-            )
-            clm_logits = self.lm_head(clm_outputs.last_hidden_state)
-
-        if task == 'both':
-            return {'mlm_logits': mlm_logits, 'clm_logits': clm_logits}
-        elif task == 'mlm':
-            return {'mlm_logits': mlm_logits}
+        # Last-token pooling for causal LM
+        # Find last non-padding token position
+        if attention_mask is not None:
+            sequence_lengths = attention_mask.sum(dim=1) - 1
+            batch_size = input_ids.shape[0]
+            pooled = hidden_states[range(batch_size), sequence_lengths]
         else:
-            return {'clm_logits': clm_logits}
+            pooled = hidden_states[:, -1, :]  # Simply use last token
+
+        # Classification
+        pooled = self.dropout(pooled)
+        logits = self.classifier(pooled)  # [batch, num_classes]
+
+        # Compute loss if labels provided
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+
+        return ClassificationOutput(logits=logits, loss=loss, hidden_states=pooled)
+```
+
+**Why Last-Token Pooling?**
+- GPT is causal: last token has seen the entire sequence
+- Natural for autoregressive models
+- Matches how GPT processes sequences left-to-right
+
+### B. DeBERTaForSequenceClassification
+
+**Location**: `classification_models.py:139`
+
+**Pooling Strategies**: Multiple options (mean, max, first, last)
+
+```python
+class DeBERTaForSequenceClassification(nn.Module):
+    """DeBERTa model with classification head and flexible pooling"""
+
+    def __init__(self,
+                 lm_model: nn.Module,
+                 num_classes: int,
+                 hidden_size: int,
+                 pooling_strategy: str = 'mean',
+                 dropout: float = 0.1,
+                 freeze_base: bool = False):
+        super().__init__()
+
+        self.lm_model = lm_model
+        self.pooling_strategy = pooling_strategy  # 'mean', 'max', 'first', 'last'
+
+        # Freeze base model if requested
+        if freeze_base:
+            for param in self.lm_model.parameters():
+                param.requires_grad = False
+
+        # Classification head
+        self.dropout = nn.Dropout(dropout)
+        self.classifier = nn.Linear(hidden_size, num_classes)
+
+    def pool_hidden_states(self, hidden_states, attention_mask):
+        """Apply pooling strategy to hidden states"""
+        if self.pooling_strategy == 'mean':
+            # Attention-mask weighted mean
+            mask_expanded = attention_mask.unsqueeze(-1).expand(hidden_states.size())
+            sum_hidden = torch.sum(hidden_states * mask_expanded, dim=1)
+            sum_mask = torch.clamp(mask_expanded.sum(dim=1), min=1e-9)
+            return sum_hidden / sum_mask
+
+        elif self.pooling_strategy == 'max':
+            # Max pooling (set padding to -inf)
+            mask_expanded = attention_mask.unsqueeze(-1).expand(hidden_states.size())
+            hidden_states[mask_expanded == 0] = -1e9
+            return torch.max(hidden_states, dim=1)[0]
+
+        elif self.pooling_strategy == 'first':
+            # [CLS] token (first token)
+            return hidden_states[:, 0, :]
+
+        elif self.pooling_strategy == 'last':
+            # Last non-padding token
+            sequence_lengths = attention_mask.sum(dim=1) - 1
+            batch_size = hidden_states.shape[0]
+            return hidden_states[range(batch_size), sequence_lengths]
+
+    def forward(self, input_ids, attention_mask=None, labels=None):
+        # Get language model outputs
+        lm_outputs = self.lm_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask
+        )
+        hidden_states = lm_outputs.last_hidden_state
+
+        # Pool hidden states
+        pooled = self.pool_hidden_states(hidden_states, attention_mask)
+
+        # Classification
+        pooled = self.dropout(pooled)
+        logits = self.classifier(pooled)
+
+        # Compute loss if labels provided
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+
+        return ClassificationOutput(logits=logits, loss=loss, hidden_states=pooled)
+```
+
+**Pooling Strategy Comparison**:
+
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| **Mean** | Attention-weighted average | General purpose, stable |
+| **Max** | Maximum across sequence | Focus on salient features |
+| **First** | [CLS] token | Following BERT convention |
+| **Last** | Last token | Similar to GPT approach |
+
+**Recommendation**: Mean pooling for most tasks (best balance)
+
+### Usage Example
+
+```python
+from src.models.model_factory import create_model
+from src.models.classification_models import GPTForSequenceClassification
+
+# Create base language model
+gpt_model = create_model('gpt', vocab_size=32000, model_size='small')
+
+# Wrap with classification head
+classifier = GPTForSequenceClassification(
+    lm_model=gpt_model,
+    num_classes=14,  # e.g., BBC Articles Classification
+    hidden_size=768,
+    dropout=0.1,
+    freeze_base=False  # Fine-tune entire model
+)
+
+# Forward pass
+input_ids = torch.tensor([[1, 2, 3, 4, 5]])
+attention_mask = torch.tensor([[1, 1, 1, 1, 1]])
+labels = torch.tensor([3])
+
+output = classifier(input_ids, attention_mask, labels)
+print(output.logits.shape)  # [1, 14]
+print(output.loss)  # scalar
 ```
 
 ### Key Features
 
-1. **Dual Objectives**:
-   - Masked LM (bidirectional understanding)
-   - Causal LM (generation)
-
-2. **Shared Embeddings** (optional):
-   - Reduce parameter count
-   - Shared semantic space
-
-3. **Multi-Task Learning**:
-   - Combined loss: `loss = α * mlm_loss + β * clm_loss`
-   - Default: α = β = 0.5
-
-4. **Flexible Inference**:
-   - Use BERT encoder for understanding
-   - Use GPT decoder for generation
-
-### Training
-
-**Combined Loss**:
-```python
-mlm_loss = CrossEntropyLoss(mlm_logits[masked_pos], labels[masked_pos])
-clm_loss = CrossEntropyLoss(clm_logits[:-1], labels[1:])
-
-total_loss = 0.5 * mlm_loss + 0.5 * clm_loss
-```
-
-### Parameters
-
-With standard configuration (vocab_size=32000):
-- **Embeddings**: 24.5M (shared)
-- **BERT Encoder**: 84M
-- **GPT Decoder**: 84M
-- **Heads**: 2 × 24M = 48M
-- **Total**: ~220M parameters (2× single model)
-
-### Usage Modes
-
-**Training** (both objectives):
-```python
-outputs = model(input_ids, task='both')
-mlm_logits = outputs['mlm_logits']
-clm_logits = outputs['clm_logits']
-```
-
-**Understanding Tasks** (use BERT):
-```python
-outputs = model(input_ids, task='mlm')
-representations = outputs['mlm_logits']
-```
-
-**Generation Tasks** (use GPT):
-```python
-outputs = model(input_ids, task='clm')
-next_token_probs = outputs['clm_logits']
-```
-
-### Pros and Cons
-
-**Pros**:
-- ✅ Combines strengths of both architectures
-- ✅ Versatile (generation + understanding)
-- ✅ Better representations from multi-task learning
-
-**Cons**:
-- ❌ Double the parameters (~220M)
-- ❌ More complex training
-- ❌ Longer training time
-- ❌ May not excel at either task individually
-
-## 4. Position Encodings
-
-**Location**: `src/models/position_encodings.py`
-
-**Purpose**: Provide positional information to transformer models, which are inherently position-agnostic.
-
-### Overview
-
-Position encodings are crucial for transformers to understand token order. This module implements 5 different strategies, each with unique characteristics:
-
-| Type | Parameters | Extrapolation | Use Case |
-|------|-----------|---------------|----------|
-| **Sinusoidal** | None (fixed) | Good | Original Transformer |
-| **Learned** | Trainable | Poor | BERT, GPT-2 |
-| **RoPE** | None (fixed) | Excellent | GPT-Neo, LLaMA |
-| **ALiBi** | None (fixed) | Excellent | BLOOM |
-| **Relative** | Trainable | Good | T5 |
-
-### 4.1. Sinusoidal Position Encoding
-
-**Class**: `SinusoidalPositionEncoding` (`position_encodings.py:23-66`)
-
-**Description**: Original Transformer approach using sine and cosine functions of different frequencies.
-
-**Formula**:
-```
-PE(pos, 2i) = sin(pos / 10000^(2i/d_model))
-PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
-```
-
-**Implementation**:
-```python
-from src.models.position_encodings import SinusoidalPositionEncoding
-
-# Initialize
-pos_enc = SinusoidalPositionEncoding(d_model=768, max_len=512)
-
-# Forward pass
-hidden_states = pos_enc(token_embeddings)  # Adds position info
-```
-
-**Features**:
-- ✅ No trainable parameters (zero cost)
-- ✅ Deterministic and reproducible
-- ✅ Good length extrapolation
-- ✅ Encodes absolute positions
-- ❌ Less flexible than learned embeddings
-
-**When to use**: Good baseline, especially for limited data regimes.
-
----
-
-### 4.2. Learned Position Encoding
-
-**Class**: `LearnedPositionEncoding` (`position_encodings.py:68-107`)
-
-**Description**: Trainable position embeddings (BERT-style).
-
-**Implementation**:
-```python
-from src.models.position_encodings import LearnedPositionEncoding
-
-# Initialize
-pos_enc = LearnedPositionEncoding(d_model=768, max_len=512)
-
-# Forward pass
-hidden_states = pos_enc(token_embeddings)  # Adds learned position embeddings
-```
-
-**Features**:
-- ✅ Adapts to data during training
-- ✅ Good for shorter sequences
-- ✅ Standard in BERT, GPT-2
-- ❌ Fixed maximum length (512 in this case)
-- ❌ Poor extrapolation to longer sequences
-- ❌ Adds parameters: `max_len × d_model` (e.g., 512 × 768 = 393K)
-
-**When to use**: Standard baseline for fixed-length tasks.
-
----
-
-### 4.3. Rotary Position Embedding (RoPE)
-
-**Class**: `RotaryPositionEncoding` (`position_encodings.py:109-199`)
-
-**Description**: Encodes relative positions by rotating query and key vectors. Used in GPT-Neo, LLaMA, GPT-J.
-
-**Theory**: Instead of adding position embeddings to inputs, RoPE rotates the query and key vectors in attention by an angle proportional to their position.
-
-**Rotation Formula**:
-```
-q'_m = R(m) q_m
-k'_n = R(n) k_n
-
-where R(θ) is a rotation matrix with θ = m * base^(-2i/d)
-```
-
-**Implementation**:
-```python
-from src.models.position_encodings import RotaryPositionEncoding
-
-# Initialize (per attention head)
-head_dim = hidden_size // num_heads  # e.g., 768 // 12 = 64
-rope = RotaryPositionEncoding(dim=head_dim, max_len=2048, base=10000)
-
-# Forward pass (in attention layer)
-# q, k: [batch, num_heads, seq_len, head_dim]
-q_rotated, k_rotated = rope(q, k)
-
-# Then compute attention with rotated q and k
-attn_scores = torch.matmul(q_rotated, k_rotated.transpose(-2, -1))
-```
-
-**Features**:
-- ✅ **Excellent length extrapolation** (key advantage)
-- ✅ Encodes relative positions naturally
-- ✅ No additional parameters
-- ✅ Works at the attention level (more principled)
-- ❌ Requires attention layer modification
-- ❌ Slightly more complex implementation
-
-**Configuration**:
-- `dim`: Head dimension (hidden_size / num_heads)
-- `max_len`: Maximum sequence length to cache (2048 typical)
-- `base`: Base for frequency calculation (10000 standard, higher for longer sequences)
-
-**When to use**: **Recommended for Hindi BabyLM** - excellent extrapolation and no parameters.
-
----
-
-### 4.4. Attention with Linear Biases (ALiBi)
-
-**Class**: `ALiBiPositionBias` (`position_encodings.py:201-306`)
-
-**Description**: Adds linear biases to attention scores based on distance. Used in BLOOM.
-
-**Theory**: Instead of position embeddings, adds a bias to attention scores:
-```
-attention_score(q_i, k_j) = q_i · k_j + m * (i - j)
-```
-where `m` is a head-specific slope.
-
-**Slopes**: Different for each attention head, computed as:
-```
-m_h = (1/2)^(8h/H) where H is number of heads
-```
-
-**Implementation**:
-```python
-from src.models.position_encodings import ALiBiPositionBias
-
-# Initialize
-alibi = ALiBiPositionBias(num_heads=12, max_len=2048)
-
-# Forward pass (in attention layer)
-# attention_scores: [batch, num_heads, seq_len, seq_len]
-attention_scores_with_bias = alibi(attention_scores)
-
-# Then apply softmax
-attn_weights = F.softmax(attention_scores_with_bias, dim=-1)
-```
-
-**Features**:
-- ✅ **Best length extrapolation** (better than RoPE for very long sequences)
-- ✅ No position embeddings needed
-- ✅ No additional parameters
-- ✅ Simple and elegant
-- ❌ Requires attention layer modification
-- ❌ Adds computation to attention
-
-**When to use**: Best for tasks requiring strong length extrapolation (e.g., long document processing).
-
----
-
-### 4.5. Relative Position Bias (T5-style)
-
-**Class**: `RelativePositionBias` (`position_encodings.py:308-396`)
-
-**Description**: Learned biases for relative positions using buckets. Used in T5.
-
-**Theory**: Maps relative positions to buckets, learns a bias for each bucket:
-```
-bias_table: [num_buckets, num_heads]
-relative_position = j - i
-bucket = bucket_function(relative_position)
-bias = bias_table[bucket]
-```
-
-**Bucketing**:
-- Close positions: exact buckets
-- Distant positions: logarithmic buckets
-
-**Implementation**:
-```python
-from src.models.position_encodings import RelativePositionBias
-
-# Initialize
-rel_bias = RelativePositionBias(
-    num_heads=12,
-    num_buckets=32,
-    max_distance=128,
-    bidirectional=False  # True for BERT-style, False for GPT-style
-)
-
-# Forward pass
-bias = rel_bias(seq_len=512, device=device)
-# Returns: [1, num_heads, seq_len, seq_len]
-
-# Add to attention scores
-attention_scores = attention_scores + bias
-```
-
-**Features**:
-- ✅ Learns relative position biases from data
-- ✅ Good generalization via bucketing
-- ✅ Flexible (bidirectional or causal)
-- ❌ Adds parameters: `num_buckets × num_heads` (e.g., 32 × 12 = 384)
-- ❌ More complex than ALiBi
-
-**When to use**: When you want learned relative positions (T5-style models).
-
----
-
-### Factory Function
-
-**Function**: `create_position_encoding()` (`position_encodings.py:398-440`)
-
-**Purpose**: Convenient factory for creating position encodings.
-
-**Usage**:
-```python
-from src.models.position_encodings import create_position_encoding
-
-# Sinusoidal
-pos_enc = create_position_encoding('sinusoidal', d_model=768, max_len=512)
-
-# Learned
-pos_enc = create_position_encoding('learned', d_model=768, max_len=512)
-
-# RoPE (requires num_heads)
-pos_enc = create_position_encoding('rope', d_model=768, num_heads=12, max_len=2048, base=10000)
-
-# ALiBi (requires num_heads)
-pos_enc = create_position_encoding('alibi', d_model=768, num_heads=12, max_len=2048)
-
-# Relative (requires num_heads)
-pos_enc = create_position_encoding('relative', d_model=768, num_heads=12, max_len=512,
-                                   num_buckets=32, max_distance=128, bidirectional=False)
-```
-
----
-
-### Position Encoding Comparison
-
-**For Hindi BabyLM**:
-
-| Criterion | Sinusoidal | Learned | RoPE | ALiBi | Relative |
-|-----------|-----------|---------|------|-------|----------|
-| **Parameters** | 0 | 393K | 0 | 0 | 384 |
-| **Extrapolation** | Good | Poor | Excellent | Excellent | Good |
-| **Data Efficiency** | Good | Moderate | Excellent | Excellent | Moderate |
-| **Implementation** | Simple | Simple | Moderate | Moderate | Complex |
-| **Training Speed** | Fast | Fast | Fast | Slightly slower | Fast |
-
-**Recommendation**: **RoPE** is the best choice for Hindi BabyLM:
-- Zero parameters (important for limited data)
-- Excellent length extrapolation
-- Modern architecture (used in LLaMA, GPT-Neo)
-- Good for low-resource languages
-
-**Alternative**: **Sinusoidal** for a simpler baseline.
-
----
-
-## 5. Enhanced GPT Model
-
-**Location**: `src/models/enhanced_gpt.py`
-
-**Purpose**: Advanced GPT implementation with configurable position encodings, model sizes, and efficiency features.
-
-### Overview
-
-The `EnhancedGPTModel` extends the basic GPT-2 model with:
-- **Multiple position encoding options** (RoPE, ALiBi, Sinusoidal, Learned)
-- **Three model size variants** (Tiny: 50M, Small: 110M, Medium: 350M)
-- **Gradient checkpointing** for memory efficiency
-- **Flash Attention support** (if available)
-- **RMS Norm** option (more efficient than LayerNorm)
-- **SwiGLU activation** option (better than GELU)
-
-### Model Size Variants
-
-**Configuration**: `EnhancedGPTConfig.MODEL_SIZES` (`enhanced_gpt.py:41-60`)
-
-| Variant | Hidden | Layers | Heads | FFN | Parameters |
-|---------|--------|--------|-------|-----|------------|
-| **Tiny** | 512 | 6 | 8 | 2048 | ~50M |
-| **Small** | 768 | 12 | 12 | 3072 | ~110M |
-| **Medium** | 1024 | 24 | 16 | 4096 | ~350M |
-
-**Usage**:
-```python
-from src.models.enhanced_gpt import create_enhanced_gpt_model
-
-# Create tiny model (for quick experiments)
-model_tiny = create_enhanced_gpt_model(vocab_size=32000, model_size='tiny')
-
-# Create small model (default, recommended for BabyLM)
-model_small = create_enhanced_gpt_model(vocab_size=32000, model_size='small')
-
-# Create medium model (if compute allows)
-model_medium = create_enhanced_gpt_model(vocab_size=32000, model_size='medium')
-```
-
----
-
-### Enhanced GPT Configuration
-
-**Class**: `EnhancedGPTConfig` (`enhanced_gpt.py:37-113`)
-
-**Key Parameters**:
-
-```python
-config = EnhancedGPTConfig(
-    vocab_size=32000,
-    model_size='small',  # 'tiny', 'small', 'medium'
-
-    # Position encoding
-    position_encoding_type='rope',  # 'learned', 'sinusoidal', 'rope', 'alibi'
-    max_position_embeddings=512,
-
-    # Regularization
-    dropout=0.1,
-    attention_dropout=0.1,
-    residual_dropout=0.1,
-
-    # Normalization
-    use_rms_norm=False,  # Use RMS Norm instead of LayerNorm
-    layer_norm_eps=1e-5,
-
-    # Activation
-    activation='gelu',  # 'gelu', 'relu', 'swiglu'
-
-    # Efficiency
-    use_flash_attention=True,  # Use Flash Attention if available
-    gradient_checkpointing=False,  # Enable to save memory
-
-    # Attention
-    attention_bias=True,  # Bias in attention projections
-)
-```
-
----
-
-### Position Encoding Integration
-
-**Configuration Examples**:
-
-**With RoPE** (recommended):
-```python
-model = create_enhanced_gpt_model(
-    vocab_size=32000,
-    model_size='small',
-    position_encoding_type='rope',
-    max_position_embeddings=2048  # Can handle long sequences
-)
-```
-
-**With ALiBi**:
-```python
-model = create_enhanced_gpt_model(
-    vocab_size=32000,
-    model_size='small',
-    position_encoding_type='alibi',
-    max_position_embeddings=2048
-)
-```
-
-**With Sinusoidal**:
-```python
-model = create_enhanced_gpt_model(
-    vocab_size=32000,
-    model_size='small',
-    position_encoding_type='sinusoidal',
-    max_position_embeddings=512
-)
-```
-
-**With Learned** (default GPT-2 style):
-```python
-model = create_enhanced_gpt_model(
-    vocab_size=32000,
-    model_size='small',
-    position_encoding_type='learned',
-    max_position_embeddings=512
-)
-```
-
----
-
-### Gradient Checkpointing
-
-**Purpose**: Trade compute for memory - recompute activations during backward pass instead of storing them.
-
-**Memory Savings**: ~30-50% reduction
-
-**Speed Cost**: ~20-30% slower training
-
-**Configuration**:
-```python
-model = create_enhanced_gpt_model(
-    vocab_size=32000,
-    model_size='medium',  # Large model
-    gradient_checkpointing=True  # Enable to fit in GPU memory
-)
-```
-
-**Usage**: Automatically applied during training when enabled. No code changes needed.
-
-**When to use**:
-- Large models that don't fit in GPU memory
-- When batch size is constrained by memory
-- Training on consumer GPUs
-
----
-
-### RMS Norm vs LayerNorm
-
-**RMS Norm**: Root Mean Square Layer Normalization
-
-**Class**: `RMSNorm` (`enhanced_gpt.py:115-126`)
-
-**Formula**:
-```
-RMSNorm(x) = (x / RMS(x)) * γ
-where RMS(x) = sqrt(mean(x²) + ε)
-```
-
-**Advantages over LayerNorm**:
-- ✅ ~10-15% faster (no mean subtraction)
-- ✅ Fewer operations
-- ✅ Used in modern models (LLaMA, PaLM)
-
-**Usage**:
-```python
-model = create_enhanced_gpt_model(
-    vocab_size=32000,
-    model_size='small',
-    use_rms_norm=True  # Use RMS Norm instead of LayerNorm
-)
-```
-
----
-
-### Flash Attention
-
-**Description**: Optimized attention implementation that reduces memory and increases speed.
-
-**Benefits**:
-- ✅ 2-4x faster attention
-- ✅ Reduced memory usage
-- ✅ Exact (not approximate)
-
-**Requirements**:
-```bash
-pip install flash-attn  # Requires CUDA
-```
-
-**Usage**: Automatically used if available and `use_flash_attention=True` (default).
-
-**Fallback**: Falls back to standard attention if not available.
-
----
-
-### Complete Configuration Example
-
-**Small Model with RoPE** (recommended for Hindi BabyLM):
-```yaml
-model:
-  model_type: "enhanced_gpt"
-  vocab_size: 32000
-  model_size: "small"
-
-  # Position encoding
-  position_encoding_type: "rope"
-  max_position_embeddings: 512
-
-  # Architecture
-  hidden_size: 768
-  num_layers: 12
-  num_heads: 12
-  intermediate_size: 3072
-
-  # Regularization
-  dropout: 0.1
-  attention_dropout: 0.1
-  residual_dropout: 0.1
-
-  # Normalization & Activation
-  use_rms_norm: false
-  activation: "gelu"
-
-  # Efficiency
-  use_flash_attention: true
-  gradient_checkpointing: false
-
-  # Initialization
-  initializer_range: 0.02
-```
-
-**Medium Model with ALiBi and Gradient Checkpointing**:
-```yaml
-model:
-  model_type: "enhanced_gpt"
-  vocab_size: 32000
-  model_size: "medium"
-
-  # Position encoding
-  position_encoding_type: "alibi"
-  max_position_embeddings: 1024
-
-  # Efficiency (needed for larger model)
-  gradient_checkpointing: true
-  use_flash_attention: true
-  use_rms_norm: true  # Faster than LayerNorm
-
-  # Activation
-  activation: "swiglu"  # Better than GELU
-```
-
----
-
-### Training and Generation
-
-**Training**:
-```python
-from src.models.enhanced_gpt import create_enhanced_gpt_model
-
-# Create model
-model = create_enhanced_gpt_model(
-    vocab_size=32000,
-    model_size='small',
-    position_encoding_type='rope'
-)
-
-# Forward pass
-outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-loss = outputs['loss']
-logits = outputs['logits']
-
-# Backward
-loss.backward()
-```
-
-**Generation**:
-```python
-# Generate text
-model.eval()
-prompt_ids = tokenizer.encode("मैं एक")
-prompt_tensor = torch.tensor([prompt_ids])
-
-generated_ids = model.generate(
-    prompt_tensor,
-    max_new_tokens=50,
-    temperature=0.8,
-    top_k=50,
-    top_p=0.95
-)
-
-generated_text = tokenizer.decode(generated_ids[0])
-print(generated_text)
-# Output: "मैं एक विद्यार्थी हूँ जो विश्वविद्यालय में पढ़ता है..."
-```
-
----
-
-### Parameter Counts
-
-**By Model Size** (vocab_size=32000):
-
-| Component | Tiny (50M) | Small (110M) | Medium (350M) |
-|-----------|-----------|--------------|---------------|
-| **Token Embeddings** | 16.4M | 24.6M | 32.8M |
-| **Position Embeddings** | 262K† | 393K† | 524K† |
-| **Transformer Blocks** | 32M | 84M | 315M |
-| **LM Head** | Tied | Tied | Tied |
-| **Total** | ~49M | ~109M | ~348M |
-
-† Only for learned position embeddings. RoPE and ALiBi have zero position encoding parameters.
-
----
-
-### Memory Requirements
-
-**GPU Memory Estimates** (batch_size=32, seq_len=512):
-
-| Model | Position Encoding | Training (FP32) | Training (FP16) | Inference |
-|-------|------------------|-----------------|-----------------|-----------|
-| **Tiny** | Any | ~8 GB | ~4 GB | ~1 GB |
-| **Small** | Learned/Sinusoidal | ~18 GB | ~9 GB | ~2 GB |
-| **Small** | RoPE/ALiBi | ~17 GB | ~8.5 GB | ~2 GB |
-| **Small + GradChkpt** | RoPE | ~12 GB | ~6 GB | ~2 GB |
-| **Medium** | Any | ~36 GB | ~18 GB | ~4 GB |
-| **Medium + GradChkpt** | RoPE | ~24 GB | ~12 GB | ~4 GB |
-
-**Notes**:
-- Training includes model + gradients + optimizer states
-- FP16 mixed precision approximately halves memory
-- Gradient checkpointing saves ~30-40% memory
-- Inference is much more memory-efficient
-
----
-
-### Best Practices
-
-**1. Position Encoding Selection**:
-- **Limited data**: Use RoPE or Sinusoidal (no parameters)
-- **Fixed lengths**: Learned is acceptable
-- **Long sequences**: Use RoPE or ALiBi
-- **Memory constrained**: Use RoPE or ALiBi (no position embedding parameters)
-
-**2. Model Size Selection**:
-- **10M token budget**: Small (110M) is recommended
-- **Quick experiments**: Tiny (50M)
-- **Maximum performance**: Medium (350M) if compute allows
-
-**3. Memory Optimization**:
-- Enable gradient checkpointing for large models
-- Use FP16 mixed precision
-- Use RMS Norm instead of LayerNorm
-- Use Flash Attention if available
-- Reduce batch size if needed
-
-**4. Initialization**:
-- Keep `initializer_range=0.02` (standard)
-- Consider smaller range (0.01) for very large models
+1. **Base Model Freezing**: Option to freeze language model and only train classification head
+2. **Automatic dtype Matching**: Classification head matches base model dtype
+3. **Flexible Pooling**: Multiple pooling strategies for DeBERTa
+4. **Standard Output Format**: `ClassificationOutput` dataclass for consistency
+5. **Loss Integration**: Automatic loss computation when labels provided
+
+### When to Use
+
+**GPTForSequenceClassification**:
+- Text generation tasks where classification is secondary
+- When you want causal (unidirectional) context
+- Following GPT fine-tuning paradigm
+
+**DeBERTaForSequenceClassification**:
+- Pure classification tasks (IndicGLUE)
+- When bidirectional context is important
+- Need flexible pooling strategies
+- Following BERT/DeBERTa fine-tuning paradigm
 
 ## Model Selection Guide
 

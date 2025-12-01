@@ -165,3 +165,7 @@ dmypy.json
 !notebooks/
 !src/
 !experiments/
+thesis_implementation_chapter.tex
+docs/DOCUMENTATION_GAPS_ANALYSIS.md
+DOCUMENTATION_UPDATES_SUMMARY.md
+FINAL_DOCUMENTATION_REPORT.md

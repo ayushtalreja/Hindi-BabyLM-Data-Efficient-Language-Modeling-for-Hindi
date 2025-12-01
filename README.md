@@ -8,18 +8,18 @@ A comprehensive implementation of data-efficient language modeling for Hindi, de
 
 ## 🌟 Key Features
 
-- **Enhanced GPT Architecture**: 3 model sizes (Tiny: 50M, Small: 110M, Medium: 350M parameters)
-- **Advanced Training Pipeline**: Multiple optimizers (AdamW, Adam, SGD), LR schedulers, mixed precision (FP16/BF16)
-- **Comprehensive Tokenization**: SentencePiece, WordPiece, BPE with morphological preservation analysis
-- **MultiBLiMP Evaluation**: 14 Hindi linguistic phenomena with 70+ minimal pairs
-- **Morphological Probes**: 10 probe tasks for layer-wise linguistic feature analysis
+- **Multiple Model Architectures**: GPT-2 and DeBERTa with 3 size variants (Tiny: 50M, Small: 110M, Medium: 350M parameters)
+- **Advanced Training Pipeline**: Multiple optimizers (AdamW, Adam, SGD), LR schedulers, mixed precision (FP16/BF16), evaluation callbacks
+- **Comprehensive Tokenization**: 5 strategies including novel character-level approaches (SentencePiece, WordPiece, BPE, Character, Morphology-Aware Character-Bigram)
+- **MultiBLiMP Evaluation**: 5 Hindi syntactic phenomena with 1,447 minimal pairs for agreement testing
+- **IndicGLUE Benchmark**: 8 Hindi NLP tasks including classification, sentiment analysis, and question answering
 - **Statistical Analysis**: Paired t-tests, Wilcoxon tests, effect sizes, bootstrap confidence intervals
 - **Publication-Ready Figures**: 10+ plot types using ThesisPlotter with consistent styling
 - **LaTeX Integration**: Automatic generation of thesis-ready tables and figures
 - **Interactive Notebooks**: 2 comprehensive Jupyter notebooks for data exploration and results analysis
 - **Experiment Tracking**: Automatic logging with Weights & Biases integration
 - **IndicCorp V2 Integration**: Automated download from AI4Bharat/HuggingFace with streaming support
-- **Multi-Source Corpus**: IndicCorp, Hindi Wikipedia, children's literature
+- **Multi-Source Corpus**: IndicCorp V2, Hindi Wikipedia, IndicDialogue (conversational), children's literature
 - **Advanced Quality Filtering**: Length-based, language detection (Devanagari ratio), deduplication (MinHash LSH)
 - **Intelligent Data Mixing**: Configurable source ratios with token-level precision
 
@@ -42,9 +42,12 @@ hindi-babylm/
 │
 ├── src/
 │   ├── data_processing/
-│   │   ├── indiccorp_downloader.py   # IndicCorp V2 downloader (IMPLEMENTED)
-│   │   ├── wiki_scraper.py           # Wikipedia scraper
-│   │   ├── childrens_books.py        # Children's literature
+│   │   ├── downloaders/              # Data source downloaders
+│   │   │   ├── indiccorp_downloader.py   # IndicCorp V2 from HuggingFace
+│   │   │   ├── wiki_downloader.py        # Wikipedia from HuggingFace
+│   │   │   ├── indicdialogue_loader.py   # Conversational Hindi
+│   │   │   └── base_downloader.py        # Abstract base class
+│   │   ├── childrens_books.py        # Children's literature from StoryWeaver
 │   │   ├── corpus_builder.py         # Main corpus orchestration
 │   │   ├── text_cleaner.py           # Unicode normalization, cleaning
 │   │   ├── quality_filter.py         # Length/language filtering
@@ -53,28 +56,32 @@ hindi-babylm/
 │   │   └── corpus_analyzer.py        # Statistics generation
 │   │
 │   ├── tokenization/
-│   │   ├── tokenizer_factory.py      # Tokenizer creation hub
-│   │   ├── sentencepiece_trainer.py  # SentencePiece training
-│   │   ├── wordpiece_trainer.py      # WordPiece training
-│   │   ├── bpe_trainer.py            # BPE training
-│   │   └── morphological_analyzer.py # Morphological preservation metrics
+│   │   ├── tokenizer_factory.py      # Tokenizer creation hub (5 strategies)
+│   │   ├── sentencepiece_tokenizer.py    # SentencePiece training
+│   │   ├── character_tokenizer.py        # Pure character-level (UACT)
+│   │   ├── character_bigram_tokenizer.py # Morphology-aware bigrams
+│   │   ├── morphological_eval.py         # Morphological preservation metrics
+│   │   └── tokenizer_comparison.py       # Benchmarking tool
 │   │
 │   ├── models/
 │   │   ├── model_factory.py          # Model creation hub
-│   │   ├── enhanced_gpt.py           # Enhanced GPT (50M/110M/350M)
-│   │   └── bert_model.py
+│   │   ├── gpt_model.py              # GPT-2 architecture (50M/110M/350M)
+│   │   ├── deberta_model.py          # DeBERTa architecture
+│   │   └── classification_models.py  # Task-specific classification heads
 │   │
 │   ├── training/
-│   │   ├── trainer.py                # Enhanced trainer
-│   │   ├── optimizer_factory.py      # Multiple optimizer support
-│   │   ├── scheduler_factory.py      # LR scheduling strategies
-│   │   └── mixed_precision.py        # FP16/BF16 training
+│   │   ├── trainer.py                # Enhanced trainer with callbacks
+│   │   ├── data_loader.py            # PyTorch DataLoader utilities
+│   │   └── (optimizer/scheduler integrated in trainer.py)
 │   │
 │   ├── evaluation/
 │   │   ├── evaluation_manager.py     # Evaluation orchestration
-│   │   ├── indicglue_evaluator.py    # Hindi NLP benchmark
-│   │   ├── multiblimp_evaluator.py   # 14 linguistic phenomena
-│   │   └── perplexity_evaluator.py   # Language modeling metrics
+│   │   ├── indicglue_evaluator.py    # 8 Hindi NLP tasks
+│   │   ├── multiblimp_evaluator.py   # 5 syntactic phenomena (1,447 pairs)
+│   │   ├── evaluation_callbacks.py   # Training-time evaluation
+│   │   ├── evaluation_cache.py       # Result caching system
+│   │   ├── metrics_utils.py          # Statistical metrics & CI
+│   │   └── comparative_analysis.py   # Cross-experiment comparison
 │   │
 │   ├── analysis/                     # Phase 2: Analysis & Visualization
 │   │   ├── results_analyzer.py       # Statistical testing & reporting
@@ -466,26 +473,40 @@ See [Configuration Documentation](docs/07_CONFIGURATION.md) for complete guide.
 
 ## 📈 Evaluation Frameworks
 
-### 1. MultiBLiMP (14 Linguistic Phenomena)
+### 1. MultiBLiMP (5 Syntactic Phenomena, 1,447 Minimal Pairs)
 
-Tests grammatical competence with minimal pairs:
+Tests grammatical competence through minimal pair testing. Model should assign lower perplexity to grammatical sentences:
 
-**Agreement**:
-- `subject_verb_agreement_number`: संख्या सहमति (number)
-- `subject_verb_agreement_person`: पुरुष सहमति (person)
-- `subject_verb_agreement_gender`: लिंग सहमति (gender)
-- `determiner_noun_agreement`: निर्धारक-संज्ञा सहमति
+**Subject-Verb Agreement** (1,238 pairs):
+- `SV-#` (Number): संख्या सहमति - 407 pairs
+- `SV-G` (Gender): लिंग सहमति - 419 pairs
+- `SV-P` (Person): पुरुष सहमति - 412 pairs
 
-**Case Marking**:
-- `ergative_case`: कर्तृकारक (-ने)
-- `accusative_case`: कर्मकारक (-को)
-- `instrumental_case`: करणकारक (-से)
+**Subject-Predicate Agreement** (209 pairs):
+- `SP-#` (Number): विधेय संख्या सहमति - 100 pairs
+- `SP-G` (Gender): विधेय लिंग सहमति - 109 pairs
 
-**And 7 more phenomena** (word order, scrambling, binding, etc.)
+**Example**:
+```python
+Grammatical:   लड़का खाता है। (The boy eats.)
+Ungrammatical: लड़का खाते हैं। (Agreement error)
+# Model should: PPL(grammatical) < PPL(ungrammatical)
+```
 
-### 2. IndicGLUE
+### 2. IndicGLUE (8 Hindi NLP Tasks)
 
-Standard Hindi NLP benchmarks for downstream task evaluation.
+Comprehensive Hindi benchmark evaluation:
+
+1. **BBC Articles Classification** - 14-class news categorization
+2. **Wikipedia Section Titles** - 4-choice title prediction
+3. **CommonsenseQA** - 4-choice commonsense reasoning
+4. **WinogradNLI** - 3-class natural language inference
+5. **COPA** (Choice of Plausible Alternatives) - 2-choice causal reasoning
+6. **Movie Review Sentiment** - 3-class sentiment (positive/negative/neutral)
+7. **Product Review Sentiment** - 3-class sentiment
+8. **Discourse Mode** - 6-class discourse classification
+
+**Evaluation Modes**: Zero-shot and fine-tuned (with configurable training splits)
 
 ## 📊 Results Analysis
 

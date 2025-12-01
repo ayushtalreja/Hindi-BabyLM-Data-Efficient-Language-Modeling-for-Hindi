@@ -1,8 +1,9 @@
 # Evaluation Framework
+<!-- Updated: 2025-12-01 -->
 
 ## Overview
 
-The evaluation framework provides comprehensive assessment of trained Hindi language models across multiple dimensions: NLP tasks (IndicGLUE), syntactic competence (MultiBLiMP), and morphological understanding (custom probes).
+The evaluation framework provides comprehensive assessment of trained Hindi language models across multiple dimensions: NLP tasks (IndicGLUE with 8 tasks) and syntactic competence (MultiBLiMP with 5 phenomena, 1,447 minimal pairs).
 
 ## Evaluation Philosophy
 
@@ -164,15 +165,22 @@ def generate_summary(self) -> Dict:
 **Purpose**: Evaluate on Hindi NLP benchmarks
 
 ### IndicGLUE Tasks
+<!-- Updated: 2025-12-01 -->
 
-| Task | Type | Metric | Description |
-|------|------|--------|-------------|
-| **INLTKH Headlines** | Classification | Accuracy | News category classification |
-| **BBC Hindi** | Classification | Accuracy | Document classification |
-| **IITP Movie Reviews** | Sentiment | F1 | Sentiment analysis |
-| **IITP Product Reviews** | Sentiment | F1 | Product review sentiment |
-| **Soham NER** | NER | F1 | Named entity recognition |
-| **WikiANN NER** | NER | F1 | Wikipedia NER |
+**8 Hindi NLP Tasks Implemented**:
+
+| Task | Type | Classes/Choices | Metric | Description |
+|------|------|-----------------|--------|-------------|
+| **BBC Articles Classification (BBCA)** | Classification | 14 classes | Accuracy | News category classification |
+| **Wikipedia Section Titles** | Multiple Choice | 4 choices | Accuracy | Section title prediction |
+| **CommonsenseQA (CSQ)** | Multiple Choice | 4 choices | Accuracy | Commonsense reasoning |
+| **WinogradNLI (WNLI)** | NLI | 3 classes | Accuracy | Natural language inference |
+| **COPA** (Choice of Plausible Alternatives) | Multiple Choice | 2 choices | Accuracy | Causal reasoning |
+| **Movie Review Sentiment** | Sentiment | 3 classes | F1/Accuracy | Positive/Negative/Neutral |
+| **Product Review Sentiment** | Sentiment | 3 classes | F1/Accuracy | Product sentiment analysis |
+| **Discourse Mode** | Classification | 6 classes | Accuracy | Discourse type classification |
+
+**Implementation Location**: `src/evaluation/indicglue_evaluator.py:44`
 
 ### Implementation (Conceptual)
 
@@ -281,31 +289,29 @@ Ungrammatical: लड़का घर जाता हैं। (Agreement error
 
 **Evaluation**: Does P(grammatical) > P(ungrammatical)?
 
-### Hindi Linguistic Phenomena (14 Categories)
+### Hindi Linguistic Phenomena (5 Categories, 1,447 Pairs)
+<!-- Updated: 2025-12-01 -->
 
-The actual implementation tests 14 specific syntactic phenomena relevant to Hindi:
+The actual implementation tests **5 syntactic phenomena** focused on agreement in Hindi:
 
-**Agreement Phenomena**:
-1. **subject_verb_agreement_number**: Singular vs. plural subject-verb agreement
-2. **subject_verb_agreement_person**: First, second, third person agreement
-3. **subject_verb_agreement_gender**: Masculine vs. feminine agreement with verbs
-4. **gender_agreement_adjective**: Adjective-noun gender agreement
-5. **number_agreement**: General number agreement across constituents
-6. **honorific_agreement**: Honorific forms (आप vs. तुम vs. तू)
+**Subject-Verb Agreement** (3 phenomena, 1,238 pairs):
+1. **SV-#** (Subject-Verb Number Agreement): Singular vs. plural - **407 minimal pairs**
+   - Example: लड़का खाता है ✓ vs. लड़का खाते हैं ✗
 
-**Case Marking Phenomena**:
-7. **case_marking_ergative**: Ergative case marker (ने) in perfective transitive contexts
-8. **case_marking_accusative**: Accusative/dative marker (को) with specific/animate objects
-9. **case_marking_dative**: Dative case marker (को) with experiencer constructions
+2. **SV-G** (Subject-Verb Gender Agreement): Masculine vs. feminine - **419 minimal pairs**
+   - Example: लड़का गया ✓ vs. लड़का गई ✗
 
-**Structural Phenomena**:
-10. **word_order**: SOV vs. other word orders and scrambling constraints
-11. **negation**: Placement and form of negation markers
-12. **binding**: Pronominal and reflexive binding
-13. **control**: Control structures in infinitival complements
+3. **SV-P** (Subject-Verb Person Agreement): First, second, third person - **412 minimal pairs**
+   - Example: मैं जाता हूँ ✓ vs. मैं जाता है ✗
 
-**Additional Morphosyntax**:
-14. **gender_agreement_verb**: Gender agreement in past tense verb forms
+**Subject-Predicate Agreement** (2 phenomena, 209 pairs):
+4. **SP-#** (Subject-Predicate Number Agreement): Predicate number marking - **100 minimal pairs**
+   - Example: लड़के अच्छे हैं ✓ vs. लड़के अच्छा है ✗
+
+5. **SP-G** (Subject-Predicate Gender Agreement): Predicate gender marking - **109 minimal pairs**
+   - Example: लड़की सुंदर है ✓ vs. लड़का सुंदर है ✗
+
+**Total**: 5 phenomena, 1,447 minimal pairs from HuggingFace dataset `jumelet/multiblimp`
 
 ### Implementation
 
