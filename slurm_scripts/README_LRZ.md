@@ -59,6 +59,7 @@ sed -i 's/your.email@tum.de/your.actual.email@tum.de/g' slurm_scripts/*.sh
 | `run_data_processing.sh` | Data only (CPU) | 4h | 0 | 32GB | serial_std |
 | `run_training.sh` | Training only | 48h | 1 | 64GB | gpu_4 |
 | `run_evaluation.sh` | Evaluation only | 8h | 1 | 32GB | gpu_4 |
+| `run_indicbert_evaluation.sh` | IndicBERT eval (verify implementation) | 8h | 1 | 80GB | gpu_4 |
 | `run_tiny_model.sh` | Quick test (50M) | 12h | 1 | 32GB | gpu_4 |
 | `run_curriculum_learning.sh` | Curriculum learning | 48h | 1 | 64GB | gpu_4 |
 

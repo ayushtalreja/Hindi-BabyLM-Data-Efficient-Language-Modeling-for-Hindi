@@ -16,6 +16,9 @@ sbatch slurm_scripts/run_training.sh
 # Evaluation only
 sbatch slurm_scripts/run_evaluation.sh <experiment_name>
 
+# IndicBERT evaluation (verify IndicGLUE implementation)
+sbatch slurm_scripts/run_indicbert_evaluation.sh
+
 # Quick test (Tiny model)
 sbatch slurm_scripts/run_tiny_model.sh
 ```
