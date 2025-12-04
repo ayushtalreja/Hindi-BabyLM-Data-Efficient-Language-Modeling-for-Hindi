@@ -6,9 +6,9 @@
 
 # Experiment Configuration
 experiment:
-  name: "gpt2_10M_babylm_baseline"
-  description: "GPT-2 model matching BabyLM 10M baseline architecture"
-  tags: ["babylm-baseline", "gpt2", "10M", "768-hidden"]
+  name: "gpt2_10M_babylm_baseline_32k_vocab"
+  description: "GPT-2 model matching BabyLM 10M baseline architecture with 32K vocab size"
+  tags: ["babylm-baseline", "gpt2", "10M", "768-hidden","32K Vocab size"]
 
 # Project Metadata
 project:
@@ -102,7 +102,7 @@ tokenization:
   type: "bpe"
 
   # Vocabulary (matching BabyLM baseline)
-  vocab_size: 16384  # BabyLM GPT-2 baseline vocab size
+  vocab_size: 32000  
   character_coverage: 0.9995
 
   # Special Tokens

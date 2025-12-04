@@ -5,7 +5,6 @@ This standalone script evaluates the pre-trained IndicBERT model on IndicGLUE ta
 to verify the correctness of the existing IndicGLUE evaluation implementation by
 comparing results with reported scores from the IndicBERT paper.
 
-Author: Claude Code
 Date: 2025-12-02
 
 Usage:
