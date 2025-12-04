@@ -46,9 +46,9 @@ def test_wstp():
 
 
 def test_csqa():
-    """Test CommonsenseQA label extraction"""
+    """Test Cloze-style multiple-choice QA label extraction"""
     print("\n" + "="*80)
-    print("Testing CommonsenseQA (CSQA)")
+    print("Testing Cloze-style multiple-choice QA (CSQA)")
     print("="*80)
 
     try:

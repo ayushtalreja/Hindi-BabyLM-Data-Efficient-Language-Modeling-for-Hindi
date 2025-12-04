@@ -40,9 +40,6 @@ data:
   test_word_limit: 10_000_000    # 10M words for test
 
   # Data Splits (legacy, not used with new split creation)
-  train_ratio: 0.8
-  val_ratio: 0.1
-  test_ratio: 0.1
 
   # Source Mixing Ratios (for training data only)
   # Validation and test splits are always balanced across sources
@@ -281,7 +278,7 @@ evaluation:
     indicglue:
       enabled: true
       # Updated task names (descriptive)
-      tasks: ["BBCArticlesClassification", "Wikipedia Section Title Prediction", "CommonsenseQA", "WinogradNLI", "Choice of Plausible Alternatives", "MovieReviewSentiment", "ProductReviewSentiment", "DiscourseMode"]
+      tasks: ["BBCArticlesClassification", "Wikipedia Section Title Prediction", "Cloze-style multiple-choice QA", "WinogradNLI", "Choice of Plausible Alternatives", "MovieReviewSentiment", "ProductReviewSentiment", "DiscourseMode"]
 
       # Evaluation settings
       batch_size: 64
@@ -291,18 +288,8 @@ evaluation:
       fine_tuning:
         enabled: true  # Toggle: true for fine-tuning, false for zero-shot
 
-        # Custom split creation strategy
-        # "custom" = combine all available splits, then re-split by ratios
-        # "original" = use HuggingFace splits as-is (old behavior)
-        split_strategy: "original"
-
-        # Split ratios for custom splitting (must sum to 1.0)
-        train_ratio: 0.7    # 70% for training
-        val_ratio: 0.15     # 15% for validation
-        test_ratio: 0.15    # 15% for test/evaluation
-
-        # Random seed for reproducible splits
-        split_seed: 42
+        # NOTE: Always uses original HuggingFace splits by default
+        # For tasks with missing/inadequate splits, use task_specific_splits below
 
         # Training hyperparameters
         num_epochs: 10
@@ -321,6 +308,16 @@ evaluation:
         # Model settings
         freeze_base_model: true  # Only train classification heads
         dropout: 0.1
+
+        # Task-specific split configurations
+        # For tasks where original splits are missing/inadequate
+        task_specific_splits:
+          "Cloze-style multiple-choice QA":
+            train_ratio: 0.7          # 70% training (~24,598 examples)
+            val_ratio: 0.15           # 15% validation (~5,271 examples)
+            test_ratio: 0.15          # 15% test (~5,271 examples)
+            split_seed: 42            # Reproducible splits
+            reason: "Dataset only has test split (35,140 examples); custom splits required for fine-tuning"
 
         # Checkpointing (optional)
         save_finetuned_models: false

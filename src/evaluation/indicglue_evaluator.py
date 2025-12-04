@@ -135,9 +135,9 @@ class IndicGLUEEvaluator:
                 'metric': 'accuracy',
                 'hf_config': 'wstp.hi'
             },
-            'CommonsenseQA': {
+            'Cloze-style multiple-choice QA': {
                 'type': 'multiple_choice',
-                'num_labels': 4,  # Four answer choices
+                'num_labels': 4,  # Four answer choices (cloze-style fill-in-the-blank)
                 'metric': 'accuracy',
                 'hf_config': 'csqa.hi'
             },
@@ -459,7 +459,7 @@ class IndicGLUEEvaluator:
     # Tasks to skip due to dataset issues
     SKIP_TASKS = {
         'WinogradNLI': 'WNLI contains only entailment class for train and validation sets while the test set contains None',
-        'CommonsenseQA': 'CSQA does not contain the train,validation sets. All examples are provided in the test set.'
+        # CSQA removed - now handled via task_specific_splits in config with custom splits
     }
 
     def evaluate_task(self, task_name: str) -> Dict:
@@ -626,7 +626,7 @@ class IndicGLUEEvaluator:
         dataset_map = {
             'BBCArticlesClassification': ('ai4bharat/indic_glue', 'bbca.hi'),
             'Wikipedia Section Title Prediction': ('ai4bharat/indic_glue', 'wstp.hi'),
-            'CommonsenseQA': ('ai4bharat/indic_glue', 'csqa.hi'),
+            'Cloze-style multiple-choice QA': ('ai4bharat/indic_glue', 'csqa.hi'),
             'WinogradNLI': ('ai4bharat/indic_glue', 'wnli.hi'),
             'Choice of Plausible Alternatives': ('ai4bharat/indic_glue', 'copa.hi'),
             # New tasks
@@ -704,7 +704,8 @@ class IndicGLUEEvaluator:
 
         return combined
 
-    def _create_custom_splits_from_complete(self, task_name: str) -> Dict[str, Dataset]:
+    def _create_custom_splits_from_complete(self, task_name: str,
+                                           override_config: Optional[Dict] = None) -> Dict[str, Dataset]:
         """
         Create custom train/val/test splits from complete dataset.
 
@@ -723,14 +724,22 @@ class IndicGLUEEvaluator:
 
         logger.info(f"Creating custom splits for {task_name}...")
 
-        # Get split configuration
-        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
-                        .get('indicglue', {}).get('fine_tuning', {})
-        # Explicitly convert to correct types to avoid type comparison errors
-        train_ratio = float(ft_config.get('train_ratio', 0.7))
-        val_ratio = float(ft_config.get('val_ratio', 0.15))
-        test_ratio = float(ft_config.get('test_ratio', 0.15))
-        split_seed = int(ft_config.get('split_seed', 42))
+        # Get split configuration from task-specific config (required parameter now)
+        if override_config:
+            # Use task-specific ratios from config task_specific_splits
+            train_ratio = float(override_config.get('train_ratio', 0.7))
+            val_ratio = float(override_config.get('val_ratio', 0.15))
+            test_ratio = float(override_config.get('test_ratio', 0.15))
+            split_seed = int(override_config.get('split_seed', 42))
+            logger.info(f"Using task-specific split ratios for {task_name}")
+            logger.info(f"  Train: {train_ratio:.1%}, Val: {val_ratio:.1%}, Test: {test_ratio:.1%}, Seed: {split_seed}")
+        else:
+            # Fallback to defaults (should not happen if called correctly)
+            train_ratio = 0.7
+            val_ratio = 0.15
+            test_ratio = 0.15
+            split_seed = 42
+            logger.warning(f"No override_config provided for {task_name}, using default ratios")
 
         # Validate ratios sum to 1.0
         total_ratio = train_ratio + val_ratio + test_ratio
@@ -781,7 +790,8 @@ class IndicGLUEEvaluator:
         """
         Load train, validation, and test splits for a task.
 
-        Uses custom split creation if configured, otherwise loads from HuggingFace.
+        Always uses original HuggingFace splits by default.
+        For tasks with task_specific_splits configured, creates custom splits.
 
         Args:
             task_name: Name of the task
@@ -789,29 +799,37 @@ class IndicGLUEEvaluator:
         Returns:
             Dictionary with 'train', 'validation', and 'test' keys (if available)
         """
-        # Check split strategy from config
+        # Get fine-tuning config
         ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
                         .get('indicglue', {}).get('fine_tuning', {})
-        split_strategy = ft_config.get('split_strategy', 'custom')
 
-        if split_strategy == 'custom':
-            # Use custom split creation from complete dataset
-            logger.info(f"Using custom split strategy for {task_name}")
-            return self._create_custom_splits_from_complete(task_name)
-        else:
-            # Original behavior: load splits directly from HuggingFace
-            logger.info(f"Using original HuggingFace splits for {task_name}")
-            splits = {}
-            for split_name in ['train', 'validation', 'test']:
-                try:
-                    dataset = self._load_task_data(task_name, split=split_name)
-                    if dataset is not None:
-                        splits[split_name] = dataset
-                        logger.info(f"Loaded {split_name} split for {task_name}: {len(dataset)} examples")
-                except Exception as e:
-                    logger.warning(f"Could not load {split_name} split for {task_name}: {e}")
+        # Check for task-specific split configuration
+        task_specific_splits = ft_config.get('task_specific_splits', {})
 
-            return splits
+        if task_name in task_specific_splits:
+            # Task requires custom split creation (e.g., CSQA with only test split)
+            task_config = task_specific_splits[task_name]
+            reason = task_config.get('reason', 'Task-specific split configuration')
+
+            logger.info(f"Creating custom splits for {task_name}")
+            logger.info(f"  Reason: {reason}")
+
+            # Use task-specific custom split ratios
+            return self._create_custom_splits_from_complete(task_name, override_config=task_config)
+
+        # Default: load original splits directly from HuggingFace
+        logger.info(f"Using original HuggingFace splits for {task_name}")
+        splits = {}
+        for split_name in ['train', 'validation', 'test']:
+            try:
+                dataset = self._load_task_data(task_name, split=split_name)
+                if dataset is not None:
+                    splits[split_name] = dataset
+                    logger.info(f"Loaded {split_name} split for {task_name}: {len(dataset)} examples")
+            except Exception as e:
+                logger.debug(f"Could not load {split_name} split for {task_name}: {e}")
+
+        return splits
 
     def fine_tune_task(self, task_name: str, train_dataset: Dataset,
                        val_dataset: Optional[Dataset] = None) -> 'torch.nn.Module':
@@ -1102,7 +1120,7 @@ class IndicGLUEEvaluator:
                     if correct_title not in title_to_idx:
                         logger.warning(f"Unknown correctTitle value '{correct_title}' for WSTP, defaulting to 0")
 
-                # CommonsenseQA: uses 'answer' field (need to find index in 'options')
+                # Cloze-style QA: uses 'answer' field (need to find index in 'options')
                 elif 'answer' in example and 'options' in example:
                     answer = example['answer']
                     options = example['options']
@@ -1250,8 +1268,8 @@ class IndicGLUEEvaluator:
                         example['titleC'],
                         example['titleD']
                     ]
-                elif task_name == 'CommonsenseQA' and 'options' in example:
-                    # CommonsenseQA format: options is a list
+                elif task_name == 'Cloze-style multiple-choice QA' and 'options' in example:
+                    # Cloze-style QA format: options is a list
                     choices = example['options']
                 elif 'sectionText' in example and 'titleA' in example:
                     # WSTP format: field-based fallback (works even if task name changes)
@@ -1323,14 +1341,14 @@ class IndicGLUEEvaluator:
                     label_map = {'titleA': 0, 'titleB': 1, 'titleC': 2, 'titleD': 3}
                     numeric_label = label_map.get(example['correctTitle'], 0)
                     labels.append(numeric_label)
-                elif task_name == 'CommonsenseQA' and 'answer' in example and 'options' in example:
-                    # CommonsenseQA: answer is the text, find its index in options
+                elif task_name == 'Cloze-style multiple-choice QA' and 'answer' in example and 'options' in example:
+                    # Cloze-style QA: answer is the text, find its index in options
                     try:
                         numeric_label = example['options'].index(example['answer'])
                         labels.append(numeric_label)
                     except (ValueError, AttributeError):
                         # If answer not in options, log warning and use 0
-                        logger.warning(f"Answer '{example.get('answer')}' not found in options for IndicCQ")
+                        logger.warning(f"Answer '{example.get('answer')}' not found in options for Cloze-style QA")
                         labels.append(0)
                 elif 'correctTitle' in example:
                     # WSTP: field-based fallback (works even if task name changes)

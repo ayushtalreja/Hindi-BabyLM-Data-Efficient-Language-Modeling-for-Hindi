@@ -39,9 +39,6 @@ data:
   test_word_limit: 10_000_000
 
   # Data Splits
-  train_ratio: 0.8
-  val_ratio: 0.1
-  test_ratio: 0.1
 
   # Source Mixing Ratios
   train_source_ratios:
@@ -254,18 +251,13 @@ evaluation:
   benchmarks:
     indicglue:
       enabled: true
-      tasks: ["BBCArticlesClassification", "Wikipedia Section Title Prediction", "CommonsenseQA", "WinogradNLI", "Choice of Plausible Alternatives", "MovieReviewSentiment", "ProductReviewSentiment", "DiscourseMode"]
+      tasks: ["BBCArticlesClassification", "Wikipedia Section Title Prediction", "Cloze-style multiple-choice QA", "WinogradNLI", "Choice of Plausible Alternatives", "MovieReviewSentiment", "ProductReviewSentiment", "DiscourseMode"]
       batch_size: 64
       max_samples_per_task: null
 
       # Fine-tuning configuration
       fine_tuning:
         enabled: true
-        split_strategy: "original"
-        train_ratio: 0.7
-        val_ratio: 0.15
-        test_ratio: 0.15
-        split_seed: 42
 
         # Training hyperparameters
         num_epochs: 10
@@ -284,6 +276,16 @@ evaluation:
         # Model settings
         freeze_base_model: true
         dropout: 0.1
+
+        # Task-specific split configurations
+        # For tasks where original splits are missing/inadequate
+        task_specific_splits:
+          "Cloze-style multiple-choice QA":
+            train_ratio: 0.7          # 70% training (~24,598 examples)
+            val_ratio: 0.15           # 15% validation (~5,271 examples)
+            test_ratio: 0.15          # 15% test (~5,271 examples)
+            split_seed: 42            # Reproducible splits
+            reason: "Dataset only has test split (35,140 examples); custom splits required for fine-tuning"
 
         # Checkpointing
         save_finetuned_models: false
