@@ -299,7 +299,7 @@ evaluation:
 
     multiblimp:
       enabled: true
-      n_examples_per_phenomenon: 100
+      n_examples_per_phenomenon: null  # Use all available examples
 
   # Perplexity Evaluation
   perplexity:
