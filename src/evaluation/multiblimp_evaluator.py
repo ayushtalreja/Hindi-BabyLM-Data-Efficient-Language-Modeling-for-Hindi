@@ -296,23 +296,29 @@ class MultiBLiMPEvaluator:
             good_outputs = self.model(**good_inputs)
             bad_outputs = self.model(**bad_inputs)
 
-            # Extract logits
-            good_logits = good_outputs.logits if hasattr(good_outputs, 'logits') else good_outputs[0]
-            bad_logits = bad_outputs.logits if hasattr(bad_outputs, 'logits') else bad_outputs[0]
+            # Extract logits with better error handling
+            good_logits = self._extract_logits(good_outputs, "good")
+            bad_logits = self._extract_logits(bad_outputs, "bad")
 
-            # DEFENSIVE CHECK: Verify logits are 3D tensors
+            # CRITICAL: Verify logits are 3D tensors BEFORE any slicing operations
+            # This prevents "Dimension out of range" errors from slicing operations
             if good_logits.dim() != 3:
                 raise ValueError(
                     f"MultiBLiMP requires 3D logits [batch, seq_len, vocab_size]. "
                     f"Got {good_logits.dim()}D tensor with shape {good_logits.shape}. "
                     f"Model: {self.model.__class__.__name__}. "
-                    f"This usually means a classification wrapper wasn't unwrapped."
+                    f"Output type: {type(good_outputs)}. "
+                    f"This usually means a classification wrapper wasn't unwrapped. "
+                    f"The model should output per-token predictions, not per-sequence predictions."
                 )
 
             if bad_logits.dim() != 3:
                 raise ValueError(
                     f"MultiBLiMP requires 3D logits [batch, seq_len, vocab_size]. "
-                    f"Got {bad_logits.dim()}D tensor with shape {bad_logits.shape}."
+                    f"Got {bad_logits.dim()}D tensor with shape {bad_logits.shape}. "
+                    f"Model: {self.model.__class__.__name__}. "
+                    f"Output type: {type(bad_outputs)}. "
+                    f"The model should output per-token predictions, not per-sequence predictions."
                 )
 
             # Verify reasonable vocabulary size
@@ -322,6 +328,15 @@ class MultiBLiMPEvaluator:
                     f"Small vocabulary size ({vocab_size}). Expected 10k-50k for LM. "
                     f"This might indicate a classification model."
                 )
+
+            # Verify sequence length is sufficient for shifting
+            seq_len = good_logits.size(1)
+            if seq_len < 2:
+                logger.warning(
+                    f"Sequence length ({seq_len}) too short for next-token prediction. "
+                    f"Need at least 2 tokens. Skipping this pair."
+                )
+                return False, float('inf'), float('inf'), 0.0
 
             # Compute loss for good sentence
             # Shift logits and labels for next-token prediction
@@ -358,6 +373,54 @@ class MultiBLiMPEvaluator:
             # Log other errors but return failure gracefully
             logger.warning(f"Error evaluating pair: {e}")
             return False, float('inf'), float('inf'), 0.0
+
+    def _extract_logits(self, model_outputs, sentence_type: str = "") -> torch.Tensor:
+        """
+        Safely extract logits from model outputs with comprehensive error handling.
+
+        Args:
+            model_outputs: Model output object
+            sentence_type: Descriptor for error messages ("good"/"bad")
+
+        Returns:
+            Logits tensor [batch, seq_len, vocab_size]
+
+        Raises:
+            ValueError: If logits cannot be extracted or have wrong dimensions
+        """
+        logits = None
+
+        # Try to extract logits attribute
+        if hasattr(model_outputs, 'logits'):
+            logits = model_outputs.logits
+        # Try tuple/list indexing
+        elif isinstance(model_outputs, (tuple, list)) and len(model_outputs) > 0:
+            logits = model_outputs[0]
+        # Try dict-like access
+        elif isinstance(model_outputs, dict) and 'logits' in model_outputs:
+            logits = model_outputs['logits']
+        else:
+            raise ValueError(
+                f"Cannot extract logits from {sentence_type} sentence output. "
+                f"Output type: {type(model_outputs)}. "
+                f"Available attributes: {dir(model_outputs) if hasattr(model_outputs, '__dir__') else 'N/A'}"
+            )
+
+        # Verify we got a tensor
+        if not isinstance(logits, torch.Tensor):
+            raise ValueError(
+                f"Extracted logits are not a tensor for {sentence_type} sentence. "
+                f"Got type: {type(logits)}"
+            )
+
+        # Early dimension check with helpful error message
+        if logits.dim() < 2:
+            raise ValueError(
+                f"Logits for {sentence_type} sentence have {logits.dim()} dimensions, "
+                f"expected at least 2D tensor. Shape: {logits.shape}"
+            )
+
+        return logits
 
     def _tokenize_sentence(self, sentence: str) -> Dict[str, torch.Tensor]:
         """
