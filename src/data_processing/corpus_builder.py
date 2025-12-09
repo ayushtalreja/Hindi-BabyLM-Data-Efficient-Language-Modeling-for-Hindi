@@ -23,6 +23,7 @@ try:
     from .text_cleaner import clean_text
     # Use unified file I/O utilities instead of deprecated cache_manager
     from .utils import check_cache_exists, load_pickle, save_pickle
+    from .utils.data_provenance import DataProvenanceTracker
 except ImportError:
     # Fallback for when script is run directly
     from src.data_processing.downloaders import IndicCorpDownloader, WikiDownloader, IndicDialogueLoader
@@ -32,6 +33,7 @@ except ImportError:
     from src.data_processing.text_cleaner import clean_text
     # Use unified file I/O utilities instead of deprecated cache_manager
     from src.data_processing.utils import check_cache_exists, load_pickle, save_pickle
+    from src.data_processing.utils.data_provenance import DataProvenanceTracker
 
 
 class TextDataset(Dataset):
@@ -92,6 +94,9 @@ class CorpusBuilder:
             threshold=deduplication_config.get('similarity_threshold', 0.8),
             num_perm=deduplication_config.get('num_permutations', 256)
         )
+
+        # Initialize data provenance tracker
+        self.provenance_tracker = DataProvenanceTracker(config)
 
         # Create directories
         os.makedirs(self.data_dir, exist_ok=True)
@@ -189,6 +194,10 @@ class CorpusBuilder:
                 all_data['indiccorp'] = indiccorp_texts
                 print(f"   Total IndicCorp samples: {len(all_data['indiccorp']):,}")
 
+                # Track raw data statistics
+                total_words = sum(len(text.split()) for text in indiccorp_texts)
+                self.provenance_tracker.add_raw_data_stats('indiccorp', len(indiccorp_texts), total_words)
+
                 # Save to cache for future runs
                 self._save_source_to_cache(all_data['indiccorp'], 'indiccorp')
             except Exception as e:
@@ -222,6 +231,10 @@ class CorpusBuilder:
 
                 all_data['wikipedia'] = wiki_texts
                 print(f"   Downloaded {len(all_data['wikipedia']):,} Wikipedia articles")
+
+                # Track raw data statistics
+                total_words = sum(len(text.split()) for text in wiki_texts)
+                self.provenance_tracker.add_raw_data_stats('wikipedia', len(wiki_texts), total_words)
 
                 # Save to cache for future runs
                 self._save_source_to_cache(all_data['wikipedia'], 'wikipedia')
@@ -259,6 +272,10 @@ class CorpusBuilder:
                 all_data['indicdialogue'] = dialogue_texts
                 print(f"   Loaded {len(all_data['indicdialogue']):,} dialogue texts")
 
+                # Track raw data statistics
+                total_words = sum(len(text.split()) for text in dialogue_texts)
+                self.provenance_tracker.add_raw_data_stats('indicdialogue', len(dialogue_texts), total_words)
+
                 # Save to cache for future runs
                 self._save_source_to_cache(all_data['indicdialogue'], 'indicdialogue')
             except Exception as e:
@@ -280,6 +297,10 @@ class CorpusBuilder:
                 stories = collect_childrens_stories(max_stories=max_stories)
                 all_data['childrens_books'] = stories
                 print(f"   Collected {len(all_data['childrens_books']):,} children's stories")
+
+                # Track raw data statistics
+                total_words = sum(len(text.split()) for text in stories)
+                self.provenance_tracker.add_raw_data_stats('childrens_books', len(stories), total_words)
 
                 # Save to cache for future runs (even if empty)
                 self._save_source_to_cache(all_data['childrens_books'], 'childrens_stories')
@@ -349,6 +370,9 @@ class CorpusBuilder:
                 deduplicated_by_source[source] = deduplicated_texts
                 total_removed += len(removed_indices)
                 print(f"  {source}: Removed {len(removed_indices)} duplicates, {len(deduplicated_texts)} remaining")
+
+                # Track deduplication statistics
+                self.provenance_tracker.add_deduplication_stats(source, len(texts), len(removed_indices))
 
             print(f"\nTotal duplicates removed: {total_removed}")
             total_after = sum(len(texts) for texts in deduplicated_by_source.values())
@@ -449,6 +473,7 @@ class CorpusBuilder:
         print(f"\n📊 Creating validation split (target: {self.val_word_limit:,} words, balanced across sources)...")
         val_words_per_source = self.val_word_limit // len(available_sources)
         val_word_counts = {source: 0 for source in available_sources.keys()}
+        val_doc_counts = {source: 0 for source in available_sources.keys()}
         total_val_words = 0
 
         for source in available_sources.keys():
@@ -465,6 +490,7 @@ class CorpusBuilder:
                 if val_word_counts[source] + text_words <= val_words_per_source:
                     splits['val'].append(text)
                     val_word_counts[source] += text_words
+                    val_doc_counts[source] += 1
                     total_val_words += text_words
                     source_val_count += 1
                 else:
@@ -479,6 +505,7 @@ class CorpusBuilder:
         print(f"\n📊 Creating test split (target: {self.test_word_limit:,} words, balanced across sources)...")
         test_words_per_source = self.test_word_limit // len(available_sources)
         test_word_counts = {source: 0 for source in available_sources.keys()}
+        test_doc_counts = {source: 0 for source in available_sources.keys()}
         total_test_words = 0
 
         for source in available_sources.keys():
@@ -495,6 +522,7 @@ class CorpusBuilder:
                 if test_word_counts[source] + text_words <= test_words_per_source:
                     splits['test'].append(text)
                     test_word_counts[source] += text_words
+                    test_doc_counts[source] += 1
                     total_test_words += text_words
                     source_test_count += 1
                 else:
@@ -534,6 +562,7 @@ class CorpusBuilder:
                 print(f"      {source}: {ratio:.1%} ({train_words_per_source[source]:,} words)")
 
         train_word_counts = {source: 0 for source in available_sources.keys()}
+        train_doc_counts = {source: 0 for source in available_sources.keys()}
         total_train_words = 0
 
         for source in available_sources.keys():
@@ -554,6 +583,7 @@ class CorpusBuilder:
                 if train_word_counts[source] + text_words <= target_words:
                     splits['train'].append(text)
                     train_word_counts[source] += text_words
+                    train_doc_counts[source] += 1
                     total_train_words += text_words
                     source_train_count += 1
                 else:
@@ -563,6 +593,30 @@ class CorpusBuilder:
             print(f"{source_train_count} texts, {train_word_counts[source]:,} words")
 
         print(f"   ✓ Training split: {len(splits['train'])} texts, {total_train_words:,} words")
+
+        # Save split statistics to tracker
+        for source in available_sources.keys():
+            # Add validation split stats
+            self.provenance_tracker.add_split_stats(
+                'val', source,
+                val_doc_counts[source],
+                val_word_counts[source]
+            )
+
+            # Add test split stats
+            self.provenance_tracker.add_split_stats(
+                'test', source,
+                test_doc_counts[source],
+                test_word_counts[source]
+            )
+
+            # Add training split stats (only if source was included in training)
+            if source in train_word_counts:
+                self.provenance_tracker.add_split_stats(
+                    'train', source,
+                    train_doc_counts[source],
+                    train_word_counts[source]
+                )
 
         # Final summary
         print("\n" + "="*80)
@@ -651,6 +705,12 @@ class CorpusBuilder:
             json.dump(metadata, f, indent=2)
 
         print(f"  Saved metadata to {metadata_path}")
+
+        # Save comprehensive data provenance report
+        output_dir = 'results/data_processing'
+        success = self.provenance_tracker.save_report(output_dir)
+        if success:
+            print(f"  Saved data provenance report to {output_dir}/data_provenance_report.json")
 
     def load_splits(self) -> Dict[str, List[str]]:
         """Load processed splits from disk"""

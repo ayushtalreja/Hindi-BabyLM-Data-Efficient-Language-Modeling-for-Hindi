@@ -26,6 +26,7 @@ from .sampling import sample_texts
 from .hindi_utils import HindiValidator
 from .logging_utils import configure_logger, get_logger
 from .http_utils import HTTPClient, get_url
+from .data_provenance import DataProvenanceTracker
 
 __all__ = [
     "save_pickle",
@@ -44,5 +45,6 @@ __all__ = [
     "configure_logger",
     "get_logger",
     "HTTPClient",
-    "get_url"
+    "get_url",
+    "DataProvenanceTracker"
 ]
