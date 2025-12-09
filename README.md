@@ -499,7 +499,7 @@ Comprehensive Hindi benchmark evaluation:
 
 1. **BBC Articles Classification** - 14-class news categorization
 2. **Wikipedia Section Titles** - 4-choice title prediction
-3. **CommonsenseQA** - 4-choice commonsense reasoning
+3. **Cloze-style multiple-choice QA** - 4-choice commonsense reasoning
 4. **WinogradNLI** - 3-class natural language inference
 5. **COPA** (Choice of Plausible Alternatives) - 2-choice causal reasoning
 6. **Movie Review Sentiment** - 3-class sentiment (positive/negative/neutral)

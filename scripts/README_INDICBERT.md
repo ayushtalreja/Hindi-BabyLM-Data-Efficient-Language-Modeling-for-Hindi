@@ -163,7 +163,7 @@ These use text pairs with [SEP] tokens:
 | Task Code | Task Name | Choices | Examples |
 |-----------|-----------|---------|----------|
 | WSTP | Wikipedia Section Title Prediction | 4 | ~449 |
-| CSQA | CommonsenseQA | 4 | **Skipped*** |
+| CSQA | Cloze-style multiple-choice QA | 4 | **Skipped*** |
 
 *CSQA is skipped due to missing train/validation splits in the dataset.
 
@@ -187,7 +187,7 @@ These use premise-alternative pairs:
 
 ### Skipped Tasks
 1 task will be skipped (this is expected):
-- ✗ CSQA (CommonsenseQA) - Dataset missing train/val splits
+- ✗ CSQA (Cloze-style multiple-choice QA) - Dataset missing train/val splits
 
 ### Example Output
 
@@ -204,7 +204,7 @@ BBCArticlesClassification                   85.67%     84.23%       1200        
 MovieReviewSentiment                        78.90%     77.45%        800          ✓
 ProductReviewSentiment                      79.12%     78.01%        900          ✓
 DiscourseMode                               72.34%     70.56%        600          ✓
-CommonsenseQA                                  N/A        N/A        N/A          ✗
+Cloze-style multiple-choice QA                 N/A        N/A        N/A          ✗
 --------------------------------------------------------------------------------
 
 Summary:
@@ -244,7 +244,7 @@ python scripts/evaluate_indicbert.py
 
 ### CSQA Task Skipped
 
-This is expected behavior. The CommonsenseQA dataset in IndicGLUE has only test split, no train/validation splits, so fine-tuning is not possible.
+This is expected behavior. The Cloze-style multiple-choice QA dataset in IndicGLUE has only test split, no train/validation splits, so fine-tuning is not possible.
 
 ## Comparing with Paper Results
 

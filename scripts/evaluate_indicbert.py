@@ -404,6 +404,22 @@ class IndicBERTEvaluationWrapper:
         self.device = device
         return self
 
+    def eval(self):
+        """Set model to evaluation mode"""
+        self.base_model.eval()
+        # Also set any wrapped models to eval mode
+        for wrapped_model in self.wrapped_models.values():
+            wrapped_model.eval()
+        return self
+
+    def train(self, mode=True):
+        """Set model to training mode"""
+        self.base_model.train(mode)
+        # Also set any wrapped models to train mode
+        for wrapped_model in self.wrapped_models.values():
+            wrapped_model.train(mode)
+        return self
+
     def __call__(self, **kwargs):
         """Forward pass for base model (used by multiple-choice tasks)"""
         return self.base_model(**kwargs)
@@ -771,7 +787,7 @@ def evaluate_indicbert_on_indicglue(
 
     task_mapping = {
         'WSTP': 'Wikipedia Section Title Prediction',
-        'CSQA': 'CommonsenseQA',
+        'CSQA': 'Cloze-style multiple-choice QA',
         'BBCA': 'BBCArticlesClassification',
         'iitp-mr': 'MovieReviewSentiment',
         'iitp-pr': 'ProductReviewSentiment',
