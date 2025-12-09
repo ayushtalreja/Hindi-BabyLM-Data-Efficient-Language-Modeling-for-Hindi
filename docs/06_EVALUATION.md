@@ -173,7 +173,7 @@ def generate_summary(self) -> Dict:
 |------|------|-----------------|--------|-------------|
 | **BBC Articles Classification (BBCA)** | Classification | 14 classes | Accuracy | News category classification |
 | **Wikipedia Section Titles** | Multiple Choice | 4 choices | Accuracy | Section title prediction |
-| **CommonsenseQA (CSQ)** | Multiple Choice | 4 choices | Accuracy | Commonsense reasoning |
+| **Cloze-style multiple-choice QA (CSQA)** | Multiple Choice | 4 choices | Accuracy | Commonsense reasoning |
 | **WinogradNLI (WNLI)** | NLI | 3 classes | Accuracy | Natural language inference |
 | **COPA** (Choice of Plausible Alternatives) | Multiple Choice | 2 choices | Accuracy | Causal reasoning |
 | **Movie Review Sentiment** | Sentiment | 3 classes | F1/Accuracy | Positive/Negative/Neutral |
