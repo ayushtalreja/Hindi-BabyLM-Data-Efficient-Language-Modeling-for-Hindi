@@ -57,7 +57,7 @@ data/tokenized/
 !data/tokenized/.gitkeep
 
 # Results and outputs
-results/*/
+results/*/models/
 outputs/
 checkpoints/
 *.pt
