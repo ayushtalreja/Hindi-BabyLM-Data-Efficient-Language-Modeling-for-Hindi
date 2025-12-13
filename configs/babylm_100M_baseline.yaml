@@ -6,7 +6,7 @@
 
 # Experiment Configuration
 experiment:
-  name: "gpt2_100M_with_babaylm_config"
+  name: "gpt2_100M_with_babaylm_config-V2"
   description: "GPT-2 model matching BabyLM 100M baseline architecture"
   tags: ["babylm-baseline", "gpt2", "100M", "768-hidden"]
 
@@ -42,9 +42,9 @@ data:
 
   # Source Mixing Ratios (for training data only)
   train_source_ratios:
-    indiccorp: 0.65        # 65% from IndicCorp
-    wikipedia: 0.25        # 25% from Wikipedia
-    indicdialogue: 0.05    # 5% from IndicDialogue
+    indiccorp: 0.50        # 65% from IndicCorp
+    wikipedia: 0.30        # 25% from Wikipedia
+    indicdialogue: 0.15    # 5% from IndicDialogue
     childrens_books: 0.05  # 5% from children's books
 
   # Data Sources
@@ -52,7 +52,7 @@ data:
     indiccorp:
       enabled: true
       ratio: 0.65
-      max_samples: 500000
+      max_samples: 50000
 
     wikipedia:
       enabled: true
@@ -102,7 +102,7 @@ tokenization:
   type: "bpe"
 
   # Vocabulary (matching BabyLM baseline)
-  vocab_size: 16384  # BabyLM GPT-2 baseline vocab size
+  vocab_size: 32000  
   character_coverage: 0.9995
 
   # Special Tokens
@@ -163,15 +163,15 @@ model:
 # ==============================================================================
 training:
   # Basic Training Parameters
-  batch_size: 16 
-  gradient_accumulation_steps: 8  # Effective batch = 128 (16 * 8 = 128)
+  batch_size: 32 
+  gradient_accumulation_steps: 8  # Effective batch = 256 (32 * 8 = 256)  
   num_epochs: 10
-  max_steps: 211650
+  max_steps: null
 
   # Optimization
   optimizer:
     type: "adamw"
-    learning_rate: 0.00005 
+    learning_rate: 0.0003 # using my lr
     weight_decay: 0.01
     beta1: 0.9
     beta2: 0.999
@@ -181,7 +181,7 @@ training:
   # Learning Rate Scheduling
   lr_scheduler:
     type: "cosine_with_warmup"
-    warmup_steps: 21165  # 10% of total steps
+    warmup_steps: 1000  
     warmup_ratio: 0.1
     num_cycles: 0.5
     min_lr_ratio: 0.0
@@ -189,7 +189,7 @@ training:
   # Gradient Management
   gradient:
     max_grad_norm: 1.0
-    gradient_checkpointing: true
+    gradient_checkpointing: false
 
   # Mixed Precision Training
   mixed_precision:
@@ -200,8 +200,8 @@ training:
   # Checkpointing
   checkpointing:
     save_strategy: "steps"
-    save_steps: 2000
-    save_total_limit: 3
+    save_steps: 1000
+    save_total_limit: 1
     load_best_model_at_end: true
     metric_for_best_model: "eval_loss"
     greater_is_better: false
@@ -209,7 +209,7 @@ training:
   # Evaluation
   evaluation:
     eval_strategy: "steps"
-    eval_steps: 1000
+    eval_steps: 500
     per_device_eval_batch_size: 64
     eval_accumulation_steps: null
 
@@ -222,7 +222,7 @@ training:
   # Early Stopping
   early_stopping:
     enabled: true
-    patience: 5
+    patience: 3
     threshold: 0.001
 
   # Reproducibility
@@ -341,7 +341,7 @@ experiment_tracking:
 
   # TensorBoard
   tensorboard:
-    enabled: true
+    enabled: false
     log_dir: "logs/tensorboard"
 
   # MLflow
