@@ -4,15 +4,13 @@ deberta_config: null
 device: cuda
 dropout: 0.1
 eval_steps: 500
-experiment_description: GPT-2 model matching BabyLM 10M baseline architecture with
-  32K vocab size
-experiment_name: gpt2_10M_babylm_baseline_32k_vocab
+experiment_description: GPT-2 model matching BabyLM 10M baseline architecture
+experiment_name: gpt2_10M_babylm_baseline
 experiment_tags:
 - babylm-baseline
 - gpt2
 - 10M
 - 768-hidden
-- 32K Vocab size
 gpt_config: !!python/object:src.utils.experiment_config.GPTModelConfig
   reorder_and_upcast_attn: false
   scale_attn_weights: true
@@ -35,14 +33,14 @@ num_workers: 64
 pin_memory: true
 results_dir: results
 save_steps: 1000
-test_ratio: null
+test_ratio: 0.1
 test_word_limit: 10000000
 tokenizer_dir: tokenizers
 tokenizer_type: bpe
-train_ratio: null
+train_ratio: 0.8
 train_word_limit: 10000000
-val_ratio: null
+val_ratio: 0.1
 val_word_limit: 10000000
-vocab_size: 32000
+vocab_size: 16384
 warmup_steps: 213
 weight_decay: 0.01
