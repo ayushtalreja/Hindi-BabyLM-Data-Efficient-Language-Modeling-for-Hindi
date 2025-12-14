@@ -28,6 +28,7 @@ from torch.utils.data import DataLoader
 import argparse
 import logging
 import json
+import yaml
 import pandas as pd
 from datetime import datetime
 from typing import Dict, Optional, List, Any
@@ -614,7 +615,7 @@ def save_results(results: Dict, summary: Dict, config: Dict,
         'summary': summary
     }
 
-    detailed_file = output_path / 'indicbert_results_detailed.json'
+    detailed_file = output_path / 'evaluation_results.json'
     with open(detailed_file, 'w') as f:
         json.dump(detailed_output, f, indent=2, default=str)
     logger.info(f"  ✓ Saved: {detailed_file}")
@@ -645,15 +646,15 @@ def save_results(results: Dict, summary: Dict, config: Dict,
                 'Status': task_result.get('status', 'unknown')
             })
 
-    csv_file = output_path / 'indicbert_results_summary.csv'
+    csv_file = output_path / 'evaluation_summary.csv'
     df = pd.DataFrame(csv_data)
     df.to_csv(csv_file, index=False)
     logger.info(f"  ✓ Saved: {csv_file}")
 
-    # 3. Config JSON
-    config_file = output_path / 'indicbert_config.json'
+    # 3. Config YAML
+    config_file = output_path / 'config.yaml'
     with open(config_file, 'w') as f:
-        json.dump(config, f, indent=2, default=str)
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
     logger.info(f"  ✓ Saved: {config_file}")
 
 
