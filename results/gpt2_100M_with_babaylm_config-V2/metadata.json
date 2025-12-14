@@ -1,0 +1,12 @@
+{
+  "experiment_name": "gpt2_100M_with_babaylm_config-V2",
+  "timestamp": "2025-12-13T19:22:36.789903",
+  "python_version": "3.9.23 (main, Jun  5 2025, 13:40:20) \n[GCC 11.2.0]",
+  "pytorch_version": "2.8.0+cu128",
+  "cuda_available": true,
+  "cuda_version": "12.8",
+  "gpu_count": 1,
+  "gpu_names": [
+    "NVIDIA A100-SXM4-80GB"
+  ]
+}
