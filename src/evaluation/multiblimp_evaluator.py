@@ -71,6 +71,14 @@ class MultiBLiMPEvaluator:
                 raise
 
         self.model = model
+
+        # Diagnostic logging for model structure
+        logger.info(f"Final model type for MultiBLiMP: {model.__class__.__name__}")
+        logger.info(f"Model module: {model.__class__.__module__}")
+        model_attrs = [attr for attr in dir(model) if not attr.startswith('_')]
+        logger.info(f"Model has {len(model_attrs)} public attributes")
+        logger.debug(f"Model attributes: {model_attrs}")
+
         self.tokenizer = tokenizer
         self.config = config or {}
 
@@ -296,9 +304,30 @@ class MultiBLiMPEvaluator:
             good_outputs = self.model(**good_inputs)
             bad_outputs = self.model(**bad_inputs)
 
+            # Diagnostic logging for model outputs
+            logger.debug(f"Model output type: {type(good_outputs)}")
+            logger.debug(f"Model output attributes: {dir(good_outputs) if hasattr(good_outputs, '__dir__') else 'N/A'}")
+            if hasattr(good_outputs, 'logits'):
+                logger.debug(f"Output has 'logits' attribute with shape: {good_outputs.logits.shape}")
+            if hasattr(good_outputs, 'last_hidden_state'):
+                logger.debug(f"Output has 'last_hidden_state' attribute with shape: {good_outputs.last_hidden_state.shape}")
+
             # Extract logits with better error handling
             good_logits = self._extract_logits(good_outputs, "good")
             bad_logits = self._extract_logits(bad_outputs, "bad")
+
+            # Diagnostic logging for logits comparison
+            logger.info(f"Logits extracted for minimal pair evaluation:")
+            logger.info(f"  Good sentence logits shape: {good_logits.shape}")
+            logger.info(f"  Bad sentence logits shape: {bad_logits.shape}")
+            logger.info(f"  Good logits vocab size (last dim): {good_logits.size(-1)}")
+            logger.info(f"  Tokenizer vocab size: {self.tokenizer.vocab_size if hasattr(self.tokenizer, 'vocab_size') else 'N/A'}")
+            if good_logits.size(-1) != bad_logits.size(-1):
+                logger.warning(f"  WARNING: Vocab size mismatch between good and bad logits!")
+            if hasattr(self.tokenizer, 'vocab_size') and good_logits.dim() >= 3:
+                if good_logits.size(-1) != self.tokenizer.vocab_size:
+                    logger.warning(f"  WARNING: Logits vocab size ({good_logits.size(-1)}) != tokenizer vocab size ({self.tokenizer.vocab_size})")
+                    logger.warning(f"  This suggests hidden states instead of vocab logits!")
 
             # CRITICAL: Verify logits are 3D tensors BEFORE any slicing operations
             # This prevents "Dimension out of range" errors from slicing operations
@@ -340,7 +369,9 @@ class MultiBLiMPEvaluator:
 
             # Compute loss for good sentence
             # Shift logits and labels for next-token prediction
+            logger.debug(f"About to shift logits: good_logits.shape = {good_logits.shape}, attempting [:, :-1, :]")
             good_shift_logits = good_logits[:, :-1, :].contiguous()
+            logger.debug(f"Successfully shifted good_logits to shape: {good_shift_logits.shape}")
             good_shift_labels = good_inputs['input_ids'][:, 1:].contiguous()
 
             # Compute cross-entropy loss
@@ -419,6 +450,14 @@ class MultiBLiMPEvaluator:
                 f"Logits for {sentence_type} sentence have {logits.dim()} dimensions, "
                 f"expected at least 2D tensor. Shape: {logits.shape}"
             )
+
+        # Diagnostic logging for extracted logits
+        logger.debug(f"Extracted logits for {sentence_type} sentence:")
+        logger.debug(f"  Shape: {logits.shape}")
+        logger.debug(f"  Dtype: {logits.dtype}")
+        logger.debug(f"  Device: {logits.device}")
+        if logits.dim() >= 3:
+            logger.debug(f"  Vocab size (last dim): {logits.size(-1)}")
 
         return logits
 
