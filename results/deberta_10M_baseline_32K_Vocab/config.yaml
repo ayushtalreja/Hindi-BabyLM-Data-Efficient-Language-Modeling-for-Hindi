@@ -11,7 +11,7 @@ device: cuda
 dropout: 0.1
 eval_steps: 500
 experiment_description: DeBERTa model on 10M word corpus - architecture comparison
-experiment_name: deberta_10M_baseline
+experiment_name: deberta_10M_baseline_32K_Vocab
 experiment_tags:
 - baseline
 - deberta
