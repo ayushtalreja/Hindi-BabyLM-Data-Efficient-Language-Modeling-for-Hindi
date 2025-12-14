@@ -320,6 +320,9 @@ evaluation:
   # Visualization Settings
   save_visualizations: true
   visualization_format: ["png", "html"]
+  
+  # Label Validation (CRITICAL for data quality)
+  strict_label_validation: true
 
   # Comparative Analysis
   enable_comparative_reports: true

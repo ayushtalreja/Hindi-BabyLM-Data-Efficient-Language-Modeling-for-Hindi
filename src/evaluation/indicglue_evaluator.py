@@ -107,6 +107,16 @@ class IndicGLUEEvaluator:
         self.device = next(model.parameters()).device
         logger.info(f"IndicGLUE evaluator initialized on device: {self.device}")
 
+        # Extract max_length from config (IndicBERT paper specifies 128 tokens)
+        self.max_length = int(self.config.get('max_length', 128))
+        logger.info(f"Max sequence length: {self.max_length} tokens (IndicBERT paper uses 128)")
+
+        # Ensure tokenizer has a pad token
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            logger.warning(f"Tokenizer had no pad_token, using eos_token: {self.tokenizer.eos_token}")
+        logger.info(f"Tokenizer pad_token: {self.tokenizer.pad_token} (id: {self.tokenizer.pad_token_id})")
+
         # Detect if the model is already a classification model or a language model
         # Language models have output shape [batch, seq_len, vocab_size]
         # Classification models have output shape [batch, num_classes]
@@ -192,6 +202,13 @@ class IndicGLUEEvaluator:
             confidence_level=float(eval_config.get('confidence_level', 0.95))
         )
 
+        # Label validation mode
+        # - strict (True): Raise ValueError on invalid labels (recommended for development)
+        # - permissive (False): Log warnings and default to class 0 (for production with noisy data)
+        self.strict_label_validation = bool(eval_config.get('strict_label_validation', True))
+        logger.info(f"Label validation mode: {'STRICT' if self.strict_label_validation else 'PERMISSIVE'} "
+                   f"(invalid labels will {'raise errors' if self.strict_label_validation else 'default to 0'})")
+
         # Initialize cache manager
         self.cache_manager = EvaluationCache(
             cache_dir=eval_config.get('cache_dir', '.eval_cache'),
@@ -202,6 +219,14 @@ class IndicGLUEEvaluator:
         # Visualization settings
         self.save_visualizations = eval_config.get('save_visualizations', True)
         self.visualization_format = eval_config.get('visualization_format', ['png', 'html'])
+
+        # Track evaluation mode (fine-tuned vs zero-shot)
+        # This is critical for routing multiple-choice tasks correctly:
+        # - Fine-tuned mode: Use trained classification heads
+        # - Zero-shot mode: Use perplexity-based scoring
+        self._is_finetuned_mode = False
+        self._current_fine_tuning_info = None
+        logger.info("Evaluation mode initialized: zero-shot (will switch to fine-tuned after training)")
 
     def _is_language_model(self, model) -> bool:
         """
@@ -257,7 +282,7 @@ class IndicGLUEEvaluator:
 
     def _convert_bbca_labels_to_int(self, labels):
         """
-        Convert BBCA string labels to integer indices.
+        Convert BBCA string labels to integer indices with validation.
 
         The IndicGLUE BBCA dataset stores labels as strings (e.g., 'india', 'pakistan'),
         but models return integer predictions. This method converts string labels to
@@ -268,12 +293,20 @@ class IndicGLUEEvaluator:
 
         Returns:
             Integer label or list of integer labels
+
+        Raises:
+            ValueError: If strict_label_validation=True and label is invalid
         """
         # Handle single label
         if isinstance(labels, str):
             if labels not in BBCA_LABEL_MAP:
-                logger.warning(f"Unknown BBCA label '{labels}', defaulting to 0 (business)")
-                return 0
+                msg = (f"Invalid BBCA label '{labels}'. "
+                      f"Valid labels: {list(BBCA_LABEL_MAP.keys())}")
+                if self.strict_label_validation:
+                    raise ValueError(msg)
+                else:
+                    logger.error(msg + " - Defaulting to 0 (business)")
+                    return 0
             return BBCA_LABEL_MAP[labels]
 
         # Handle list of labels
@@ -281,8 +314,13 @@ class IndicGLUEEvaluator:
         for label in labels:
             if isinstance(label, str):
                 if label not in BBCA_LABEL_MAP:
-                    logger.warning(f"Unknown BBCA label '{label}', defaulting to 0 (business)")
-                    converted_labels.append(0)
+                    msg = (f"Invalid BBCA label '{label}'. "
+                          f"Valid labels: {list(BBCA_LABEL_MAP.keys())}")
+                    if self.strict_label_validation:
+                        raise ValueError(msg)
+                    else:
+                        logger.error(msg + " - Defaulting to 0 (business)")
+                        converted_labels.append(0)
                 else:
                     converted_labels.append(BBCA_LABEL_MAP[label])
             else:
@@ -293,7 +331,7 @@ class IndicGLUEEvaluator:
 
     def _convert_discourse_mode_labels_to_int(self, labels):
         """
-        Convert DiscourseMode string labels to integer indices.
+        Convert DiscourseMode string labels to integer indices with validation.
 
         The IndicGLUE DiscourseMode dataset stores labels as strings (e.g., 'Narrative', 'Descriptive'),
         but models return integer predictions. This method converts string labels to
@@ -304,12 +342,20 @@ class IndicGLUEEvaluator:
 
         Returns:
             Integer label or list of integer labels
+
+        Raises:
+            ValueError: If strict_label_validation=True and label is invalid
         """
         # Handle single label
         if isinstance(labels, str):
             if labels not in DISCOURSE_MODE_LABEL_MAP:
-                logger.warning(f"Unknown DiscourseMode label '{labels}', defaulting to 0 (Narrative)")
-                return 0
+                msg = (f"Invalid DiscourseMode label '{labels}'. "
+                      f"Valid labels: {list(DISCOURSE_MODE_LABEL_MAP.keys())}")
+                if self.strict_label_validation:
+                    raise ValueError(msg)
+                else:
+                    logger.error(msg + " - Defaulting to 0 (Narrative)")
+                    return 0
             return DISCOURSE_MODE_LABEL_MAP[labels]
 
         # Handle list of labels
@@ -317,8 +363,13 @@ class IndicGLUEEvaluator:
         for label in labels:
             if isinstance(label, str):
                 if label not in DISCOURSE_MODE_LABEL_MAP:
-                    logger.warning(f"Unknown DiscourseMode label '{label}', defaulting to 0 (Narrative)")
-                    converted_labels.append(0)
+                    msg = (f"Invalid DiscourseMode label '{label}'. "
+                          f"Valid labels: {list(DISCOURSE_MODE_LABEL_MAP.keys())}")
+                    if self.strict_label_validation:
+                        raise ValueError(msg)
+                    else:
+                        logger.error(msg + " - Defaulting to 0 (Narrative)")
+                        converted_labels.append(0)
                 else:
                     converted_labels.append(DISCOURSE_MODE_LABEL_MAP[label])
             else:
@@ -546,6 +597,11 @@ class IndicGLUEEvaluator:
             # Zero-shot evaluation (original behavior)
             logger.info(f"Zero-shot mode for {task_name}")
 
+            # Clear fine-tuning info for zero-shot mode
+            # This enables perplexity-based scoring for multiple-choice tasks
+            self._current_fine_tuning_info = None
+            self._is_finetuned_mode = False
+
             # Load test data
             try:
                 dataset = self._load_task_data(task_name, split='test')
@@ -572,7 +628,11 @@ class IndicGLUEEvaluator:
 
     def _evaluate_with_model(self, model, dataset: Dataset, task_name: str) -> Dict:
         """
-        Unified evaluation routing based on task type
+        Unified evaluation routing based on task type AND evaluation mode.
+
+        CRITICAL: Multiple-choice tasks can be evaluated two ways:
+        - Fine-tuned mode: Use trained classification head (treat as N-class classification)
+        - Zero-shot mode: Use perplexity-based scoring
 
         Args:
             model: Model to evaluate
@@ -586,13 +646,26 @@ class IndicGLUEEvaluator:
 
         task_config = self.tasks[task_name]
 
-        # Route to task-type-specific evaluation
+        # Detect if we're in fine-tuned mode
+        is_finetuned = self._is_finetuned_mode
+
+        # Route based on task type AND evaluation mode
         if task_config['type'] == 'multiple_choice':
-            # Multiple-choice tasks use perplexity-based scoring (proper zero-shot)
-            return self._evaluate_multiple_choice(dataset, task_name)
+            if is_finetuned:
+                # Fine-tuned mode: Use trained classification head
+                logger.info(f"[ROUTING] {task_name}: Fine-tuned mode → Using classification head "
+                           f"({task_config['num_labels']}-class classification)")
+                return self._evaluate_classification(dataset, task_name, model)
+            else:
+                # Zero-shot mode: Use perplexity-based scoring
+                logger.info(f"[ROUTING] {task_name}: Zero-shot mode → Using perplexity scoring")
+                return self._evaluate_multiple_choice(dataset, task_name)
+
         elif task_config['type'] in ['classification', 'nli']:
-            # Classification and NLI tasks use classification heads
+            # Classification and NLI tasks always use classification heads
+            logger.info(f"[ROUTING] {task_name}: Classification/NLI task → Using classification head")
             return self._evaluate_classification(dataset, task_name, model)
+
         else:
             raise ValueError(f"Unknown task type: {task_config['type']}")
 
@@ -967,6 +1040,11 @@ class IndicGLUEEvaluator:
             'val_samples': len(val_dataset) if has_validation else 0,
             'had_validation': has_validation
         }
+
+        # Set fine-tuned mode flag
+        # This enables classification head routing for multiple-choice tasks
+        self._is_finetuned_mode = True
+        logger.info("Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)")
 
         return model
 
@@ -1443,7 +1521,9 @@ class IndicGLUEEvaluator:
 
     def _tokenize_batch(self, texts: List[str]) -> Dict[str, torch.Tensor]:
         """
-        Tokenize a batch of texts
+        Tokenize a batch of texts using configured max_length.
+
+        Uses max_length from config (default 128 per IndicBERT paper).
 
         Args:
             texts: List of text strings
@@ -1458,12 +1538,12 @@ class IndicGLUEEvaluator:
                 texts,
                 padding=True,
                 truncation=True,
-                max_length=512,
+                max_length=self.max_length,  # Use config value instead of hardcoded 512
                 return_tensors='pt'
             )
         except:
-            # Fallback to simple encoding
-            max_len = 512
+            # Fallback to simple encoding (also uses config max_length)
+            max_len = self.max_length  # Use config value instead of hardcoded 512
             input_ids = []
 
             for text in texts:
@@ -1475,9 +1555,12 @@ class IndicGLUEEvaluator:
             padded_ids = []
             attention_masks = []
 
+            # Use tokenizer's pad_token_id if available, otherwise fallback to 0
+            pad_token_id = self.tokenizer.pad_token_id if hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None else 0
+
             for ids in input_ids:
                 padding_length = max_batch_len - len(ids)
-                padded_ids.append(ids + [0] * padding_length)
+                padded_ids.append(ids + [pad_token_id] * padding_length)
                 attention_masks.append([1] * len(ids) + [0] * padding_length)
 
             encoded = {

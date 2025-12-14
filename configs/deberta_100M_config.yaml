@@ -285,6 +285,8 @@ evaluation:
   save_visualizations: true
   visualization_format: ["png", "html"]
 
+  strict_label_validation: true
+
   enable_comparative_reports: true
   report_formats: ["html", "pdf"]
   comparative_analysis_dir: "comparative_analysis"
