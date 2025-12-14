@@ -475,6 +475,18 @@ def create_evaluation_config(fine_tune: bool = True, **overrides) -> Dict:
                             'patience': 3,
                             'metric': 'accuracy',
                             'mode': 'max'
+                        },
+
+                        # Task-specific split configurations
+                        # For tasks where original splits are missing/inadequate
+                        'task_specific_splits': {
+                            "Cloze-style multiple-choice QA": {
+                                'train_ratio': 0.8,          # 80% training (~28,112 examples)
+                                'val_ratio': 0.1,            # 10% validation (~3,514 examples)
+                                'test_ratio': 0.1,           # 10% test (~3,514 examples)
+                                'split_seed': 42,            # Reproducible splits
+                                'reason': "Dataset only has test split (35,140 examples); custom splits required for fine-tuning"
+                            }
                         }
                     }
                 }

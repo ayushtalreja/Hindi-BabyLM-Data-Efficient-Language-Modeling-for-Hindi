@@ -141,7 +141,9 @@ class IndicGLUEEvaluator:
             },
             'Wikipedia Section Title Prediction': {
                 'type': 'multiple_choice',
-                'num_labels': 4,  # Four title choices (can be treated as 4-class classification)
+                'num_labels': 2,  # Binary classification per candidate (correct=1, incorrect=0)
+                'num_candidates': 4,  # Four title choices total
+                'use_binary_per_candidate': True,  # Process each candidate separately
                 'metric': 'accuracy',
                 'hf_config': 'wstp.hi'
             },
@@ -650,7 +652,20 @@ class IndicGLUEEvaluator:
         is_finetuned = self._is_finetuned_mode
 
         # Route based on task type AND evaluation mode
-        if task_config['type'] == 'multiple_choice':
+        # PRIORITY 1: Check for binary per-candidate tasks (WSTP)
+        if task_config.get('use_binary_per_candidate', False):
+            if is_finetuned:
+                # Binary per-candidate evaluation (WSTP)
+                logger.info(f"[ROUTING] {task_name}: Binary per-candidate mode → Scoring each candidate separately "
+                           f"(binary classification with {task_config.get('num_candidates', 4)} candidates)")
+                return self._evaluate_binary_candidates(dataset, task_name, model)
+            else:
+                # Zero-shot mode for binary tasks (fallback to perplexity)
+                logger.info(f"[ROUTING] {task_name}: Zero-shot binary task → Using perplexity scoring")
+                return self._evaluate_multiple_choice(dataset, task_name)
+
+        # PRIORITY 2: Standard multiple-choice tasks (COPA, CSQA)
+        elif task_config['type'] == 'multiple_choice':
             if is_finetuned:
                 # Fine-tuned mode: Use trained classification head
                 logger.info(f"[ROUTING] {task_name}: Fine-tuned mode → Using classification head "
@@ -661,6 +676,7 @@ class IndicGLUEEvaluator:
                 logger.info(f"[ROUTING] {task_name}: Zero-shot mode → Using perplexity scoring")
                 return self._evaluate_multiple_choice(dataset, task_name)
 
+        # PRIORITY 3: Classification and NLI tasks
         elif task_config['type'] in ['classification', 'nli']:
             # Classification and NLI tasks always use classification heads
             logger.info(f"[ROUTING] {task_name}: Classification/NLI task → Using classification head")
@@ -952,13 +968,28 @@ class IndicGLUEEvaluator:
         # Get model with trainable head, frozen base
         model = self._get_model_for_task(task_name, for_training=True)
 
-        # Create dataloaders
-        train_loader = self._create_task_dataloader(train_dataset, task_name,
-                                                     shuffle=True, batch_size=batch_size)
-        val_loader = None
-        if has_validation:
-            val_loader = self._create_task_dataloader(val_dataset, task_name,
-                                                       shuffle=False, batch_size=batch_size*2)
+        # Check if this task uses binary per-candidate evaluation
+        task_config = self.tasks[task_name]
+        use_binary = task_config.get('use_binary_per_candidate', False)
+
+        # Create dataloaders (use binary dataloader for WSTP)
+        if use_binary:
+            logger.info(f"Using binary per-candidate dataloader for {task_name} "
+                       f"(1 example → {task_config.get('num_candidates', 4)} training examples)")
+            train_loader = self._create_binary_candidate_dataloader(train_dataset, task_name,
+                                                                     shuffle=True, batch_size=batch_size)
+            val_loader = None
+            if has_validation:
+                val_loader = self._create_binary_candidate_dataloader(val_dataset, task_name,
+                                                                       shuffle=False, batch_size=batch_size*2)
+        else:
+            # Standard dataloader for non-binary tasks
+            train_loader = self._create_task_dataloader(train_dataset, task_name,
+                                                         shuffle=True, batch_size=batch_size)
+            val_loader = None
+            if has_validation:
+                val_loader = self._create_task_dataloader(val_dataset, task_name,
+                                                           shuffle=False, batch_size=batch_size*2)
 
         # Setup optimizer
         optimizer = torch.optim.AdamW(
@@ -1242,6 +1273,108 @@ class IndicGLUEEvaluator:
             num_workers=0  # Set to 0 to avoid multiprocessing issues
         )
 
+    def _create_binary_candidate_dataloader(self, dataset: Dataset, task_name: str,
+                                            shuffle: bool = False, batch_size: int = None) -> DataLoader:
+        """
+        Create DataLoader for binary per-candidate evaluation (WSTP)
+
+        This is used for tasks that need to score each candidate separately:
+        - WSTP: 1 example with 4 candidates → 4 training examples with binary labels
+
+        Args:
+            dataset: Dataset to create loader for
+            task_name: Name of the task
+            shuffle: Whether to shuffle the data
+            batch_size: Batch size (defaults to self.batch_size)
+
+        Returns:
+            DataLoader that expands examples into per-candidate format
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+
+        task_config = self.tasks[task_name]
+
+        def collate_fn_binary_candidates(examples):
+            """
+            Collate function for binary per-candidate classification.
+
+            For WSTP:
+            - Input: 1 example with (sectionText, titleA, titleB, titleC, titleD, correctTitle)
+            - Output: 4 examples, each with (sectionText, single_title) and binary label (0 or 1)
+
+            This allows the model to learn: "Given (section, title), is this the correct title?"
+            Instead of: "Given (section, all_titles), which index is correct?"
+            """
+            expanded_texts = []
+            expanded_labels = []
+            example_indices = []  # Track which original example each expanded example came from
+
+            for batch_idx, example in enumerate(examples):
+                # WSTP: expand into 4 candidate examples
+                if 'sectionText' in example and 'titleA' in example:
+                    section_text = example['sectionText']
+                    correct_title_key = example.get('correctTitle', '').strip()
+
+                    # Normalize correct title to match key format (e.g., "A" → "titleA")
+                    if correct_title_key and not correct_title_key.startswith('title'):
+                        correct_title_key = f"title{correct_title_key.upper()}"
+
+                    # Process each of the 4 title candidates
+                    for title_key in ['titleA', 'titleB', 'titleC', 'titleD']:
+                        candidate_title = example.get(title_key, '')
+
+                        if not candidate_title:
+                            continue  # Skip empty candidates
+
+                        # Format: "section [SEP] candidate"
+                        text = f"{section_text} [SEP] {candidate_title}"
+                        expanded_texts.append(text)
+
+                        # Binary label: 1 if this is the correct title, 0 otherwise
+                        is_correct = (title_key == correct_title_key)
+                        label = 1 if is_correct else 0
+                        expanded_labels.append(label)
+
+                        # Track which original example this came from (for evaluation grouping)
+                        example_indices.append(batch_idx)
+
+                else:
+                    # This shouldn't happen for WSTP, but handle gracefully
+                    logger.warning(f"Binary candidate collation called on non-WSTP example: {example.keys()}")
+                    # Add a dummy example to avoid breaking
+                    expanded_texts.append(example.get('text', example.get('sentence', '')))
+                    expanded_labels.append(0)
+                    example_indices.append(batch_idx)
+
+            # Tokenize all expanded examples
+            if not expanded_texts:
+                # Handle empty batch
+                logger.warning("Binary candidate collation produced no examples")
+                return {
+                    'input_ids': torch.empty((0, 10), dtype=torch.long, device=self.device),
+                    'attention_mask': torch.empty((0, 10), dtype=torch.long, device=self.device),
+                    'labels': torch.empty((0,), dtype=torch.long, device=self.device),
+                    'example_indices': torch.empty((0,), dtype=torch.long, device=self.device),
+                }
+
+            encoded = self._tokenize_batch(expanded_texts)
+            encoded['labels'] = torch.tensor(expanded_labels, dtype=torch.long).to(self.device)
+            encoded['example_indices'] = torch.tensor(example_indices, dtype=torch.long).to(self.device)
+
+            logger.debug(f"Binary collation: {len(examples)} examples → {len(expanded_texts)} expanded examples "
+                        f"(labels: {set(expanded_labels)})")
+
+            return encoded
+
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            collate_fn=collate_fn_binary_candidates,
+            num_workers=0  # Set to 0 to avoid multiprocessing issues
+        )
+
     def _evaluate_classification(self, dataset: Dataset, task_name: str, model=None) -> Dict:
         """
         Evaluate classification task
@@ -1446,6 +1579,110 @@ class IndicGLUEEvaluator:
         # Validate predictions and labels have same length
         assert len(predictions) == len(labels), \
             f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
+
+        # Compute metrics
+        return self._compute_classification_metrics(predictions, labels, task_name)
+
+    def _evaluate_binary_candidates(self, dataset: Dataset, task_name: str, model=None) -> Dict:
+        """
+        Evaluate using binary per-candidate scoring (for WSTP)
+
+        This method processes each candidate separately with a binary classifier:
+        - For each example, run N forward passes (one per candidate)
+        - Get probability of "correct" (class 1) for each candidate
+        - Predict the candidate with highest score
+
+        Args:
+            dataset: Dataset to evaluate on
+            task_name: Name of the task
+            model: Optional model to use (if None, uses current model)
+
+        Returns:
+            Dictionary with metrics
+        """
+        logger.info(f"Evaluating {task_name} using binary per-candidate scoring")
+
+        predictions = []
+        labels = []
+
+        # Get the appropriate model for this task if not provided
+        if model is None:
+            model = self._get_model_for_task(task_name)
+
+        model.eval()
+
+        # Process examples one at a time (each example generates multiple candidates)
+        for example in tqdm(dataset, desc=f"Evaluating {task_name}"):
+            # WSTP: Process 4 title candidates
+            if 'sectionText' in example and 'titleA' in example:
+                section_text = example['sectionText']
+                correct_title_key = example.get('correctTitle', '').strip()
+
+                # Normalize correct title to match key format (e.g., "A" → "titleA")
+                if correct_title_key and not correct_title_key.startswith('title'):
+                    correct_title_key = f"title{correct_title_key.upper()}"
+
+                # Create inputs for all 4 candidates
+                candidate_texts = []
+                candidate_keys = []
+                for title_key in ['titleA', 'titleB', 'titleC', 'titleD']:
+                    candidate_title = example.get(title_key, '')
+                    if not candidate_title:
+                        continue  # Skip empty candidates
+
+                    # Format: "section [SEP] candidate"
+                    text = f"{section_text} [SEP] {candidate_title}"
+                    candidate_texts.append(text)
+                    candidate_keys.append(title_key)
+
+                if not candidate_texts:
+                    logger.warning(f"No valid candidates found for example")
+                    predictions.append(0)
+                    labels.append(0)
+                    continue
+
+                # Tokenize all candidates
+                encoded = self._tokenize_batch(candidate_texts)  # Shape: [num_candidates, seq_len]
+                encoded = {k: v.to(self.device) for k, v in encoded.items()}
+
+                # Forward pass on all candidates
+                with torch.no_grad():
+                    try:
+                        outputs = model(**encoded)
+                        logits = outputs.logits if hasattr(outputs, 'logits') else outputs[0]
+                        # logits shape: [num_candidates, 2] for binary classification
+
+                        # Get probability of "correct" (class 1) for each candidate
+                        probs = torch.softmax(logits, dim=1)  # Shape: [num_candidates, 2]
+                        correct_probs = probs[:, 1]  # Shape: [num_candidates] - prob of class 1
+
+                        # Predict candidate with highest score
+                        predicted_idx = torch.argmax(correct_probs).item()
+                        predicted_key = candidate_keys[predicted_idx]
+
+                    except Exception as e:
+                        logger.error(f"Error during binary candidate evaluation: {e}")
+                        predicted_key = candidate_keys[0] if candidate_keys else 'titleA'
+
+                # Map prediction to 0/1/2/3 index for metrics computation
+                key_to_idx = {'titleA': 0, 'titleB': 1, 'titleC': 2, 'titleD': 3}
+                pred_idx = key_to_idx.get(predicted_key, 0)
+                true_idx = key_to_idx.get(correct_title_key, 0)
+
+                predictions.append(pred_idx)
+                labels.append(true_idx)
+
+            else:
+                # This shouldn't happen for WSTP
+                logger.warning(f"Binary candidate evaluation called on non-WSTP example: {example.keys()}")
+                predictions.append(0)
+                labels.append(0)
+
+        # Validate predictions and labels have same length
+        assert len(predictions) == len(labels), \
+            f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
+
+        logger.info(f"Binary candidate evaluation complete: {len(predictions)} examples evaluated")
 
         # Compute metrics
         return self._compute_classification_metrics(predictions, labels, task_name)
