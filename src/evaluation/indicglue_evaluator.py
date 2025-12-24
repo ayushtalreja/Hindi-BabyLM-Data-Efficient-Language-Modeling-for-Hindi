@@ -437,15 +437,10 @@ class IndicGLUEEvaluator:
         logger.info(f"Wrapping model for task '{task_name}' with {num_classes} classes "
                    f"(mode: {'training' if for_training else 'evaluation'})...")
 
-        # Get fine-tuning config for dropout
-        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
-                        .get('indicglue', {}).get('fine_tuning', {})
-
-        # Set dropout based on mode - explicitly convert to float
-        if for_training:
-            dropout = float(ft_config.get('dropout', 0.1))
-        else:
-            dropout = float(self.config.get('eval_dropout', 0.0))
+        # Official IndicBERT uses zero dropout in base model config
+        # (attention_probs_dropout_prob=0, hidden_dropout_prob=0)
+        # Match this by using zero dropout everywhere to avoid train-test mismatch
+        dropout = 0.0
 
         wrapped_model = wrap_model_for_classification(
             lm_model=self.base_model,
@@ -948,7 +943,7 @@ class IndicGLUEEvaluator:
         num_epochs = int(ft_config.get('num_epochs', 10))
         learning_rate = float(ft_config.get('learning_rate', 2e-5))
         batch_size = int(ft_config.get('batch_size', 32))
-        weight_decay = float(ft_config.get('weight_decay', 0.01))
+        weight_decay = float(ft_config.get('weight_decay', 0.0))  # Official IndicBERT uses 0.0
 
         # Early stopping config
         es_config = ft_config.get('early_stopping', {})
@@ -991,11 +986,29 @@ class IndicGLUEEvaluator:
                 val_loader = self._create_task_dataloader(val_dataset, task_name,
                                                            shuffle=False, batch_size=batch_size*2)
 
-        # Setup optimizer
+        # Setup optimizer with parameter-specific weight decay (match official IndicBERT)
+        # No weight decay for bias and LayerNorm parameters
+        no_decay = ['bias', 'LayerNorm.weight', 'LayerNorm.bias']
+        optimizer_grouped_parameters = [
+            {
+                'params': [p for n, p in model.named_parameters()
+                           if not any(nd in n for nd in no_decay) and p.requires_grad],
+                'weight_decay': weight_decay
+            },
+            {
+                'params': [p for n, p in model.named_parameters()
+                           if any(nd in n for nd in no_decay) and p.requires_grad],
+                'weight_decay': 0.0
+            }
+        ]
+
+        # Get adam_epsilon from config (official IndicBERT uses 1e-8)
+        adam_epsilon = float(ft_config.get('adam_epsilon', 1e-8))
+
         optimizer = torch.optim.AdamW(
-            filter(lambda p: p.requires_grad, model.parameters()),
+            optimizer_grouped_parameters,
             lr=learning_rate,
-            weight_decay=weight_decay
+            eps=adam_epsilon
         )
 
         # Training loop with early stopping (if validation available)
