@@ -2096,7 +2096,7 @@ class IndicGLUEEvaluator:
             # Try HuggingFace tokenizer interface
             encoded = self.tokenizer(
                 texts,
-                padding=True,
+                padding='max_length',  # Match official IndicBERT (pads to max_length, not longest in batch)
                 truncation=True,
                 max_length=self.max_length,  # Use config value instead of hardcoded 512
                 return_tensors='pt'
