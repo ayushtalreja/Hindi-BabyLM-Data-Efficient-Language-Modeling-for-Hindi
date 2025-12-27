@@ -537,7 +537,13 @@ def create_indicbert_evaluator(model_wrapper: IndicBERTEvaluationWrapper,
     def _get_model_for_task_override(task_name, for_training=False):
         """Custom task model getter that uses our ALBERT wrapper"""
         task_config = evaluator.tasks[task_name]
-        num_classes = task_config['num_labels']
+
+        # Get number of classes based on task type
+        # Multiple-choice tasks with wrapper use 'num_choices', others use 'num_labels'
+        if task_config.get('use_multiple_choice_wrapper', False):
+            num_classes = task_config['num_choices']
+        else:
+            num_classes = task_config.get('num_labels') or task_config.get('num_choices', 2)
 
         # Use our custom ALBERT wrapper
         return model_wrapper._wrap_for_task(task_name, num_classes, for_training)

@@ -550,18 +550,18 @@ class IndicGLUEEvaluator:
 
         if task_type == 'classification':
             # Text classification tasks (BBC, Sentiment, Discourse)
-            num_classes = task_config['num_labels']
+            num_classes = task_config.get('num_labels') or task_config.get('num_choices', 2)
             logger.info(f"Task '{task_name}' is classification with {num_classes} classes")
 
         elif task_type == 'nli':
             # Natural Language Inference tasks (WinogradNLI)
-            num_classes = task_config['num_labels']
+            num_classes = task_config.get('num_labels') or task_config.get('num_choices', 2)
             logger.info(f"Task '{task_name}' is NLI with {num_classes} classes")
 
         elif task_type == 'multiple_choice':
             # Deprecated: old multiple-choice approach (should use wrapper instead)
             logger.warning(f"Task '{task_name}' is multiple-choice but not using MC wrapper")
-            num_classes = task_config.get('num_labels', 2)
+            num_classes = task_config.get('num_labels') or task_config.get('num_choices', 2)
             logger.info(f"Task '{task_name}' is multiple-choice, treating as {num_classes}-class classification")
 
         else:
