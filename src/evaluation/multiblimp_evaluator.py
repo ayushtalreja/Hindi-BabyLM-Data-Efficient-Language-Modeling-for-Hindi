@@ -118,6 +118,58 @@ class MultiBLiMPEvaluator:
         else:  # Built-in dataset (summary only)
             logger.info(f"Using built-in test suite ({total_pairs} pairs total)")
 
+        # Validate model outputs correct structure - fail fast if incompatible
+        # Can be disabled for testing with skip_init_validation=True in config
+        if not self.config.get('skip_init_validation', False):
+            logger.info("Validating model output structure...")
+            try:
+                # Create minimal test input
+                test_ids = torch.tensor([[1, 2, 3, 4, 5]]).to(self.device)
+
+                # Run forward pass
+                with torch.no_grad():
+                    test_output = self.model(input_ids=test_ids)
+
+                # Extract and validate logits
+                test_logits = self._extract_logits(test_output, "initialization")
+
+                if test_logits.dim() != 3:
+                    raise ValueError(
+                        f"Model outputs {test_logits.dim()}D logits (shape: {test_logits.shape}), "
+                        f"expected 3D [batch, seq_len, vocab_size]"
+                    )
+
+                # Verify reasonable vocabulary size
+                vocab_dim = test_logits.size(-1)
+                if vocab_dim < 1000:
+                    logger.warning(
+                        f"Vocabulary size is {vocab_dim}, which seems small for a language model. "
+                        f"Expected 10k-50k. This might indicate a classification model."
+                    )
+
+                logger.info(f"✓ Model validation passed!")
+                logger.info(f"  Output shape: {test_logits.shape}")
+                logger.info(f"  Vocabulary size: {vocab_dim}")
+
+            except Exception as e:
+                error_msg = (
+                    f"\n{'='*70}\n"
+                    f"MULTIBLIMP INITIALIZATION ERROR\n"
+                    f"{'='*70}\n"
+                    f"The model is not compatible with MultiBLiMP evaluation.\n\n"
+                    f"Model class: {self.model.__class__.__name__}\n"
+                    f"Error: {str(e)}\n\n"
+                    f"MultiBLiMP requires a LANGUAGE MODEL that outputs per-token predictions:\n"
+                    f"  Expected: [batch, sequence_length, vocabulary_size] (3D)\n"
+                    f"  Example: [1, 128, 32000] for a model with 32k vocab\n\n"
+                    f"If you're using a classification-wrapped model, ensure it gets unwrapped.\n"
+                    f"{'='*70}\n"
+                )
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+        else:
+            logger.debug("Skipping initialization validation (skip_init_validation=True in config)")
+
     def _is_classification_wrapper(self, model) -> bool:
         """
         Detect if model is a classification wrapper.
@@ -316,39 +368,35 @@ class MultiBLiMPEvaluator:
             good_logits = self._extract_logits(good_outputs, "good")
             bad_logits = self._extract_logits(bad_outputs, "bad")
 
-            # Diagnostic logging for logits comparison
-            logger.info(f"Logits extracted for minimal pair evaluation:")
-            logger.info(f"  Good sentence logits shape: {good_logits.shape}")
-            logger.info(f"  Bad sentence logits shape: {bad_logits.shape}")
-            logger.info(f"  Good logits vocab size (last dim): {good_logits.size(-1)}")
-            logger.info(f"  Tokenizer vocab size: {self.tokenizer.vocab_size if hasattr(self.tokenizer, 'vocab_size') else 'N/A'}")
-            if good_logits.size(-1) != bad_logits.size(-1):
-                logger.warning(f"  WARNING: Vocab size mismatch between good and bad logits!")
-            if hasattr(self.tokenizer, 'vocab_size') and good_logits.dim() >= 3:
-                if good_logits.size(-1) != self.tokenizer.vocab_size:
-                    logger.warning(f"  WARNING: Logits vocab size ({good_logits.size(-1)}) != tokenizer vocab size ({self.tokenizer.vocab_size})")
-                    logger.warning(f"  This suggests hidden states instead of vocab logits!")
-
-            # CRITICAL: Verify logits are 3D tensors BEFORE any slicing operations
-            # This prevents "Dimension out of range" errors from slicing operations
+            # CRITICAL: Validate dimensions IMMEDIATELY - BEFORE any other operations
+            # This prevents cryptic "Dimension out of range" errors from masking the real issue
             if good_logits.dim() != 3:
                 raise ValueError(
-                    f"MultiBLiMP requires 3D logits [batch, seq_len, vocab_size]. "
-                    f"Got {good_logits.dim()}D tensor with shape {good_logits.shape}. "
-                    f"Model: {self.model.__class__.__name__}. "
-                    f"Output type: {type(good_outputs)}. "
-                    f"This usually means a classification wrapper wasn't unwrapped. "
-                    f"The model should output per-token predictions, not per-sequence predictions."
+                    f"MultiBLiMP ERROR: Model outputs {good_logits.dim()}D logits, expected 3D [batch, seq_len, vocab_size].\n"
+                    f"  Got shape: {good_logits.shape}\n"
+                    f"  Model class: {self.model.__class__.__name__}\n"
+                    f"  Model module: {self.model.__class__.__module__}\n"
+                    f"  Output type: {type(good_outputs)}\n\n"
+                    f"This means the model is outputting per-sequence predictions (classification) "
+                    f"instead of per-token predictions (language modeling).\n"
+                    f"MultiBLiMP requires a language model, not a classification model."
                 )
 
             if bad_logits.dim() != 3:
                 raise ValueError(
-                    f"MultiBLiMP requires 3D logits [batch, seq_len, vocab_size]. "
-                    f"Got {bad_logits.dim()}D tensor with shape {bad_logits.shape}. "
-                    f"Model: {self.model.__class__.__name__}. "
-                    f"Output type: {type(bad_outputs)}. "
-                    f"The model should output per-token predictions, not per-sequence predictions."
+                    f"MultiBLiMP ERROR: Model outputs {bad_logits.dim()}D logits for bad sentence.\n"
+                    f"  Shape: {bad_logits.shape}, Model: {self.model.__class__.__name__}"
                 )
+
+            # Diagnostic logging (DEBUG level) - now safe after dimension validation
+            logger.debug(f"Logits validated successfully:")
+            logger.debug(f"  Good sentence logits shape: {good_logits.shape}")
+            logger.debug(f"  Bad sentence logits shape: {bad_logits.shape}")
+            logger.debug(f"  Good logits vocab size (last dim): {good_logits.size(-1)}")
+            if hasattr(self.tokenizer, 'vocab_size'):
+                logger.debug(f"  Tokenizer vocab size: {self.tokenizer.vocab_size}")
+                if good_logits.size(-1) != self.tokenizer.vocab_size:
+                    logger.debug(f"  Note: Logits vocab size ({good_logits.size(-1)}) != tokenizer vocab size ({self.tokenizer.vocab_size})")
 
             # Verify reasonable vocabulary size
             vocab_size = good_logits.size(-1)

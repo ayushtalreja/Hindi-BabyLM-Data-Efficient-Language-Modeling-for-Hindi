@@ -7,15 +7,16 @@ import sys
 import os
 import logging
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Add src to path - go up two levels from tests/integration to reach root, then src
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.join(project_root, 'src'))
 
 import importlib.util
 
 # Import MultiBLiMPEvaluator directly
 spec = importlib.util.spec_from_file_location(
     "multiblimp_evaluator",
-    os.path.join(os.path.dirname(__file__), 'src', 'evaluation', 'multiblimp_evaluator.py')
+    os.path.join(project_root, 'src', 'evaluation', 'multiblimp_evaluator.py')
 )
 multiblimp_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(multiblimp_module)
@@ -101,7 +102,8 @@ def test_2d_logits_detection():
     tokenizer = MockTokenizer()
 
     try:
-        evaluator = MultiBLiMPEvaluator(model, tokenizer, config={})
+        # Skip initialization validation to test per-pair validation
+        evaluator = MultiBLiMPEvaluator(model, tokenizer, config={'skip_init_validation': True})
 
         # Try to evaluate a pair - should fail with clear error
         good_sentence = "यह एक अच्छा वाक्य है"
@@ -113,7 +115,7 @@ def test_2d_logits_detection():
 
     except ValueError as e:
         error_msg = str(e)
-        if "3D logits" in error_msg and "2D tensor" in error_msg:
+        if "MultiBLiMP ERROR" in error_msg and "2D logits" in error_msg and "3D" in error_msg:
             print(f"✓ PASS: Correctly caught 2D logits error")
             print(f"  Error message: {error_msg[:200]}...")
             return True
@@ -138,7 +140,7 @@ def test_3d_logits_work():
     tokenizer = MockTokenizer()
 
     try:
-        evaluator = MultiBLiMPEvaluator(model, tokenizer, config={})
+        evaluator = MultiBLiMPEvaluator(model, tokenizer, config={'skip_init_validation': True})
 
         good_sentence = "यह एक अच्छा वाक्य है"
         bad_sentence = "यह एक बुरा वाक्य है"
@@ -165,7 +167,7 @@ def test_short_sequence_handling():
     tokenizer = MockTokenizer()
 
     try:
-        evaluator = MultiBLiMPEvaluator(model, tokenizer, config={})
+        evaluator = MultiBLiMPEvaluator(model, tokenizer, config={'skip_init_validation': True})
 
         good_sentence = "यह एक अच्छा वाक्य है"
         bad_sentence = "यह एक बुरा वाक्य है"
