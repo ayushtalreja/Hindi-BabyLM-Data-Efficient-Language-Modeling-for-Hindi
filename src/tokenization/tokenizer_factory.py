@@ -281,6 +281,27 @@ class WordPieceTokenizerWrapper:
         self.tokenizer = tokenizer
         self.vocab_size = vocab_size
 
+        # Special tokens for WordPiece (BERT-style)
+        # Special tokens: ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"]
+        self.pad_token = "[PAD]"
+        self.unk_token = "[UNK]"
+        self.cls_token = "[CLS]"
+        self.sep_token = "[SEP]"
+        self.mask_token = "[MASK]"
+
+        # Get token IDs from the tokenizer vocabulary
+        self.pad_token_id = self.tokenizer.token_to_id("[PAD]")
+        self.unk_token_id = self.tokenizer.token_to_id("[UNK]")
+        self.cls_token_id = self.tokenizer.token_to_id("[CLS]")
+        self.sep_token_id = self.tokenizer.token_to_id("[SEP]")
+        self.mask_token_id = self.tokenizer.token_to_id("[MASK]")
+
+        # For compatibility, set eos_token to [SEP] and bos_token to [CLS]
+        self.eos_token = "[SEP]"
+        self.eos_token_id = self.sep_token_id
+        self.bos_token = "[CLS]"
+        self.bos_token_id = self.cls_token_id
+
     def encode(self, text: str) -> List[int]:
         """Encode text to token ids"""
         encoding = self.tokenizer.encode(text)
@@ -302,6 +323,21 @@ class BPETokenizerWrapper:
     def __init__(self, tokenizer, vocab_size: int):
         self.tokenizer = tokenizer
         self.vocab_size = vocab_size
+
+        # Special tokens for BPE (GPT-style)
+        # Special tokens: ["<pad>", "<unk>", "<s>", "</s>", "<mask>"]
+        self.pad_token = "<pad>"
+        self.unk_token = "<unk>"
+        self.bos_token = "<s>"
+        self.eos_token = "</s>"
+        self.mask_token = "<mask>"
+
+        # Get token IDs from the tokenizer vocabulary
+        self.pad_token_id = self.tokenizer.token_to_id("<pad>")
+        self.unk_token_id = self.tokenizer.token_to_id("<unk>")
+        self.bos_token_id = self.tokenizer.token_to_id("<s>")
+        self.eos_token_id = self.tokenizer.token_to_id("</s>")
+        self.mask_token_id = self.tokenizer.token_to_id("<mask>")
 
     def encode(self, text: str) -> List[int]:
         """Encode text to token ids"""

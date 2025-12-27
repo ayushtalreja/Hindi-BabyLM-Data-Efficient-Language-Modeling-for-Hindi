@@ -6,10 +6,19 @@ class HindiSentencePieceTokenizer:
     def __init__(self, vocab_size: int = 32000):
         self.vocab_size = vocab_size
         self.model = None
+
+        # Special token IDs
         self.pad_token_id = 0
         self.unk_token_id = 1
         self.bos_token_id = 2
         self.eos_token_id = 3
+
+        # Special token strings (for HuggingFace compatibility)
+        self.pad_token = "<pad>"
+        self.unk_token = "<unk>"
+        self.bos_token = "<s>"
+        self.eos_token = "</s>"
+        self.mask_token = "<mask>"
 
     def train_tokenizer(self, corpus: List[str], model_prefix: str):
         """Train SentencePiece tokenizer on Hindi corpus"""

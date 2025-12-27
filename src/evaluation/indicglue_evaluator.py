@@ -15,6 +15,7 @@ Reference: https://indicnlp.ai4bharat.org/indicglue/
 """
 
 import torch
+import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
 from typing import Dict, List, Tuple, Optional
@@ -76,6 +77,112 @@ SPLIT_REMAPPING = {
         'train': 'train'           # Train is fine, keep unchanged (362 examples)
     }
 }
+
+
+class MultipleChoiceWrapper(nn.Module):
+    """
+    Wrapper for multiple-choice tasks (WSTP, CSQA, COPA).
+
+    Architecture matches transformers.AutoModelForMultipleChoice:
+    - Processes each choice independently with base model
+    - Outputs single score per choice
+    - Uses softmax over choices for prediction
+
+    This matches the official IndicBERT implementation for multiple-choice tasks.
+    """
+
+    def __init__(self, base_model, hidden_size, num_choices, pooling_strategy='first'):
+        """
+        Args:
+            base_model: Pre-trained language model (ALBERT/IndicBERT)
+            hidden_size: Hidden dimension of base model
+            num_choices: Number of choices per example (e.g., 4 for WSTP, 2 for COPA)
+            pooling_strategy: 'first' (CLS token) or 'mean' (mean pooling)
+        """
+        super().__init__()
+        self.base_model = base_model
+        self.num_choices = num_choices
+        self.hidden_size = hidden_size
+        self.pooling_strategy = pooling_strategy
+
+        # Classifier: maps pooled representation to single score per choice
+        # Official implementation uses a single linear layer
+        self.classifier = nn.Linear(hidden_size, 1)
+
+        # Initialize classifier weights (match transformers initialization)
+        nn.init.normal_(self.classifier.weight, std=0.02)
+        nn.init.zeros_(self.classifier.bias)
+
+        # Match base model dtype
+        base_dtype = next(base_model.parameters()).dtype
+        self.classifier = self.classifier.to(dtype=base_dtype)
+
+    def forward(self, input_ids, attention_mask, labels=None, **kwargs):
+        """
+        Forward pass for multiple-choice classification.
+
+        Args:
+            input_ids: [batch, num_choices, seq_len]
+            attention_mask: [batch, num_choices, seq_len]
+            labels: [batch] - index of correct choice (0 to num_choices-1)
+
+        Returns:
+            Object with:
+                logits: [batch, num_choices]
+                loss: scalar (if labels provided)
+        """
+        batch_size, num_choices, seq_len = input_ids.shape
+
+        # Flatten to process all choices in one forward pass
+        # [batch, num_choices, seq_len] -> [batch*num_choices, seq_len]
+        input_ids_flat = input_ids.view(-1, seq_len)
+        attention_mask_flat = attention_mask.view(-1, seq_len)
+
+        # Get base model outputs
+        outputs = self.base_model(
+            input_ids=input_ids_flat,
+            attention_mask=attention_mask_flat
+        )
+
+        # Extract hidden states
+        if hasattr(outputs, 'last_hidden_state'):
+            hidden_states = outputs.last_hidden_state
+        else:
+            hidden_states = outputs[0]
+        # Shape: [batch*num_choices, seq_len, hidden_size]
+
+        # Pool to sequence representation
+        if self.pooling_strategy == 'first':
+            # Use [CLS] token (position 0) - standard for BERT/ALBERT
+            pooled = hidden_states[:, 0, :]  # [batch*num_choices, hidden_size]
+        elif self.pooling_strategy == 'mean':
+            # Mean pooling over non-padding tokens
+            mask_expanded = attention_mask_flat.unsqueeze(-1).to(hidden_states.dtype)
+            sum_hidden = (hidden_states * mask_expanded).sum(dim=1)
+            sum_mask = mask_expanded.sum(dim=1).clamp(min=1e-9)
+            pooled = sum_hidden / sum_mask
+        else:
+            raise ValueError(f"Unknown pooling strategy: {self.pooling_strategy}")
+
+        # Classify each choice to get single score
+        logits = self.classifier(pooled)  # [batch*num_choices, 1]
+
+        # Reshape to [batch, num_choices]
+        logits = logits.view(batch_size, num_choices)
+
+        # Compute loss if labels provided
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+
+        # Return in a format compatible with existing code
+        class MultipleChoiceOutput:
+            def __init__(self, logits, loss):
+                self.logits = logits
+                self.loss = loss
+
+        return MultipleChoiceOutput(logits=logits, loss=loss)
 
 
 class IndicGLUEEvaluator:
@@ -141,15 +248,15 @@ class IndicGLUEEvaluator:
             },
             'Wikipedia Section Title Prediction': {
                 'type': 'multiple_choice',
-                'num_labels': 2,  # Binary classification per candidate (correct=1, incorrect=0)
-                'num_candidates': 4,  # Four title choices total
-                'use_binary_per_candidate': True,  # Process each candidate separately
+                'num_choices': 4,  # Four title choices
+                'use_multiple_choice_wrapper': True,  # Use MultipleChoiceWrapper (matches official IndicBERT)
                 'metric': 'accuracy',
                 'hf_config': 'wstp.hi'
             },
             'Cloze-style multiple-choice QA': {
                 'type': 'multiple_choice',
-                'num_labels': 4,  # Four answer choices (cloze-style fill-in-the-blank)
+                'num_choices': 4,  # Four answer choices (cloze-style fill-in-the-blank)
+                'use_multiple_choice_wrapper': True,  # Use MultipleChoiceWrapper (matches official IndicBERT)
                 'metric': 'accuracy',
                 'hf_config': 'csqa.hi'
             },
@@ -162,7 +269,8 @@ class IndicGLUEEvaluator:
             },
             'Choice of Plausible Alternatives': {
                 'type': 'multiple_choice',
-                'num_labels': 2,  # Two plausible alternatives
+                'num_choices': 2,  # Two plausible alternatives
+                'use_multiple_choice_wrapper': True,  # Use MultipleChoiceWrapper (matches official IndicBERT)
                 'metric': 'accuracy',
                 'hf_config': 'copa.hi'
             },
@@ -1386,6 +1494,149 @@ class IndicGLUEEvaluator:
             shuffle=shuffle,
             collate_fn=collate_fn_binary_candidates,
             num_workers=0  # Set to 0 to avoid multiprocessing issues
+        )
+
+    def _create_multiple_choice_dataloader(self, dataset: Dataset, task_name: str,
+                                           shuffle: bool = False, batch_size: Optional[int] = None) -> DataLoader:
+        """
+        Create DataLoader for multiple-choice tasks using MultipleChoiceWrapper.
+
+        Formats data as [batch, num_choices, seq_len] to match official IndicBERT implementation.
+
+        Args:
+            dataset: Dataset to create loader for
+            task_name: Name of the task (WSTP, CSQA, or COPA)
+            shuffle: Whether to shuffle
+            batch_size: Batch size (defaults to self.batch_size)
+
+        Returns:
+            DataLoader with appropriate collation for multiple-choice tasks
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+
+        task_config = self.tasks[task_name]
+        num_choices = task_config.get('num_choices', 4)
+
+        def collate_fn_multiple_choice(examples):
+            """
+            Collate function for multiple-choice tasks.
+
+            Returns:
+                input_ids: [batch, num_choices, seq_len]
+                attention_mask: [batch, num_choices, seq_len]
+                labels: [batch] - index of correct choice
+            """
+            batch_input_ids = []
+            batch_attention_masks = []
+            batch_labels = []
+
+            for example in examples:
+                # Extract context and choices based on task
+                context = ""
+                choices = []
+                label = 0
+
+                if 'sectionText' in example and 'titleA' in example:
+                    # WSTP: Wikipedia Section Title Prediction
+                    context = example['sectionText']
+                    choices = [
+                        example.get('titleA', ''),
+                        example.get('titleB', ''),
+                        example.get('titleC', ''),
+                        example.get('titleD', '')
+                    ]
+
+                    # Get label (0-3)
+                    correct_title = example.get('correctTitle', '').strip()
+                    # Normalize to handle both 'A' and 'titleA' formats
+                    if correct_title and not correct_title.startswith('title'):
+                        correct_title = f"title{correct_title.upper()}"
+                    title_to_idx = {'titleA': 0, 'titleB': 1, 'titleC': 2, 'titleD': 3}
+                    label = title_to_idx.get(correct_title, 0)
+
+                elif 'question' in example and 'options' in example:
+                    # CSQA: Cloze-style QA
+                    # Build context from available fields
+                    context_parts = []
+                    if 'title' in example and example['title']:
+                        context_parts.append(f"Title: {example['title']}")
+                    if 'category' in example and example['category']:
+                        context_parts.append(f"Category: {example['category']}")
+                    context_parts.append(example['question'])
+                    context = " ".join(context_parts)
+
+                    choices = example['options']
+                    if not isinstance(choices, list):
+                        choices = [choices]  # Handle single option edge case
+
+                    # Get label (index of correct answer in options)
+                    answer = example.get('answer', '')
+                    try:
+                        label = choices.index(answer)
+                    except (ValueError, TypeError):
+                        logger.warning(f"Answer '{answer}' not found in options, defaulting to 0")
+                        label = 0
+
+                elif 'premise' in example and 'choice1' in example:
+                    # COPA: Choice of Plausible Alternatives
+                    premise = example['premise']
+                    question = example.get('question', '')
+                    context = f"{premise} {question}".strip()
+
+                    choices = [
+                        example.get('choice1', ''),
+                        example.get('choice2', '')
+                    ]
+
+                    label = example.get('label', 0)
+
+                else:
+                    # Fallback for unknown format
+                    logger.warning(f"Unknown multiple-choice format in {task_name}: {example.keys()}")
+                    context = ""
+                    choices = [""] * num_choices
+                    label = 0
+
+                # Tokenize each (context, choice) pair separately
+                # This matches official IndicBERT implementation
+                choice_encodings = []
+                for choice in choices:
+                    encoded = self.tokenizer(
+                        context,
+                        choice,
+                        max_length=self.max_length,
+                        padding='max_length',
+                        truncation='longest_first',  # Match official implementation!
+                        return_tensors='pt'
+                    )
+                    choice_encodings.append({
+                        'input_ids': encoded['input_ids'].squeeze(0),
+                        'attention_mask': encoded['attention_mask'].squeeze(0)
+                    })
+
+                # Stack choices for this example
+                batch_input_ids.append(
+                    torch.stack([enc['input_ids'] for enc in choice_encodings])
+                )
+                batch_attention_masks.append(
+                    torch.stack([enc['attention_mask'] for enc in choice_encodings])
+                )
+                batch_labels.append(label)
+
+            # Stack across batch
+            return {
+                'input_ids': torch.stack(batch_input_ids).to(self.device),
+                'attention_mask': torch.stack(batch_attention_masks).to(self.device),
+                'labels': torch.tensor(batch_labels, dtype=torch.long).to(self.device)
+            }
+
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            collate_fn=collate_fn_multiple_choice,
+            num_workers=0
         )
 
     def _evaluate_classification(self, dataset: Dataset, task_name: str, model=None) -> Dict:

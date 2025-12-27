@@ -36,6 +36,13 @@ class DevanagariCharacterTokenizer:
         self.bos_token_id = self.char_to_id.get("<s>", 2)
         self.eos_token_id = self.char_to_id.get("</s>", 3)
 
+        # Special token strings (for HuggingFace compatibility)
+        self.pad_token = "<pad>"
+        self.unk_token = "<unk>"
+        self.bos_token = "<s>"
+        self.eos_token = "</s>"
+        self.mask_token = "<mask>"
+
     def _build_vocabulary(self) -> List[str]:
         """Build character vocabulary for Devanagari + common characters"""
         vocab = []
