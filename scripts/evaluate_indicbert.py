@@ -569,8 +569,8 @@ def create_indicbert_evaluator(model_wrapper: IndicBERTEvaluationWrapper,
         else:
             num_classes = task_config.get('num_labels') or task_config.get('num_choices', 2)
 
-        # Use our custom ALBERT wrapper
-        return model_wrapper._wrap_for_task(task_name, num_classes, for_training)
+        # Use our custom ALBERT wrapper, passing task_config for MC detection
+        return model_wrapper._wrap_for_task(task_name, num_classes, for_training, task_config=task_config)
 
     # Monkey-patch (only for this instance)
     evaluator._get_model_for_task = _get_model_for_task_override
