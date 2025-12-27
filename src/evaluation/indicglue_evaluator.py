@@ -516,6 +516,35 @@ class IndicGLUEEvaluator:
         task_config = self.tasks[task_name]
         model_config = self._get_model_config()
 
+        # Check if this task uses multiple-choice wrapper
+        if task_config.get('use_multiple_choice_wrapper', False):
+            num_choices = task_config.get('num_choices', 4)
+
+            logger.info(f"Creating MultipleChoiceWrapper for '{task_name}' "
+                       f"with {num_choices} choices (matches official IndicBERT)")
+
+            wrapped_model = MultipleChoiceWrapper(
+                base_model=self.base_model,
+                hidden_size=model_config['hidden_size'],
+                num_choices=num_choices,
+                pooling_strategy='first'  # CLS token (ALBERT/BERT standard)
+            )
+
+            # Move to device
+            wrapped_model = wrapped_model.to(self.device)
+
+            # For training mode, ensure classifier has gradients enabled
+            if for_training:
+                for param in wrapped_model.classifier.parameters():
+                    param.requires_grad = True
+                num_trainable = sum(p.numel() for p in wrapped_model.classifier.parameters())
+                logger.info(f"Enabled gradients for MC classifier ({num_trainable:,} trainable parameters)")
+
+            # Cache and return
+            self.wrapped_models[cache_key] = wrapped_model
+            return wrapped_model
+
+        # Standard classification/NLI tasks
         # Determine number of classes based on task type
         task_type = task_config['type']
 
@@ -530,9 +559,9 @@ class IndicGLUEEvaluator:
             logger.info(f"Task '{task_name}' is NLI with {num_classes} classes")
 
         elif task_type == 'multiple_choice':
-            # Multiple choice tasks (COPA, CSQA, Wikipedia Section Title)
-            # Treat as multi-class classification
-            num_classes = task_config['num_labels']
+            # Deprecated: old multiple-choice approach (should use wrapper instead)
+            logger.warning(f"Task '{task_name}' is multiple-choice but not using MC wrapper")
+            num_classes = task_config.get('num_labels', 2)
             logger.info(f"Task '{task_name}' is multiple-choice, treating as {num_classes}-class classification")
 
         else:
@@ -754,34 +783,15 @@ class IndicGLUEEvaluator:
         # Detect if we're in fine-tuned mode
         is_finetuned = self._is_finetuned_mode
 
-        # Route based on task type AND evaluation mode
-        # PRIORITY 1: Check for binary per-candidate tasks (WSTP)
-        if task_config.get('use_binary_per_candidate', False):
-            if is_finetuned:
-                # Binary per-candidate evaluation (WSTP)
-                logger.info(f"[ROUTING] {task_name}: Binary per-candidate mode → Scoring each candidate separately "
-                           f"(binary classification with {task_config.get('num_candidates', 4)} candidates)")
-                return self._evaluate_binary_candidates(dataset, task_name, model)
-            else:
-                # Zero-shot mode for binary tasks (fallback to perplexity)
-                logger.info(f"[ROUTING] {task_name}: Zero-shot binary task → Using perplexity scoring")
-                return self._evaluate_multiple_choice(dataset, task_name)
+        # Route based on task type
+        # PRIORITY 1: Multiple-choice wrapper tasks (WSTP, CSQA, COPA)
+        if task_config.get('use_multiple_choice_wrapper', False):
+            logger.info(f"[ROUTING] {task_name}: Multiple-choice wrapper → "
+                       f"Process each choice independently (matches official IndicBERT)")
+            return self._evaluate_multiple_choice_with_wrapper(dataset, task_name, model)
 
-        # PRIORITY 2: Standard multiple-choice tasks (COPA, CSQA)
-        elif task_config['type'] == 'multiple_choice':
-            if is_finetuned:
-                # Fine-tuned mode: Use trained classification head
-                logger.info(f"[ROUTING] {task_name}: Fine-tuned mode → Using classification head "
-                           f"({task_config['num_labels']}-class classification)")
-                return self._evaluate_classification(dataset, task_name, model)
-            else:
-                # Zero-shot mode: Use perplexity-based scoring
-                logger.info(f"[ROUTING] {task_name}: Zero-shot mode → Using perplexity scoring")
-                return self._evaluate_multiple_choice(dataset, task_name)
-
-        # PRIORITY 3: Classification and NLI tasks
+        # PRIORITY 2: Classification and NLI tasks
         elif task_config['type'] in ['classification', 'nli']:
-            # Classification and NLI tasks always use classification heads
             logger.info(f"[ROUTING] {task_name}: Classification/NLI task → Using classification head")
             return self._evaluate_classification(dataset, task_name, model)
 
@@ -1071,22 +1081,22 @@ class IndicGLUEEvaluator:
         # Get model with trainable head, frozen base
         model = self._get_model_for_task(task_name, for_training=True)
 
-        # Check if this task uses binary per-candidate evaluation
+        # Check dataloader type based on task configuration
         task_config = self.tasks[task_name]
-        use_binary = task_config.get('use_binary_per_candidate', False)
+        use_mc_wrapper = task_config.get('use_multiple_choice_wrapper', False)
 
-        # Create dataloaders (use binary dataloader for WSTP)
-        if use_binary:
-            logger.info(f"Using binary per-candidate dataloader for {task_name} "
-                       f"(1 example → {task_config.get('num_candidates', 4)} training examples)")
-            train_loader = self._create_binary_candidate_dataloader(train_dataset, task_name,
-                                                                     shuffle=True, batch_size=batch_size)
+        # Create dataloaders based on task type
+        if use_mc_wrapper:
+            logger.info(f"Using multiple-choice dataloader for {task_name} "
+                       f"(matches official IndicBERT implementation)")
+            train_loader = self._create_multiple_choice_dataloader(train_dataset, task_name,
+                                                                    shuffle=True, batch_size=batch_size)
             val_loader = None
             if has_validation:
-                val_loader = self._create_binary_candidate_dataloader(val_dataset, task_name,
-                                                                       shuffle=False, batch_size=batch_size*2)
+                val_loader = self._create_multiple_choice_dataloader(val_dataset, task_name,
+                                                                      shuffle=False, batch_size=batch_size*2)
         else:
-            # Standard dataloader for non-binary tasks
+            # Standard dataloader for classification/NLI tasks
             train_loader = self._create_task_dataloader(train_dataset, task_name,
                                                          shuffle=True, batch_size=batch_size)
             val_loader = None
@@ -1696,6 +1706,55 @@ class IndicGLUEEvaluator:
         # Validate predictions and labels have same length
         assert len(predictions) == len(labels), \
             f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
+
+        # Compute metrics
+        return self._compute_classification_metrics(predictions, labels, task_name)
+
+    def _evaluate_multiple_choice_with_wrapper(self, dataset: Dataset, task_name: str, model=None) -> Dict:
+        """
+        Evaluate multiple-choice task using MultipleChoiceWrapper.
+
+        This method uses the official IndicBERT approach: process each choice independently
+        and select the one with highest score.
+
+        Args:
+            dataset: Dataset to evaluate
+            task_name: Name of the task
+            model: MultipleChoiceWrapper model (if None, gets from _get_model_for_task)
+
+        Returns:
+            Dictionary with metrics
+        """
+        logger.info(f"Evaluating {task_name} with MultipleChoiceWrapper on {len(dataset)} examples")
+
+        # Get model if not provided
+        if model is None:
+            model = self._get_model_for_task(task_name, for_training=False)
+
+        model.eval()
+
+        # Create dataloader with MC collation
+        dataloader = self._create_multiple_choice_dataloader(
+            dataset,
+            task_name,
+            shuffle=False,
+            batch_size=self.batch_size
+        )
+
+        predictions = []
+        labels = []
+
+        with torch.no_grad():
+            for batch in tqdm(dataloader, desc=f"Evaluating {task_name}"):
+                # Forward pass
+                outputs = model(**batch)
+                logits = outputs.logits  # [batch, num_choices]
+
+                # Get predicted choice (argmax over choices)
+                batch_preds = torch.argmax(logits, dim=-1)  # [batch]
+
+                predictions.extend(batch_preds.cpu().numpy().tolist())
+                labels.extend(batch['labels'].cpu().numpy().tolist())
 
         # Compute metrics
         return self._compute_classification_metrics(predictions, labels, task_name)
