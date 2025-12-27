@@ -1,8 +1,9 @@
 import os
 import pickle
-from typing import List, Union
+from typing import List, Union, Optional
 from transformers import AutoTokenizer
 import sentencepiece as spm
+import torch
 
 from .sentencepiece_tokenizer import HindiSentencePieceTokenizer
 from .character_tokenizer import DevanagariCharacterTokenizer
@@ -316,6 +317,98 @@ class WordPieceTokenizerWrapper:
         encoding = self.tokenizer.encode(text)
         return encoding.tokens
 
+    def __call__(
+        self,
+        text: Union[str, List[str]],
+        text_pair: Optional[Union[str, List[str]]] = None,
+        padding: Union[bool, str] = False,
+        truncation: Union[bool, str] = False,
+        max_length: Optional[int] = None,
+        return_tensors: Optional[str] = None,
+        **kwargs
+    ):
+        """
+        Tokenize text using HuggingFace-style interface.
+
+        Args:
+            text: Text or list of texts to tokenize
+            text_pair: Optional second text for text pair tasks
+            padding: Padding strategy ('max_length', True, or False)
+            truncation: Truncation strategy ('longest_first', True, or False)
+            max_length: Maximum sequence length
+            return_tensors: 'pt' for PyTorch tensors, None for lists
+
+        Returns:
+            Dictionary with 'input_ids' and 'attention_mask'
+        """
+        # Handle single text vs batch
+        is_batched = isinstance(text, list)
+        texts = text if is_batched else [text]
+        text_pairs = text_pair if text_pair is not None else [None] * len(texts)
+        if not isinstance(text_pairs, list):
+            text_pairs = [text_pairs]
+
+        # Set default max_length if not provided
+        if max_length is None:
+            max_length = 512
+
+        # Encode all texts
+        all_input_ids = []
+        for txt, txt_pair in zip(texts, text_pairs):
+            if txt_pair is not None:
+                # Combine text and text_pair with [CLS] and [SEP] tokens (BERT-style)
+                combined_text = f"{self.cls_token} {txt} {self.sep_token} {txt_pair} {self.sep_token}"
+            else:
+                combined_text = f"{self.cls_token} {txt} {self.sep_token}"
+
+            # Encode the text
+            encoding = self.tokenizer.encode(combined_text)
+            input_ids = encoding.ids
+
+            # Apply truncation
+            if truncation:
+                input_ids = input_ids[:max_length]
+
+            all_input_ids.append(input_ids)
+
+        # Apply padding
+        if padding:
+            if padding == 'max_length' or padding is True:
+                target_length = max_length if padding == 'max_length' else max(len(ids) for ids in all_input_ids)
+            else:
+                target_length = max(len(ids) for ids in all_input_ids)
+
+            # Pad all sequences
+            padded_input_ids = []
+            attention_masks = []
+            for input_ids in all_input_ids:
+                # Create attention mask (1 for real tokens, 0 for padding)
+                attention_mask = [1] * len(input_ids)
+
+                # Pad to target length
+                padding_length = target_length - len(input_ids)
+                if padding_length > 0:
+                    input_ids = input_ids + [self.pad_token_id] * padding_length
+                    attention_mask = attention_mask + [0] * padding_length
+
+                padded_input_ids.append(input_ids)
+                attention_masks.append(attention_mask)
+
+            all_input_ids = padded_input_ids
+        else:
+            # No padding - create attention masks for actual tokens only
+            attention_masks = [[1] * len(ids) for ids in all_input_ids]
+
+        # Convert to tensors if requested
+        if return_tensors == 'pt':
+            all_input_ids = torch.tensor(all_input_ids, dtype=torch.long)
+            attention_masks = torch.tensor(attention_masks, dtype=torch.long)
+
+        return {
+            'input_ids': all_input_ids,
+            'attention_mask': attention_masks
+        }
+
 
 class BPETokenizerWrapper:
     """Wrapper for BPE tokenizer to provide consistent interface"""
@@ -352,3 +445,95 @@ class BPETokenizerWrapper:
         """Tokenize text to tokens"""
         encoding = self.tokenizer.encode(text)
         return encoding.tokens
+
+    def __call__(
+        self,
+        text: Union[str, List[str]],
+        text_pair: Optional[Union[str, List[str]]] = None,
+        padding: Union[bool, str] = False,
+        truncation: Union[bool, str] = False,
+        max_length: Optional[int] = None,
+        return_tensors: Optional[str] = None,
+        **kwargs
+    ):
+        """
+        Tokenize text using HuggingFace-style interface.
+
+        Args:
+            text: Text or list of texts to tokenize
+            text_pair: Optional second text for text pair tasks
+            padding: Padding strategy ('max_length', True, or False)
+            truncation: Truncation strategy ('longest_first', True, or False)
+            max_length: Maximum sequence length
+            return_tensors: 'pt' for PyTorch tensors, None for lists
+
+        Returns:
+            Dictionary with 'input_ids' and 'attention_mask'
+        """
+        # Handle single text vs batch
+        is_batched = isinstance(text, list)
+        texts = text if is_batched else [text]
+        text_pairs = text_pair if text_pair is not None else [None] * len(texts)
+        if not isinstance(text_pairs, list):
+            text_pairs = [text_pairs]
+
+        # Set default max_length if not provided
+        if max_length is None:
+            max_length = 512
+
+        # Encode all texts
+        all_input_ids = []
+        for txt, txt_pair in zip(texts, text_pairs):
+            if txt_pair is not None:
+                # Combine text and text_pair with separator
+                combined_text = f"{txt} {self.eos_token} {txt_pair}"
+            else:
+                combined_text = txt
+
+            # Encode the text
+            encoding = self.tokenizer.encode(combined_text)
+            input_ids = encoding.ids
+
+            # Apply truncation
+            if truncation:
+                input_ids = input_ids[:max_length]
+
+            all_input_ids.append(input_ids)
+
+        # Apply padding
+        if padding:
+            if padding == 'max_length' or padding is True:
+                target_length = max_length if padding == 'max_length' else max(len(ids) for ids in all_input_ids)
+            else:
+                target_length = max(len(ids) for ids in all_input_ids)
+
+            # Pad all sequences
+            padded_input_ids = []
+            attention_masks = []
+            for input_ids in all_input_ids:
+                # Create attention mask (1 for real tokens, 0 for padding)
+                attention_mask = [1] * len(input_ids)
+
+                # Pad to target length
+                padding_length = target_length - len(input_ids)
+                if padding_length > 0:
+                    input_ids = input_ids + [self.pad_token_id] * padding_length
+                    attention_mask = attention_mask + [0] * padding_length
+
+                padded_input_ids.append(input_ids)
+                attention_masks.append(attention_mask)
+
+            all_input_ids = padded_input_ids
+        else:
+            # No padding - create attention masks for actual tokens only
+            attention_masks = [[1] * len(ids) for ids in all_input_ids]
+
+        # Convert to tensors if requested
+        if return_tensors == 'pt':
+            all_input_ids = torch.tensor(all_input_ids, dtype=torch.long)
+            attention_masks = torch.tensor(attention_masks, dtype=torch.long)
+
+        return {
+            'input_ids': all_input_ids,
+            'attention_mask': attention_masks
+        }

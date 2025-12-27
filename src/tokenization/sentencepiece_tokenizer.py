@@ -42,9 +42,10 @@ class HindiSentencePieceTokenizer:
 
     def __call__(self,
                  text: Union[str, List[str]],
+                 text_pair: Optional[Union[str, List[str]]] = None,
                  return_tensors: Optional[str] = None,
                  padding: Union[bool, str] = False,
-                 truncation: bool = False,
+                 truncation: Union[bool, str] = False,
                  max_length: Optional[int] = None,
                  **kwargs) -> Dict[str, Union[List, torch.Tensor]]:
         """
@@ -52,6 +53,7 @@ class HindiSentencePieceTokenizer:
 
         Args:
             text: Input text or list of texts
+            text_pair: Optional second text for text pair tasks
             return_tensors: 'pt' for PyTorch tensors, None for lists
             padding: Whether to pad sequences
             truncation: Whether to truncate sequences
@@ -66,11 +68,20 @@ class HindiSentencePieceTokenizer:
         # Handle single string vs list of strings
         is_single = isinstance(text, str)
         texts = [text] if is_single else text
+        text_pairs = text_pair if text_pair is not None else [None] * len(texts)
+        if not isinstance(text_pairs, list):
+            text_pairs = [text_pair]
 
         # Encode all texts
         encoded_batch = []
-        for t in texts:
-            ids = self.model.encode(t, out_type=int)
+        for t, t_pair in zip(texts, text_pairs):
+            if t_pair is not None:
+                # Combine text and text_pair with separator
+                combined = f"{t} {self.eos_token} {t_pair}"
+            else:
+                combined = t
+
+            ids = self.model.encode(combined, out_type=int)
 
             # Truncate if needed
             if truncation and max_length and len(ids) > max_length:
