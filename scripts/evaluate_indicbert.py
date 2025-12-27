@@ -40,7 +40,7 @@ import numpy as np
 from transformers import AutoModel, AutoTokenizer
 
 # Import existing evaluation infrastructure
-from src.evaluation.indicglue_evaluator import IndicGLUEEvaluator
+from src.evaluation.indicglue_evaluator import IndicGLUEEvaluator, MultipleChoiceWrapper
 from src.evaluation.metrics_utils import MetricsAggregator
 
 
@@ -332,7 +332,7 @@ class IndicBERTEvaluationWrapper:
 
         logger.info("IndicBERT evaluation wrapper created")
 
-    def _wrap_for_task(self, task_name: str, num_classes: int, for_training: bool = False):
+    def _wrap_for_task(self, task_name: str, num_classes: int, for_training: bool = False, task_config: dict = None):
         """
         Create task-specific classification wrapper.
 
@@ -343,6 +343,7 @@ class IndicBERTEvaluationWrapper:
             task_name: Name of the task
             num_classes: Number of classes for this task
             for_training: If True, configure for training mode
+            task_config: Task configuration dictionary (optional)
 
         Returns:
             Wrapped model for the task
@@ -369,24 +370,47 @@ class IndicBERTEvaluationWrapper:
         else:
             dropout = 0.0  # No dropout during evaluation
 
-        # Create ALBERT classification wrapper
-        wrapped = ALBERTForSequenceClassification(
-            lm_model=self.base_model,
-            num_classes=num_classes,
-            hidden_size=self.hidden_size,
-            dropout=dropout,
-            freeze_base=True,  # Always freeze base for task-specific fine-tuning
-            pooling_strategy='first'  # [CLS] token pooling (from paper)
-        )
+        # Check if this is a multiple-choice task
+        use_mc_wrapper = task_config.get('use_multiple_choice_wrapper', False) if task_config else False
 
-        # Move to device
-        wrapped = wrapped.to(self.device)
+        if use_mc_wrapper:
+            # Create MultipleChoiceWrapper for multiple-choice tasks
+            logger.info(f"  Using MultipleChoiceWrapper (matches official IndicBERT)")
+            wrapped = MultipleChoiceWrapper(
+                base_model=self.base_model,
+                hidden_size=self.hidden_size,
+                num_choices=num_classes,  # For MC tasks, num_classes is actually num_choices
+                pooling_strategy='first'  # [CLS] token pooling (ALBERT/BERT standard)
+            )
 
-        # Enable gradients for head if training
-        if for_training:
-            for param in wrapped.classifier.parameters():
-                param.requires_grad = True
-            logger.debug("Classification head gradients enabled")
+            # Move to device
+            wrapped = wrapped.to(self.device)
+
+            # Enable gradients for classifier if training
+            if for_training:
+                for param in wrapped.classifier.parameters():
+                    param.requires_grad = True
+                num_trainable = sum(p.numel() for p in wrapped.classifier.parameters())
+                logger.info(f"  Enabled gradients for MC classifier ({num_trainable:,} trainable parameters)")
+        else:
+            # Create ALBERT classification wrapper for standard classification tasks
+            wrapped = ALBERTForSequenceClassification(
+                lm_model=self.base_model,
+                num_classes=num_classes,
+                hidden_size=self.hidden_size,
+                dropout=dropout,
+                freeze_base=True,  # Always freeze base for task-specific fine-tuning
+                pooling_strategy='first'  # [CLS] token pooling (from paper)
+            )
+
+            # Move to device
+            wrapped = wrapped.to(self.device)
+
+            # Enable gradients for head if training
+            if for_training:
+                for param in wrapped.classifier.parameters():
+                    param.requires_grad = True
+                logger.debug("Classification head gradients enabled")
 
         # Cache the wrapped model
         self.wrapped_models[cache_key] = wrapped
