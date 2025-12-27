@@ -365,11 +365,15 @@ class MultiBLiMPEvaluator:
                 logger.debug(f"Output has 'last_hidden_state' attribute with shape: {good_outputs.last_hidden_state.shape}")
 
             # Extract logits with better error handling
+            logger.info("Extracting logits from model outputs...")
             good_logits = self._extract_logits(good_outputs, "good")
+            logger.info(f"  Good logits extracted: shape={good_logits.shape}, dim={good_logits.dim()}")
             bad_logits = self._extract_logits(bad_outputs, "bad")
+            logger.info(f"  Bad logits extracted: shape={bad_logits.shape}, dim={bad_logits.dim()}")
 
             # CRITICAL: Validate dimensions IMMEDIATELY - BEFORE any other operations
             # This prevents cryptic "Dimension out of range" errors from masking the real issue
+            logger.info("Validating logits dimensions...")
             if good_logits.dim() != 3:
                 raise ValueError(
                     f"MultiBLiMP ERROR: Model outputs {good_logits.dim()}D logits, expected 3D [batch, seq_len, vocab_size].\n"
@@ -387,6 +391,8 @@ class MultiBLiMPEvaluator:
                     f"MultiBLiMP ERROR: Model outputs {bad_logits.dim()}D logits for bad sentence.\n"
                     f"  Shape: {bad_logits.shape}, Model: {self.model.__class__.__name__}"
                 )
+
+            logger.info("✓ Dimension validation passed - logits are 3D")
 
             # Diagnostic logging (DEBUG level) - now safe after dimension validation
             logger.debug(f"Logits validated successfully:")
