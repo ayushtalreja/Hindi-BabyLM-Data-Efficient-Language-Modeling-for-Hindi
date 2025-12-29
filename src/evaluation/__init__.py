@@ -1,5 +1,5 @@
 from .evaluation_manager import EvaluationManager
-from .indicglue_evaluator import IndicGLUEEvaluator, evaluate_indicglue
+from .indicglue_evaluator import IndicGLUEEvaluator
 from .multiblimp_evaluator import MultiBLiMPEvaluator
 from .metrics_utils import (
     Metric,
@@ -19,7 +19,6 @@ from .evaluation_callbacks import (
 __all__ = [
     'EvaluationManager',
     'IndicGLUEEvaluator',
-    'evaluate_indicglue',
     'MultiBLiMPEvaluator',
     'Metric',
     'AggregatedMetrics',

@@ -332,7 +332,7 @@ class IndicBERTEvaluationWrapper:
 
         logger.info("IndicBERT evaluation wrapper created")
 
-    def _wrap_for_task(self, task_name: str, num_classes: int, for_training: bool = False, task_config: dict = None):
+    def _wrap_for_task(self, task_name: str, num_classes: int, for_training: bool = False, task_config = None):
         """
         Create task-specific classification wrapper.
 
@@ -343,7 +343,7 @@ class IndicBERTEvaluationWrapper:
             task_name: Name of the task
             num_classes: Number of classes for this task
             for_training: If True, configure for training mode
-            task_config: Task configuration dictionary (optional)
+            task_config: TaskConfig dataclass object (post-refactoring, optional)
 
         Returns:
             Wrapped model for the task
@@ -371,7 +371,12 @@ class IndicBERTEvaluationWrapper:
             dropout = 0.0  # No dropout during evaluation
 
         # Check if this is a multiple-choice task
-        use_mc_wrapper = task_config.get('use_multiple_choice_wrapper', False) if task_config else False
+        # Handle TaskConfig dataclass (post-refactoring) instead of dictionary
+        if task_config:
+            # TaskConfig dataclass has use_multiple_choice_wrapper attribute
+            use_mc_wrapper = task_config.use_multiple_choice_wrapper if hasattr(task_config, 'use_multiple_choice_wrapper') else False
+        else:
+            use_mc_wrapper = False
 
         if use_mc_wrapper:
             # Create MultipleChoiceWrapper for multiple-choice tasks
@@ -560,14 +565,16 @@ def create_indicbert_evaluator(model_wrapper: IndicBERTEvaluationWrapper,
     # Override with ALBERT-aware version
     def _get_model_for_task_override(task_name, for_training=False):
         """Custom task model getter that uses our ALBERT wrapper"""
-        task_config = evaluator.tasks[task_name]
+        # Use task_registry instead of tasks dictionary (post-refactoring)
+        task_config = evaluator.task_registry.get_task_config(task_name)
 
         # Get number of classes based on task type
         # Multiple-choice tasks with wrapper use 'num_choices', others use 'num_labels'
-        if task_config.get('use_multiple_choice_wrapper', False):
-            num_classes = task_config['num_choices']
+        # Use dataclass attributes instead of dictionary access (post-refactoring)
+        if task_config.use_multiple_choice_wrapper:
+            num_classes = task_config.num_choices
         else:
-            num_classes = task_config.get('num_labels') or task_config.get('num_choices', 2)
+            num_classes = task_config.num_labels or task_config.num_choices or 2
 
         # Use our custom ALBERT wrapper, passing task_config for MC detection
         return model_wrapper._wrap_for_task(task_name, num_classes, for_training, task_config=task_config)
