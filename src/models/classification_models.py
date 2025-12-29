@@ -339,12 +339,13 @@ def wrap_model_for_classification(
 
     Args:
         lm_model: Pre-trained language model
-        model_type: Type of model ('gpt' or 'deberta')
+        model_type: Type of model ('gpt', 'bert', or 'deberta')
         num_classes: Number of classification classes
         hidden_size: Hidden size of the language model
         dropout: Dropout probability for classification head
         freeze_base: If True, freeze the language model parameters
         pooling_strategy: Pooling strategy ('auto', 'mean', 'max', 'first', 'last')
+                         'auto' → 'last' for GPT, 'first' for BERT/DeBERTa
 
     Returns:
         Model wrapped with classification head
@@ -352,6 +353,7 @@ def wrap_model_for_classification(
     model_type = model_type.lower()
 
     if model_type == 'gpt':
+        # GPT models use last-token pooling (causal LM)
         return GPTForSequenceClassification(
             lm_model=lm_model,
             num_classes=num_classes,
@@ -360,10 +362,26 @@ def wrap_model_for_classification(
             freeze_base=freeze_base
         )
 
-    elif model_type == 'deberta':
+    elif model_type == 'bert':
+        # BERT-style models (BERT, ALBERT, IndicBERT) use [CLS] token pooling
         # Auto-select pooling strategy
         if pooling_strategy == 'auto':
-            pooling_strategy = 'mean'
+            pooling_strategy = 'first'  # Use [CLS] token (first position)
+
+        return DeBERTaForSequenceClassification(
+            lm_model=lm_model,
+            num_classes=num_classes,
+            hidden_size=hidden_size,
+            dropout=dropout,
+            pooling_strategy=pooling_strategy,
+            freeze_base=freeze_base
+        )
+
+    elif model_type == 'deberta':
+        # DeBERTa models - use flexible pooling (default to first for classification)
+        # Auto-select pooling strategy
+        if pooling_strategy == 'auto':
+            pooling_strategy = 'first'  # Use [CLS] token for consistency with BERT
 
         return DeBERTaForSequenceClassification(
             lm_model=lm_model,
@@ -375,4 +393,4 @@ def wrap_model_for_classification(
         )
 
     else:
-        raise ValueError(f"Unknown model type: {model_type}. Must be 'gpt' or 'deberta'")
+        raise ValueError(f"Unknown model type: {model_type}. Must be 'gpt', 'bert', or 'deberta'")

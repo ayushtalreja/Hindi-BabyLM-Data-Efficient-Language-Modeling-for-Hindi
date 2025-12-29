@@ -11,8 +11,7 @@ from .evaluation_strategies import (
     EvaluationStrategy,
     ClassificationStrategy,
     MultipleChoiceStrategy,
-    PerplexityStrategy,
-    BinaryCandidateStrategy
+    PerplexityStrategy
 )
 from .fine_tuning_manager import FineTuningManager
 from .result_visualizer import ResultVisualizer
@@ -20,6 +19,6 @@ from .result_visualizer import ResultVisualizer
 __all__ = [
     'TaskRegistry', 'TaskConfig', 'TaskDataExtractor', 'DataLoaderFactory',
     'EvaluationStrategy', 'ClassificationStrategy', 'MultipleChoiceStrategy',
-    'PerplexityStrategy', 'BinaryCandidateStrategy',
+    'PerplexityStrategy',
     'FineTuningManager', 'ResultVisualizer'
 ]

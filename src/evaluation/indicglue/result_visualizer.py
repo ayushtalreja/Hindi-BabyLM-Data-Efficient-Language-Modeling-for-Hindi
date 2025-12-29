@@ -373,3 +373,242 @@ class ResultVisualizer:
                 logger.error(f"Failed to save report: {e}")
 
         return report
+
+    @staticmethod
+    def get_class_names(task_config, task_name: str = "") -> List[str]:
+        """
+        Get class names for a specific task.
+
+        Args:
+            task_config: TaskConfig object from TaskRegistry
+            task_name: Name of the task (for logging)
+
+        Returns:
+            List of class names
+        """
+        class_names = task_config.class_names or []
+
+        # If no class names defined, generate generic names
+        if not class_names:
+            num_labels = task_config.num_labels or task_config.num_choices or 2
+            class_names = [f'Class {i}' for i in range(num_labels)]
+
+        return class_names
+
+    def compute_classification_metrics(
+        self,
+        predictions: List[int],
+        labels: List[int],
+        task_name: str,
+        metrics_aggregator,
+        task_registry,
+        fine_tuning_info: Optional[Dict] = None
+    ) -> Dict:
+        """
+        Compute comprehensive metrics for classification tasks with confidence intervals.
+
+        Args:
+            predictions: List of predicted labels
+            labels: List of true labels
+            task_name: Name of the task
+            metrics_aggregator: MetricsAggregator instance for computing metrics
+            task_registry: TaskRegistry instance for getting task config
+            fine_tuning_info: Optional fine-tuning metadata to include
+
+        Returns:
+            Dictionary with metrics, confusion matrix, and per-class metrics
+        """
+        import numpy as np
+
+        # Convert to numpy arrays and flatten to ensure 1D shape
+        predictions = np.array(predictions).flatten()
+        labels = np.array(labels).flatten()
+
+        # Get class names for this task
+        task_config = task_registry.get_task_config(task_name)
+        class_names = self.get_class_names(task_config, task_name)
+
+        # Compute metrics with confidence intervals
+        accuracy_metric = metrics_aggregator.compute_metric(
+            labels, predictions, 'accuracy', compute_ci=True
+        )
+
+        f1_macro_metric = metrics_aggregator.compute_metric(
+            labels, predictions, 'f1', average='macro', compute_ci=True
+        )
+
+        f1_weighted_metric = metrics_aggregator.compute_metric(
+            labels, predictions, 'f1', average='weighted', compute_ci=True
+        )
+
+        precision_macro_metric = metrics_aggregator.compute_metric(
+            labels, predictions, 'precision', average='macro', compute_ci=True
+        )
+
+        recall_macro_metric = metrics_aggregator.compute_metric(
+            labels, predictions, 'recall', average='macro', compute_ci=True
+        )
+
+        # Compute confusion matrix
+        conf_matrix, matrix_labels = metrics_aggregator.compute_confusion_matrix(
+            labels, predictions, normalize=None
+        )
+
+        # Normalized confusion matrix (by true labels)
+        conf_matrix_normalized, _ = metrics_aggregator.compute_confusion_matrix(
+            labels, predictions, normalize='true'
+        )
+
+        # Compute per-class metrics with CIs
+        per_class_metrics = metrics_aggregator.compute_per_class_metrics(
+            labels, predictions, class_names=class_names, compute_ci=True
+        )
+
+        # Build results dictionary
+        results = {
+            'task': task_name,
+            'num_examples': len(labels),
+
+            # Raw predictions and labels (for visualization)
+            'predictions': predictions.tolist(),
+            'labels': labels.tolist(),
+            'class_names': class_names,
+
+            # Main metrics (backward compatible format)
+            'accuracy': accuracy_metric.value,
+            'f1_macro': f1_macro_metric.value,
+            'f1_weighted': f1_weighted_metric.value,
+            'precision_macro': precision_macro_metric.value,
+            'recall_macro': recall_macro_metric.value,
+
+            # Metrics with confidence intervals
+            'metrics_with_ci': {
+                'accuracy': accuracy_metric.to_dict(),
+                'f1_macro': f1_macro_metric.to_dict(),
+                'f1_weighted': f1_weighted_metric.to_dict(),
+                'precision_macro': precision_macro_metric.to_dict(),
+                'recall_macro': recall_macro_metric.to_dict(),
+            },
+
+            # Confusion matrix
+            'confusion_matrix': {
+                'matrix': conf_matrix.tolist(),
+                'matrix_normalized': conf_matrix_normalized.tolist(),
+                'labels': matrix_labels,
+                'class_names': [class_names[i] if i < len(class_names) else f'class_{i}'
+                               for i in matrix_labels]
+            },
+
+            # Per-class metrics with CIs
+            'per_class_metrics': {
+                int(class_idx): {
+                    metric_name: metric.to_dict()
+                    for metric_name, metric in metrics.items()
+                }
+                for class_idx, metrics in per_class_metrics.items()
+            }
+        }
+
+        # Add fine-tuning metadata if available
+        if fine_tuning_info:
+            results['fine_tuning_info'] = fine_tuning_info
+
+        return results
+
+    @staticmethod
+    def compute_overall_metrics(results: Dict[str, Dict], task_registry) -> Dict:
+        """
+        Compute overall statistics across all tasks.
+
+        Args:
+            results: Dictionary of per-task results
+            task_registry: TaskRegistry instance for getting all task names
+
+        Returns:
+            Dictionary with overall metrics
+        """
+        import numpy as np
+
+        accuracies = []
+        f1_scores = []
+
+        for task_name, task_results in results.items():
+            if task_name == 'overall':
+                continue
+
+            if 'accuracy' in task_results:
+                accuracies.append(task_results['accuracy'])
+
+            if 'f1_macro' in task_results:
+                f1_scores.append(task_results['f1_macro'])
+
+        overall = {
+            'average_accuracy': np.mean(accuracies) if accuracies else 0.0,
+            'average_f1_macro': np.mean(f1_scores) if f1_scores else 0.0,
+            'tasks_evaluated': len(accuracies),
+            'accuracies_by_task': {
+                task: results[task].get('accuracy', 0)
+                for task in task_registry.get_all_task_names()
+                if task in results and 'accuracy' in results[task]
+            }
+        }
+
+        return overall
+
+    def save_all_visualizations(self, results: Dict[str, Dict], save_dir: str):
+        """
+        Generate and save all visualizations for evaluation results.
+
+        Iterates through all task results and generates visualizations.
+
+        Args:
+            results: Dictionary of evaluation results (must include 'predictions' and 'labels')
+            save_dir: Directory to save visualizations
+        """
+        if not self.save_visualizations:
+            logger.info("Visualization saving disabled")
+            return
+
+        save_path = Path(save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Generating visualizations in: {save_path}")
+
+        for task_name, task_results in results.items():
+            if task_name == 'overall':
+                continue
+
+            # Skip tasks without predictions/labels (e.g., skipped or failed tasks)
+            if 'predictions' not in task_results or 'labels' not in task_results:
+                logger.debug(f"Skipping visualization for {task_name}: missing predictions/labels")
+                continue
+
+            try:
+                predictions = task_results['predictions']
+                labels = task_results['labels']
+                class_names = task_results.get('class_names', None)
+
+                # Generate confusion matrix
+                output_path = save_path / f"{task_name}_confusion_matrix"
+                self.plot_confusion_matrix(
+                    predictions=predictions,
+                    labels=labels,
+                    class_names=class_names,
+                    task_name=task_name,
+                    output_path=output_path,
+                    normalize=True
+                )
+
+                # Generate per-class metrics (if available)
+                if 'per_class_metrics' in task_results:
+                    output_path_metrics = save_path / f"{task_name}_per_class_metrics"
+                    self.plot_per_class_metrics(
+                        predictions=predictions,
+                        labels=labels,
+                        class_names=class_names,
+                        task_name=task_name,
+                        output_path=output_path_metrics
+                    )
+
+            except Exception as e:
+                logger.error(f"Error generating visualizations for {task_name}: {e}")
