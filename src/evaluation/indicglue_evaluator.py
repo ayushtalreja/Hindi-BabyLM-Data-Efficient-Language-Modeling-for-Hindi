@@ -925,26 +925,15 @@ class IndicGLUEEvaluator:
         # Get model with trainable head, frozen base
         model = self._get_model_for_task(task_name, for_training=True)
 
-        # Create dataloaders based on task type
-        # TODO: Refactor to use self.dataloader_factory
-        task_config = self.task_registry.get_task_config(task_name)
-        use_mc_wrapper = task_config.use_multiple_choice_wrapper
-
-        if use_mc_wrapper:
-            logger.info(f"Using multiple-choice dataloader for {task_name}")
-            train_loader = self._create_multiple_choice_dataloader(train_dataset, task_name,
-                                                                    shuffle=True, batch_size=batch_size)
-            val_loader = None
-            if has_validation:
-                val_loader = self._create_multiple_choice_dataloader(val_dataset, task_name,
-                                                                      shuffle=False, batch_size=batch_size*2)
-        else:
-            train_loader = self._create_task_dataloader(train_dataset, task_name,
-                                                         shuffle=True, batch_size=batch_size)
-            val_loader = None
-            if has_validation:
-                val_loader = self._create_task_dataloader(val_dataset, task_name,
-                                                           shuffle=False, batch_size=batch_size*2)
+        # Create dataloaders using DataLoaderFactory (automatic task-type routing)
+        train_loader = self.dataloader_factory.create_dataloader(
+            train_dataset, task_name, shuffle=True, batch_size=batch_size
+        )
+        val_loader = None
+        if has_validation:
+            val_loader = self.dataloader_factory.create_dataloader(
+                val_dataset, task_name, shuffle=False, batch_size=batch_size*2
+            )
 
         # ========== Use FineTuningManager for training loop ==========
         # This replaces ~100 lines of optimizer setup, training loop, and early stopping
@@ -969,67 +958,6 @@ class IndicGLUEEvaluator:
 
         return model
 
-    def _create_task_dataloader(self, dataset: Dataset, task_name: str,
-                                shuffle: bool = False,
-                                batch_size: Optional[int] = None) -> DataLoader:
-        """
-        Create DataLoader for a task dataset (REFACTORED to use DataLoaderFactory).
-
-        This method now delegates to DataLoaderFactory, eliminating ~150 lines of
-        duplicated field extraction logic that was moved to TaskDataExtractor.
-
-        Args:
-            dataset: Dataset to create loader for
-            task_name: Name of the task
-            shuffle: Whether to shuffle the data
-            batch_size: Batch size (defaults to self.batch_size)
-
-        Returns:
-            DataLoader
-        """
-        if batch_size is None:
-            batch_size = self.batch_size
-
-        # ========== Use DataLoaderFactory (refactored) ==========
-        # This replaces ~150 lines of field extraction and collate_fn logic
-        return self.dataloader_factory.create_standard_dataloader(
-            dataset=dataset,
-            task_name=task_name,
-            shuffle=shuffle,
-            batch_size=batch_size
-        )
-
-    def _create_multiple_choice_dataloader(self, dataset: Dataset, task_name: str,
-                                           shuffle: bool = False, batch_size: Optional[int] = None) -> DataLoader:
-        """
-        Create DataLoader for multiple-choice tasks (REFACTORED to use DataLoaderFactory).
-
-        This method now delegates to DataLoaderFactory, eliminating ~140 lines of
-        duplicated field extraction logic that was moved to TaskDataExtractor.
-
-        Formats data as [batch, num_choices, seq_len] to match official IndicBERT implementation.
-
-        Args:
-            dataset: Dataset to create loader for
-            task_name: Name of the task (WSTP, CSQA, or COPA)
-            shuffle: Whether to shuffle
-            batch_size: Batch size (defaults to self.batch_size)
-
-        Returns:
-            DataLoader with appropriate collation for multiple-choice tasks
-        """
-        if batch_size is None:
-            batch_size = self.batch_size
-
-        # ========== Use DataLoaderFactory (refactored) ==========
-        # This replaces ~140 lines of field extraction and collate_fn logic
-        return self.dataloader_factory.create_multiple_choice_dataloader(
-            dataset=dataset,
-            task_name=task_name,
-            shuffle=shuffle,
-            batch_size=batch_size
-        )
-
     def _evaluate_classification(self, dataset: Dataset, task_name: str, model=None) -> Dict:
         """
         Evaluate classification task
@@ -1051,8 +979,8 @@ class IndicGLUEEvaluator:
 
         model.eval()
 
-        # Use dataloader with proper collate function to handle different field names
-        dataloader = self._create_task_dataloader(
+        # Use DataLoaderFactory for automatic task-type routing
+        dataloader = self.dataloader_factory.create_dataloader(
             dataset,
             task_name,
             shuffle=False,
@@ -1118,8 +1046,8 @@ class IndicGLUEEvaluator:
 
         model.eval()
 
-        # Create dataloader with MC collation
-        dataloader = self._create_multiple_choice_dataloader(
+        # Use DataLoaderFactory for automatic task-type routing
+        dataloader = self.dataloader_factory.create_dataloader(
             dataset,
             task_name,
             shuffle=False,
@@ -1147,57 +1075,3 @@ class IndicGLUEEvaluator:
             predictions, labels, task_name,
             self.metrics_aggregator, self.task_registry, fine_tuning_info
         )
-
-    def _tokenize_batch(self, texts: List[str]) -> Dict[str, torch.Tensor]:
-        """
-        Tokenize a batch of texts using configured max_length.
-
-        Uses max_length from config (default 128 per IndicBERT paper).
-
-        Args:
-            texts: List of text strings
-
-        Returns:
-            Dictionary with tokenized inputs
-        """
-        # Handle different tokenizer interfaces
-        try:
-            # Try HuggingFace tokenizer interface
-            encoded = self.tokenizer(
-                texts,
-                padding='max_length',  # Match official IndicBERT (pads to max_length, not longest in batch)
-                truncation=True,
-                max_length=self.max_length,  # Use config value instead of hardcoded 512
-                return_tensors='pt'
-            )
-        except:
-            # Fallback to simple encoding (also uses config max_length)
-            max_len = self.max_length  # Use config value instead of hardcoded 512
-            input_ids = []
-
-            for text in texts:
-                tokens = self.tokenizer.encode(text)[:max_len]
-                input_ids.append(tokens)
-
-            # Pad sequences
-            max_batch_len = max(len(ids) for ids in input_ids)
-            padded_ids = []
-            attention_masks = []
-
-            # Use tokenizer's pad_token_id if available, otherwise fallback to 0
-            pad_token_id = self.tokenizer.pad_token_id if hasattr(self.tokenizer, 'pad_token_id') and self.tokenizer.pad_token_id is not None else 0
-
-            for ids in input_ids:
-                padding_length = max_batch_len - len(ids)
-                padded_ids.append(ids + [pad_token_id] * padding_length)
-                attention_masks.append([1] * len(ids) + [0] * padding_length)
-
-            encoded = {
-                'input_ids': torch.tensor(padded_ids, dtype=torch.long),
-                'attention_mask': torch.tensor(attention_masks, dtype=torch.long)
-            }
-
-        # Move to device
-        encoded = {k: v.to(self.device) for k, v in encoded.items()}
-
-        return encoded
