@@ -30,53 +30,42 @@ from torch.utils.data import DataLoader
 from .metrics_utils import MetricsAggregator, Metric
 from .evaluation_cache import EvaluationCache
 
+# Import refactored IndicGLUE modules
+from .indicglue import (
+    TaskRegistry,
+    TaskDataExtractor,
+    DataLoaderFactory,
+    ClassificationStrategy,
+    MultipleChoiceStrategy,
+    PerplexityStrategy,
+    BinaryCandidateStrategy,
+    FineTuningManager,
+    ResultVisualizer
+)
+
 # Import classification models for wrapping language models
 from ..models.classification_models import wrap_model_for_classification
 
 logger = logging.getLogger(__name__)
 
 
+# DEPRECATED: Module-level constants kept for backward compatibility
+# These are now managed by TaskRegistry
+# TODO: Remove in future version after confirming no external dependencies
+
 # BBCA (BBC Articles Classification) label mapping
 # The IndicGLUE BBCA dataset uses string labels, but models return integer predictions
 # This mapping converts string labels to integer indices for metric computation
-BBCA_LABEL_MAP = {
-    'business': 0,
-    'china': 1,
-    'entertainment': 2,
-    'india': 3,
-    'institutional': 4,
-    'international': 5,
-    'learningenglish': 6,
-    'multimedia': 7,
-    'news': 8,
-    'pakistan': 9,
-    'science': 10,
-    'social': 11,
-    'southasia': 12,
-    'sport': 13
-}
+BBCA_LABEL_MAP = TaskRegistry.BBCA_LABEL_MAP  # Backward compatibility
 
 # DiscourseMode label mapping
 # The IndicGLUE DiscourseMode dataset uses string labels, but models return integer predictions
 # This mapping converts string labels to integer indices for metric computation
-DISCOURSE_MODE_LABEL_MAP = {
-    'Narrative': 0,
-    'Descriptive': 1,
-    'Dialogue': 2,
-    'Informative': 3,
-    'Argumentative': 4,
-    'Other': 5
-}
+DISCOURSE_MODE_LABEL_MAP = TaskRegistry.DISCOURSE_MODE_LABEL_MAP  # Backward compatibility
 
 # Task-specific split remappings for corrupted datasets
 # Format: {task_name: {requested_split: actual_split_to_load}}
-SPLIT_REMAPPING = {
-    'Choice of Plausible Alternatives': {
-        'test': 'validation',      # Test corrupted → use validation (88 examples)
-        'validation': 'test',       # Use corrupted test as validation (449 examples)
-        'train': 'train'           # Train is fine, keep unchanged (362 examples)
-    }
-}
+SPLIT_REMAPPING = TaskRegistry.SPLIT_REMAPPING  # Backward compatibility
 
 
 class MultipleChoiceWrapper(nn.Module):
@@ -234,70 +223,29 @@ class IndicGLUEEvaluator:
 
         logger.info(f"Model type detected: {'Language Model' if self.is_language_model else 'Classification Model'}")
 
-        # Task configurations
-        # Using descriptive names mapped to HuggingFace configs
-        self.tasks = {
-            'BBCArticlesClassification': {
-                'type': 'classification',
-                'num_labels': 14,  # 14 classes in BBC dataset
-                'metric': 'accuracy',
-                'class_names': ['business', 'china', 'entertainment', 'india', 'institutional',
-                               'international', 'learningenglish', 'multimedia', 'news', 'pakistan',
-                               'science', 'social', 'southasia', 'sport'],  # All 14 classes in order matching BBCA_LABEL_MAP
-                'hf_config': 'bbca.hi'
-            },
-            'Wikipedia Section Title Prediction': {
-                'type': 'multiple_choice',
-                'num_choices': 4,  # Four title choices
-                'use_multiple_choice_wrapper': True,  # Use MultipleChoiceWrapper (matches official IndicBERT)
-                'metric': 'accuracy',
-                'hf_config': 'wstp.hi'
-            },
-            'Cloze-style multiple-choice QA': {
-                'type': 'multiple_choice',
-                'num_choices': 4,  # Four answer choices (cloze-style fill-in-the-blank)
-                'use_multiple_choice_wrapper': True,  # Use MultipleChoiceWrapper (matches official IndicBERT)
-                'metric': 'accuracy',
-                'hf_config': 'csqa.hi'
-            },
-            'WinogradNLI': {
-                'type': 'nli',
-                'num_labels': 3,  # Not Entailment, Entailment, None
-                'metric': 'accuracy',
-                'class_names': ['Not Entailment', 'Entailment', 'None'],
-                'hf_config': 'wnli.hi'
-            },
-            'Choice of Plausible Alternatives': {
-                'type': 'multiple_choice',
-                'num_choices': 2,  # Two plausible alternatives
-                'use_multiple_choice_wrapper': True,  # Use MultipleChoiceWrapper (matches official IndicBERT)
-                'metric': 'accuracy',
-                'hf_config': 'copa.hi'
-            },
-            # New tasks added
-            'MovieReviewSentiment': {
-                'type': 'classification',
-                'num_labels': 3,  # Positive, Negative, Neutral
-                'metric': 'accuracy',
-                'class_names': ['Negative', 'Neutral', 'Positive'],
-                'hf_config': 'iitp-mr.hi'
-            },
-            'ProductReviewSentiment': {
-                'type': 'classification',
-                'num_labels': 3,  # Positive, Negative, Neutral
-                'metric': 'accuracy',
-                'class_names': ['Negative', 'Neutral', 'Positive'],
-                'hf_config': 'iitp-pr.hi'
-            },
-            'DiscourseMode': {
-                'type': 'classification',
-                'num_labels': 6,  # FIXED: 6 classes, not 9
-                'metric': 'accuracy',
-                'class_names': ['Narrative', 'Descriptive', 'Dialogue',
-                               'Informative', 'Argumentative', 'Other'],
-                'hf_config': 'md.hi'
+        # Initialize task registry (refactored from self.tasks dictionary)
+        self.task_registry = TaskRegistry()
+        logger.info(f"Initialized TaskRegistry with {len(self.task_registry.get_all_task_names())} tasks")
+
+        # DEPRECATED: Keep self.tasks for backward compatibility
+        # Build tasks dict from registry for any external code that might access it
+        self.tasks = {}
+        for task_name in self.task_registry.get_all_task_names():
+            task_config = self.task_registry.get_task_config(task_name)
+            # Convert TaskConfig dataclass to dict format for backward compatibility
+            self.tasks[task_name] = {
+                'type': task_config.task_type,
+                'metric': task_config.metric,
+                'hf_config': task_config.hf_config
             }
-        }
+            if task_config.num_labels is not None:
+                self.tasks[task_name]['num_labels'] = task_config.num_labels
+            if task_config.num_choices is not None:
+                self.tasks[task_name]['num_choices'] = task_config.num_choices
+            if task_config.use_multiple_choice_wrapper:
+                self.tasks[task_name]['use_multiple_choice_wrapper'] = True
+            if task_config.class_names is not None:
+                self.tasks[task_name]['class_names'] = task_config.class_names
 
         # Batch size for evaluation - explicitly convert to int
         self.batch_size = int(self.config.get('eval_batch_size', 32))
@@ -337,6 +285,61 @@ class IndicGLUEEvaluator:
         self._is_finetuned_mode = False
         self._current_fine_tuning_info = None
         logger.info("Evaluation mode initialized: zero-shot (will switch to fine-tuned after training)")
+
+        # ========== Initialize Refactored Components ==========
+        # These components were extracted from the monolithic evaluator for better testability
+
+        # Data extraction component
+        self.data_extractor = TaskDataExtractor(self.task_registry)
+        logger.info("Initialized TaskDataExtractor")
+
+        # DataLoader factory component
+        self.dataloader_factory = DataLoaderFactory(
+            task_registry=self.task_registry,
+            data_extractor=self.data_extractor,
+            tokenizer=self.tokenizer,
+            max_length=self.max_length,
+            device=self.device
+        )
+        logger.info("Initialized DataLoaderFactory")
+
+        # Evaluation strategy components
+        self.classification_strategy = ClassificationStrategy(
+            device=self.device,
+            task_config_getter=self.task_registry.get_task_config
+        )
+        self.mc_strategy = MultipleChoiceStrategy(device=self.device)
+        self.perplexity_strategy = PerplexityStrategy(
+            device=self.device,
+            tokenizer=self.tokenizer,
+            max_length=self.max_length,
+            data_extractor=self.data_extractor
+        )
+        self.binary_candidate_strategy = BinaryCandidateStrategy(
+            device=self.device,
+            tokenizer=self.tokenizer,
+            max_length=self.max_length,
+            data_extractor=self.data_extractor
+        )
+        logger.info("Initialized evaluation strategies (Classification, MC, Perplexity, BinaryCandidate)")
+
+        # Fine-tuning manager component
+        ft_config = eval_config.get('benchmarks', {}).get('indicglue', {}).get('fine_tuning', {})
+        self.fine_tuning_manager = FineTuningManager(
+            num_epochs=int(ft_config.get('num_epochs', 10)),
+            learning_rate=float(ft_config.get('learning_rate', 2e-5)),
+            weight_decay=float(ft_config.get('weight_decay', 0.0)),
+            adam_epsilon=float(ft_config.get('adam_epsilon', 1e-8)),
+            patience=int(ft_config.get('early_stopping', {}).get('patience', 3))
+        )
+        logger.info("Initialized FineTuningManager")
+
+        # Result visualizer component
+        self.result_visualizer = ResultVisualizer(
+            save_visualizations=self.save_visualizations,
+            visualization_formats=self.visualization_format
+        )
+        logger.info("Initialized ResultVisualizer")
 
     def _is_language_model(self, model) -> bool:
         """
@@ -813,8 +816,8 @@ class IndicGLUEEvaluator:
         """
         # Apply split remapping if configured for this task
         original_split = split
-        if task_name in SPLIT_REMAPPING:
-            remap_config = SPLIT_REMAPPING[task_name]
+        remap_config = self.task_registry.get_split_remapping(task_name)
+        if remap_config is not None:
             split = remap_config.get(split, split)
 
             if split != original_split:
@@ -1036,14 +1039,13 @@ class IndicGLUEEvaluator:
     def fine_tune_task(self, task_name: str, train_dataset: Dataset,
                        val_dataset: Optional[Dataset] = None) -> 'torch.nn.Module':
         """
-        Fine-tune classification head on train/val splits
+        Fine-tune classification head on train/val splits using FineTuningManager.
 
         Features:
         - Freezes base model (only train classification head)
         - Early stopping based on validation accuracy (if validation set available)
         - If no validation set: trains for fixed num_epochs without early stopping
-        - 10 epoch maximum (configurable)
-        - Batch size and LR from config
+        - Delegates training loop to FineTuningManager (refactored)
 
         Args:
             task_name: Name of the task
@@ -1053,19 +1055,10 @@ class IndicGLUEEvaluator:
         Returns:
             Fine-tuned model (best checkpoint based on validation, or final model if no validation)
         """
-        # Get fine-tuning config
+        # Get fine-tuning config for batch size (manager has other configs already)
         ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
                         .get('indicglue', {}).get('fine_tuning', {})
-
-        # Explicitly convert config values to correct types to avoid type comparison errors
-        num_epochs = int(ft_config.get('num_epochs', 10))
-        learning_rate = float(ft_config.get('learning_rate', 2e-5))
         batch_size = int(ft_config.get('batch_size', 32))
-        weight_decay = float(ft_config.get('weight_decay', 0.0))  # Official IndicBERT uses 0.0
-
-        # Early stopping config
-        es_config = ft_config.get('early_stopping', {})
-        patience = int(es_config.get('patience', 3))
 
         # Determine if we have validation data
         has_validation = val_dataset is not None and len(val_dataset) > 0
@@ -1075,20 +1068,17 @@ class IndicGLUEEvaluator:
             logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
         else:
             logger.info(f"Train samples: {len(train_dataset)}, No validation set")
-            logger.info(f"Training for {num_epochs} epochs (no early stopping)")
-        logger.info(f"Epochs: {num_epochs}, LR: {learning_rate}, Batch size: {batch_size}")
 
         # Get model with trainable head, frozen base
         model = self._get_model_for_task(task_name, for_training=True)
 
-        # Check dataloader type based on task configuration
+        # Create dataloaders based on task type
+        # TODO: Refactor to use self.dataloader_factory
         task_config = self.tasks[task_name]
         use_mc_wrapper = task_config.get('use_multiple_choice_wrapper', False)
 
-        # Create dataloaders based on task type
         if use_mc_wrapper:
-            logger.info(f"Using multiple-choice dataloader for {task_name} "
-                       f"(matches official IndicBERT implementation)")
+            logger.info(f"Using multiple-choice dataloader for {task_name}")
             train_loader = self._create_multiple_choice_dataloader(train_dataset, task_name,
                                                                     shuffle=True, batch_size=batch_size)
             val_loader = None
@@ -1096,7 +1086,6 @@ class IndicGLUEEvaluator:
                 val_loader = self._create_multiple_choice_dataloader(val_dataset, task_name,
                                                                       shuffle=False, batch_size=batch_size*2)
         else:
-            # Standard dataloader for classification/NLI tasks
             train_loader = self._create_task_dataloader(train_dataset, task_name,
                                                          shuffle=True, batch_size=batch_size)
             val_loader = None
@@ -1104,107 +1093,24 @@ class IndicGLUEEvaluator:
                 val_loader = self._create_task_dataloader(val_dataset, task_name,
                                                            shuffle=False, batch_size=batch_size*2)
 
-        # Setup optimizer with parameter-specific weight decay (match official IndicBERT)
-        # No weight decay for bias and LayerNorm parameters
-        no_decay = ['bias', 'LayerNorm.weight', 'LayerNorm.bias']
-        optimizer_grouped_parameters = [
-            {
-                'params': [p for n, p in model.named_parameters()
-                           if not any(nd in n for nd in no_decay) and p.requires_grad],
-                'weight_decay': weight_decay
-            },
-            {
-                'params': [p for n, p in model.named_parameters()
-                           if any(nd in n for nd in no_decay) and p.requires_grad],
-                'weight_decay': 0.0
-            }
-        ]
-
-        # Get adam_epsilon from config (official IndicBERT uses 1e-8)
-        adam_epsilon = float(ft_config.get('adam_epsilon', 1e-8))
-
-        optimizer = torch.optim.AdamW(
-            optimizer_grouped_parameters,
-            lr=learning_rate,
-            eps=adam_epsilon
+        # ========== Use FineTuningManager for training loop ==========
+        # This replaces ~100 lines of optimizer setup, training loop, and early stopping
+        fine_tuning_info = self.fine_tuning_manager.fine_tune(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            task_name=task_name
         )
 
-        # Training loop with early stopping (if validation available)
-        best_val_acc = 0.0
-        best_model_state = None
-        patience_counter = 0
-        best_epoch = 0
-        final_epoch = 0
-
-        for epoch in range(num_epochs):
-            # Training phase
-            model.train()
-            train_loss = 0.0
-            num_batches = 0
-
-            for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs} [Train]"):
-                outputs = model(**batch)
-                loss = outputs.loss
-
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-
-                train_loss += loss.item()
-                num_batches += 1
-
-            avg_train_loss = train_loss / num_batches if num_batches > 0 else 0.0
-            final_epoch = epoch + 1
-
-            if has_validation:
-                # Validation phase (only if validation set available)
-                val_metrics = self._validate_model(model, val_loader, task_name)
-                val_acc = val_metrics['accuracy']
-                val_loss = val_metrics['loss']
-
-                logger.info(f"Epoch {epoch+1}/{num_epochs}: "
-                           f"train_loss={avg_train_loss:.4f}, "
-                           f"val_acc={val_acc:.4f}, "
-                           f"val_loss={val_loss:.4f}")
-
-                # Early stopping check
-                if val_acc > best_val_acc:
-                    best_val_acc = val_acc
-                    best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-                    patience_counter = 0
-                    best_epoch = epoch + 1
-                    logger.info(f"  → New best validation accuracy: {best_val_acc:.4f}")
-                else:
-                    patience_counter += 1
-                    logger.info(f"  → No improvement (patience: {patience_counter}/{patience})")
-
-                    if patience_counter >= patience:
-                        logger.info(f"Early stopping triggered at epoch {epoch+1}")
-                        break
-            else:
-                # No validation set - just log training loss
-                logger.info(f"Epoch {epoch+1}/{num_epochs}: train_loss={avg_train_loss:.4f}")
-
-        # Restore best model (if validation was used) or use final model
-        if has_validation and best_model_state is not None:
-            model.load_state_dict(best_model_state)
-            logger.info(f"Restored best model from epoch {best_epoch} with val_acc={best_val_acc:.4f}")
-        else:
-            logger.info(f"Using final model from epoch {final_epoch} (no validation set)")
-
-        # Store fine-tuning metadata for later use
+        # Store fine-tuning metadata for later use (add dataset info)
         self._current_fine_tuning_info = {
-            'epochs_trained': final_epoch,
-            'best_epoch': best_epoch if has_validation else final_epoch,
-            'best_val_accuracy': best_val_acc if has_validation else None,
-            'early_stopped': has_validation and patience_counter >= patience,
+            **fine_tuning_info,  # From FineTuningManager
             'train_samples': len(train_dataset),
             'val_samples': len(val_dataset) if has_validation else 0,
             'had_validation': has_validation
         }
 
         # Set fine-tuned mode flag
-        # This enables classification head routing for multiple-choice tasks
         self._is_finetuned_mode = True
         logger.info("Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)")
 
@@ -1249,7 +1155,10 @@ class IndicGLUEEvaluator:
                                 shuffle: bool = False,
                                 batch_size: Optional[int] = None) -> DataLoader:
         """
-        Create DataLoader for a task dataset
+        Create DataLoader for a task dataset (REFACTORED to use DataLoaderFactory).
+
+        This method now delegates to DataLoaderFactory, eliminating ~150 lines of
+        duplicated field extraction logic that was moved to TaskDataExtractor.
 
         Args:
             dataset: Dataset to create loader for
@@ -1259,6 +1168,27 @@ class IndicGLUEEvaluator:
 
         Returns:
             DataLoader
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+
+        # ========== Use DataLoaderFactory (refactored) ==========
+        # This replaces ~150 lines of field extraction and collate_fn logic
+        return self.dataloader_factory.create_standard_dataloader(
+            dataset=dataset,
+            task_name=task_name,
+            shuffle=shuffle,
+            batch_size=batch_size
+        )
+
+    def _create_task_dataloader_OLD_DEPRECATED(self, dataset: Dataset, task_name: str,
+                                shuffle: bool = False,
+                                batch_size: Optional[int] = None) -> DataLoader:
+        """
+        OLD IMPLEMENTATION - DEPRECATED (kept for reference, will be removed after testing)
+
+        This old implementation had ~150 lines of duplicated field extraction logic
+        that is now handled by TaskDataExtractor and DataLoaderFactory.
         """
         if batch_size is None:
             batch_size = self.batch_size
@@ -1509,7 +1439,10 @@ class IndicGLUEEvaluator:
     def _create_multiple_choice_dataloader(self, dataset: Dataset, task_name: str,
                                            shuffle: bool = False, batch_size: Optional[int] = None) -> DataLoader:
         """
-        Create DataLoader for multiple-choice tasks using MultipleChoiceWrapper.
+        Create DataLoader for multiple-choice tasks (REFACTORED to use DataLoaderFactory).
+
+        This method now delegates to DataLoaderFactory, eliminating ~140 lines of
+        duplicated field extraction logic that was moved to TaskDataExtractor.
 
         Formats data as [batch, num_choices, seq_len] to match official IndicBERT implementation.
 
@@ -1521,6 +1454,25 @@ class IndicGLUEEvaluator:
 
         Returns:
             DataLoader with appropriate collation for multiple-choice tasks
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+
+        # ========== Use DataLoaderFactory (refactored) ==========
+        # This replaces ~140 lines of field extraction and collate_fn logic
+        return self.dataloader_factory.create_multiple_choice_dataloader(
+            dataset=dataset,
+            task_name=task_name,
+            shuffle=shuffle,
+            batch_size=batch_size
+        )
+
+    def _create_multiple_choice_dataloader_OLD_DEPRECATED(self, dataset: Dataset, task_name: str,
+                                           shuffle: bool = False, batch_size: Optional[int] = None) -> DataLoader:
+        """
+        OLD IMPLEMENTATION - DEPRECATED (kept for reference, will be removed after testing)
+
+        This old implementation had ~140 lines of duplicated field extraction logic.
         """
         if batch_size is None:
             batch_size = self.batch_size

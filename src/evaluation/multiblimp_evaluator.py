@@ -429,7 +429,7 @@ class MultiBLiMPEvaluator:
             good_shift_labels = good_inputs['input_ids'][:, 1:].contiguous()
 
             # Compute cross-entropy loss
-            loss_fct = torch.nn.CrossEntropyLoss(reduction='mean')
+            loss_fct = torch.nn.CrossEntropyLoss(reduction='sum')
             good_loss = loss_fct(
                 good_shift_logits.view(-1, good_shift_logits.size(-1)),
                 good_shift_labels.view(-1)
