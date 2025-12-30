@@ -323,11 +323,24 @@ class IndicGLUEEvaluator:
     def _get_model_config(self) -> Dict:
         """Extract model configuration for wrapping."""
         # Try to get hidden size from model config
+        hidden_size = None
+
         if hasattr(self.base_model, 'config'):
-            hidden_size = self.base_model.config.hidden_size
+            config = self.base_model.config
+            # Handle both dict and object config
+            if isinstance(config, dict):
+                hidden_size = config.get('hidden_size')
+            else:
+                hidden_size = getattr(config, 'hidden_size', None)
         elif hasattr(self.base_model, 'model') and hasattr(self.base_model.model, 'config'):
-            hidden_size = self.base_model.model.config.hidden_size
-        else:
+            config = self.base_model.model.config
+            # Handle both dict and object config
+            if isinstance(config, dict):
+                hidden_size = config.get('hidden_size')
+            else:
+                hidden_size = getattr(config, 'hidden_size', None)
+
+        if hidden_size is None:
             # Default hidden size
             hidden_size = 768
             logger.warning(f"Could not determine hidden size, using default: {hidden_size}")
