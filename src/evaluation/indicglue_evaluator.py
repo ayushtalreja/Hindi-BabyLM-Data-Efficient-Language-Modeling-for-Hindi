@@ -641,19 +641,17 @@ class IndicGLUEEvaluator:
         is_finetuned = self._is_finetuned_mode
 
         # Route based on task type
-        # PRIORITY 1: Multiple-choice wrapper tasks (WSTP, CSQA, COPA)
+        # All tasks (classification, NLI, and multiple-choice) use the same unified evaluation method
         if task_config.use_multiple_choice_wrapper:
             logger.info(f"[ROUTING] {task_name}: Multiple-choice wrapper → "
                        f"Process each choice independently (matches official IndicBERT)")
-            return self._evaluate_multiple_choice_with_wrapper(dataset, task_name, model)
-
-        # PRIORITY 2: Classification and NLI tasks
         elif task_config.task_type in ['classification', 'nli']:
             logger.info(f"[ROUTING] {task_name}: Classification/NLI task → Using classification head")
-            return self._evaluate_classification(dataset, task_name, model)
-
         else:
             raise ValueError(f"Unknown task type: {task_config.task_type}")
+
+        # Use unified evaluation method for all task types
+        return self._evaluate_classification(dataset, task_name, model)
 
     def _load_task_data(self, task_name: str, split: str = 'test') -> Optional[Dataset]:
         """
@@ -714,6 +712,33 @@ class IndicGLUEEvaluator:
             logger.debug(f"Failed to load {task_name} {split} split from HuggingFace: {e}")
             return None
 
+    def _load_available_splits(self, task_name: str) -> Dict[str, Dataset]:
+        """
+        Helper method to load all available splits from HuggingFace.
+
+        This is the core split-loading logic used by both:
+        - _load_complete_dataset() (combines splits)
+        - _load_all_splits() (keeps splits separate)
+
+        Args:
+            task_name: Name of the task
+
+        Returns:
+            Dictionary mapping split names to datasets (only includes available splits)
+        """
+        splits = {}
+
+        for split_name in ['train', 'validation', 'test']:
+            try:
+                dataset = self._load_task_data(task_name, split=split_name)
+                if dataset is not None and len(dataset) > 0:
+                    splits[split_name] = dataset
+                    logger.info(f"  Loaded {split_name}: {len(dataset)} examples")
+            except Exception as e:
+                logger.debug(f"  Split '{split_name}' not available: {e}")
+
+        return splits
+
     def _load_complete_dataset(self, task_name: str) -> Optional[Dataset]:
         """
         Load ALL available splits from HuggingFace and combine them.
@@ -734,30 +759,22 @@ class IndicGLUEEvaluator:
 
         logger.info(f"Loading complete dataset for {task_name} (all available splits)...")
 
-        available_datasets = []
-        split_info = []
+        # Load all available splits using helper method
+        splits = self._load_available_splits(task_name)
 
-        # Try loading all possible splits
-        for split_name in ['train', 'validation', 'test']:
-            try:
-                dataset = self._load_task_data(task_name, split=split_name)
-                if dataset is not None and len(dataset) > 0:
-                    available_datasets.append(dataset)
-                    split_info.append(f"{split_name}({len(dataset)})")
-                    logger.info(f"  Loaded {split_name}: {len(dataset)} examples")
-            except Exception as e:
-                logger.debug(f"  Split '{split_name}' not available: {e}")
-
-        if not available_datasets:
+        if not splits:
             logger.error(f"No data available for {task_name}")
             return None
 
         # Combine all available datasets
-        if len(available_datasets) == 1:
-            combined = available_datasets[0]
+        datasets_list = list(splits.values())
+        if len(datasets_list) == 1:
+            combined = datasets_list[0]
         else:
-            combined = concatenate_datasets(available_datasets)
+            combined = concatenate_datasets(datasets_list)
 
+        # Create info string for logging
+        split_info = [f"{name}({len(ds)})" for name, ds in splits.items()]
         logger.info(f"  Combined dataset: {len(combined)} total examples from [{', '.join(split_info)}]")
 
         return combined
@@ -875,19 +892,9 @@ class IndicGLUEEvaluator:
             # Use task-specific custom split ratios
             return self._create_custom_splits_from_complete(task_name, override_config=task_config)
 
-        # Default: load original splits directly from HuggingFace
+        # Default: load original splits directly from HuggingFace using helper method
         logger.info(f"Using original HuggingFace splits for {task_name}")
-        splits = {}
-        for split_name in ['train', 'validation', 'test']:
-            try:
-                dataset = self._load_task_data(task_name, split=split_name)
-                if dataset is not None:
-                    splits[split_name] = dataset
-                    logger.info(f"Loaded {split_name} split for {task_name}: {len(dataset)} examples")
-            except Exception as e:
-                logger.debug(f"Could not load {split_name} split for {task_name}: {e}")
-
-        return splits
+        return self._load_available_splits(task_name)
 
     def fine_tune_task(self, task_name: str, train_dataset: Dataset,
                        val_dataset: Optional[Dataset] = None) -> 'torch.nn.Module':
@@ -928,7 +935,17 @@ class IndicGLUEEvaluator:
 
     def _evaluate_classification(self, dataset: Dataset, task_name: str, model=None) -> Dict:
         """
-        Evaluate classification task
+        Unified evaluation method for classification and multiple-choice tasks.
+
+        This method handles:
+        - Standard classification tasks (sentiment, NLI, etc.)
+        - Multiple-choice tasks with wrapper (WSTP, CSQA, COPA)
+
+        Features:
+        - Defensive logits handling (2D and 3D fallback)
+        - Validation of predictions/labels count
+        - Automatic task-type routing via DataLoaderFactory
+        - Uses same metrics computation for both task types
 
         Args:
             dataset: Dataset to evaluate on
@@ -938,77 +955,16 @@ class IndicGLUEEvaluator:
         Returns:
             Dictionary with metrics
         """
-        predictions = []
-        labels = []
+        # Get task configuration to determine task type
+        task_config = self.task_registry.get_task_config(task_name)
+
+        # Log appropriate message based on task type
+        if task_config.use_multiple_choice_wrapper:
+            logger.info(f"Evaluating {task_name} with MultipleChoiceWrapper on {len(dataset)} examples")
+        else:
+            logger.info(f"Evaluating {task_name} on {len(dataset)} examples")
 
         # Get the appropriate model for this task if not provided
-        if model is None:
-            model = self._get_model_for_task(task_name)
-
-        model.eval()
-
-        # Use DataLoaderFactory for automatic task-type routing
-        dataloader = self.dataloader_factory.create_dataloader(
-            dataset,
-            task_name,
-            shuffle=False,
-            batch_size=self.batch_size
-        )
-
-        with torch.no_grad():
-            for batch in tqdm(dataloader, desc=f"Evaluating {task_name}"):
-                # Get model predictions
-                outputs = model(**batch)
-                logits = outputs.logits if hasattr(outputs, 'logits') else outputs[0]
-
-                # Get predicted classes
-                # For classification models: logits shape is [batch, num_classes]
-                # For language models (if still used): logits shape is [batch, seq_len, vocab_size]
-                if logits.dim() == 2:
-                    # Classification model: [batch, num_classes]
-                    batch_preds = torch.argmax(logits, dim=-1).cpu().numpy()
-                elif logits.dim() == 3:
-                    # Language model (fallback): [batch, seq_len, vocab_size]
-                    # This should not happen if wrapping worked correctly
-                    logger.warning(f"Received 3D logits for {task_name}, using fallback (last token, first N classes)")
-                    num_classes = self.task_registry.get_task_config(task_name).num_labels
-                    last_token_logits = logits[:, -1, :num_classes]
-                    batch_preds = torch.argmax(last_token_logits, dim=-1).cpu().numpy()
-                else:
-                    raise ValueError(f"Unexpected logits shape: {logits.shape}")
-
-                predictions.extend(batch_preds.tolist())
-                labels.extend(batch['labels'].cpu().numpy().tolist())
-
-        # Validate predictions and labels have same length
-        assert len(predictions) == len(labels), \
-            f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
-
-        # Compute metrics
-        fine_tuning_info = self._current_fine_tuning_info if hasattr(self, '_current_fine_tuning_info') and self._current_fine_tuning_info else None
-        return self.result_visualizer.compute_classification_metrics(
-            predictions, labels, task_name,
-            self.metrics_aggregator, self.task_registry, fine_tuning_info
-        )
-
-    def _evaluate_multiple_choice_with_wrapper(self, dataset: Dataset, task_name: str, model=None) -> Dict:
-        """
-        Evaluate multiple-choice task using MultipleChoiceWrapper.
-
-        This method uses the official IndicBERT approach: process each choice independently
-        and select the one with highest score.
-
-        Args:
-            dataset: Dataset to evaluate
-            task_name: Name of the task
-            model: MultipleChoiceWrapper model (if None, gets from _get_model_for_task)
-
-        Returns:
-            Dictionary with metrics
-        """
-        logger.info(f"Evaluating {task_name} with MultipleChoiceWrapper on {len(dataset)} examples")
-
-        # Get model if not provided
         if model is None:
             model = self._get_model_for_task(task_name, for_training=False)
 
@@ -1027,15 +983,38 @@ class IndicGLUEEvaluator:
 
         with torch.no_grad():
             for batch in tqdm(dataloader, desc=f"Evaluating {task_name}"):
-                # Forward pass
+                # Get model predictions
                 outputs = model(**batch)
-                logits = outputs.logits  # [batch, num_choices]
+                logits = outputs.logits if hasattr(outputs, 'logits') else outputs[0]
 
-                # Get predicted choice (argmax over choices)
-                batch_preds = torch.argmax(logits, dim=-1)  # [batch]
+                # Get predicted classes
+                # For classification/MC models: logits shape is [batch, num_classes] or [batch, num_choices]
+                # For language models (fallback): logits shape is [batch, seq_len, vocab_size]
+                if logits.dim() == 2:
+                    # Standard case: [batch, num_classes] or [batch, num_choices]
+                    batch_preds = torch.argmax(logits, dim=-1).cpu().numpy()
+                elif logits.dim() == 3:
+                    # Language model (fallback): [batch, seq_len, vocab_size]
+                    # This should not happen if wrapping worked correctly
+                    logger.warning(f"Received 3D logits for {task_name}, using fallback (last token, first N classes)")
 
-                predictions.extend(batch_preds.cpu().numpy().tolist())
+                    # Determine number of classes based on task type
+                    if task_config.use_multiple_choice_wrapper:
+                        num_classes = task_config.num_choices
+                    else:
+                        num_classes = task_config.num_labels
+
+                    last_token_logits = logits[:, -1, :num_classes]
+                    batch_preds = torch.argmax(last_token_logits, dim=-1).cpu().numpy()
+                else:
+                    raise ValueError(f"Unexpected logits shape: {logits.shape}")
+
+                predictions.extend(batch_preds.tolist())
                 labels.extend(batch['labels'].cpu().numpy().tolist())
+
+        # Validate predictions and labels have same length
+        assert len(predictions) == len(labels), \
+            f"Prediction count mismatch: {len(predictions)} preds vs {len(labels)} labels"
 
         # Compute metrics
         fine_tuning_info = self._current_fine_tuning_info if hasattr(self, '_current_fine_tuning_info') and self._current_fine_tuning_info else None
