@@ -1,0 +1,19 @@
+
+ * ▐▛███▜▌ *   Claude Code v2.0.76
+* ▝▜█████▛▘ *  Sonnet 4.5 · Claude Pro
+ *  ▘▘ ▝▝  *   ~/Downloads/Thesis_2/hindi-babylm
+
+  A gift for you
+  Your rate limits are 2x higher through 12/31. Enjoy the extra room to think!
+══════════════════ Conversation compacted · ctrl+o for history ═════════════════
+
+> /compact 
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Referenced file src/evaluation/indicglue_evaluator.py
+  ⎿  Referenced file scripts/evaluate_indicbert.py
+  ⎿  Read src/models/classification_models.py (397 lines)
+  ⎿  Read SENTIMENT_TASK_ANALYSIS.md (208 lines)
+  ⎿  Read src/evaluation/indicglue/dataloader_factory.py (239 lines)
+
+
+

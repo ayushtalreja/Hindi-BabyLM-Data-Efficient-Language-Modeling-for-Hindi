@@ -5,11 +5,13 @@ This module implements comprehensive evaluation on the IndicGLUE benchmark,
 which includes multiple tasks for evaluating Indian language understanding.
 
 IndicGLUE Tasks:
-- IndicNews: Article genre classification
-- IndicWiki: Section title prediction
-- IndicCQ: Cloze-style question answering
+- BBCA: BBC Articles genre classification
+- WSTP: Wikipedia Section title prediction
+- CSQA: Cloze-style question answering
 - IndicWNLI: Winograd Natural Language Inference
-- IndicCOPA: Choice of Plausible Alternatives
+- COPA: Choice of Plausible Alternatives
+- Sentiment Analysis: Movie and Product reviews
+- Discourse Mode Classification
 
 Reference: https://indicnlp.ai4bharat.org/indicglue/
 """
@@ -278,15 +280,13 @@ class IndicGLUEEvaluator:
         logger.info("Initialized evaluation strategies (Classification, MC, Perplexity)")
 
         # Fine-tuning manager component
-        ft_config = eval_config.get('benchmarks', {}).get('indicglue', {}).get('fine_tuning', {})
+        # Pass full config, dataloader factory, and model provider
         self.fine_tuning_manager = FineTuningManager(
-            num_epochs=int(ft_config.get('num_epochs', 10)),
-            learning_rate=float(ft_config.get('learning_rate', 2e-5)),
-            weight_decay=float(ft_config.get('weight_decay', 0.0)),
-            adam_epsilon=float(ft_config.get('adam_epsilon', 1e-8)),
-            patience=int(ft_config.get('early_stopping', {}).get('patience', 3))
+            config=self.config,
+            dataloader_factory=self.dataloader_factory,
+            model_provider=self._get_model_for_task
         )
-        logger.info("Initialized FineTuningManager")
+        logger.info("Initialized FineTuningManager (refactored with config, dataloader_factory, model_provider)")
 
         # Result visualizer component
         self.result_visualizer = ResultVisualizer(
@@ -892,65 +892,33 @@ class IndicGLUEEvaluator:
     def fine_tune_task(self, task_name: str, train_dataset: Dataset,
                        val_dataset: Optional[Dataset] = None) -> 'torch.nn.Module':
         """
-        Fine-tune classification head on train/val splits using FineTuningManager.
+        Fine-tune classification head on train/val splits.
 
-        Features:
-        - Freezes base model (only train classification head)
-        - Early stopping based on validation accuracy (if validation set available)
-        - If no validation set: trains for fixed num_epochs without early stopping
-        - Delegates training loop to FineTuningManager (refactored)
+        This method now delegates all fine-tuning logic to FineTuningManager,
+        which handles:
+        - Model creation (via model_provider callback)
+        - Dataloader creation (via dataloader_factory)
+        - Optimizer setup with learning rate warmup
+        - Training loop with early stopping
+        - Best model restoration
 
         Args:
             task_name: Name of the task
             train_dataset: Training dataset
-            val_dataset: Validation dataset (optional, if None trains without validation)
+            val_dataset: Validation dataset (optional)
 
         Returns:
-            Fine-tuned model (best checkpoint based on validation, or final model if no validation)
+            Fine-tuned model (best checkpoint or final model)
         """
-        # Get fine-tuning config for batch size (manager has other configs already)
-        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
-                        .get('indicglue', {}).get('fine_tuning', {})
-        batch_size = int(ft_config.get('batch_size', 32))
-
-        # Determine if we have validation data
-        has_validation = val_dataset is not None and len(val_dataset) > 0
-
-        logger.info(f"Starting fine-tuning for {task_name}")
-        if has_validation:
-            logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
-        else:
-            logger.info(f"Train samples: {len(train_dataset)}, No validation set")
-
-        # Get model with trainable head, frozen base
-        model = self._get_model_for_task(task_name, for_training=True)
-
-        # Create dataloaders using DataLoaderFactory (automatic task-type routing)
-        train_loader = self.dataloader_factory.create_dataloader(
-            train_dataset, task_name, shuffle=True, batch_size=batch_size
-        )
-        val_loader = None
-        if has_validation:
-            val_loader = self.dataloader_factory.create_dataloader(
-                val_dataset, task_name, shuffle=False, batch_size=batch_size*2
-            )
-
-        # ========== Use FineTuningManager for training loop ==========
-        # This replaces ~100 lines of optimizer setup, training loop, and early stopping
-        fine_tuning_info = self.fine_tuning_manager.fine_tune(
-            model=model,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            task_name=task_name
+        # Delegate entire fine-tuning workflow to FineTuningManager
+        model, metadata = self.fine_tuning_manager.fine_tune_task(
+            task_name=task_name,
+            train_dataset=train_dataset,
+            val_dataset=val_dataset
         )
 
-        # Store fine-tuning metadata for later use (add dataset info)
-        self._current_fine_tuning_info = {
-            **fine_tuning_info,  # From FineTuningManager
-            'train_samples': len(train_dataset),
-            'val_samples': len(val_dataset) if has_validation else 0,
-            'had_validation': has_validation
-        }
+        # Store metadata for later use (e.g., in result visualization)
+        self._current_fine_tuning_info = metadata
 
         # Set fine-tuned mode flag
         self._is_finetuned_mode = True

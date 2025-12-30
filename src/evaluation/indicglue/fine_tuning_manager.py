@@ -7,9 +7,10 @@ Extracted from indicglue_evaluator.py to improve testability and maintainability
 
 import torch
 from torch.utils.data import DataLoader
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Callable
 from tqdm import tqdm
 import logging
+from datasets import Dataset
 
 logger = logging.getLogger(__name__)
 
@@ -22,34 +23,114 @@ class FineTuningManager:
     - Early stopping based on validation accuracy
     - Parameter-specific weight decay (no decay for bias/LayerNorm)
     - Best model checkpoint restoration
-    - Configurable training hyperparameters
+    - Learning rate warmup scheduler
+    - Reads all hyperparameters from config
+    - High-level fine_tune_task() method that handles dataloader creation
     """
 
     def __init__(
         self,
-        num_epochs: int = 10,
-        learning_rate: float = 2e-5,
-        weight_decay: float = 0.0,
-        adam_epsilon: float = 1e-8,
-        patience: int = 3
+        config: Dict,
+        dataloader_factory: Any,
+        model_provider: Callable[[str, bool], torch.nn.Module]
     ):
         """
         Initialize FineTuningManager.
 
         Args:
-            num_epochs: Maximum number of training epochs
-            learning_rate: Learning rate for AdamW optimizer
-            weight_decay: Weight decay coefficient (L2 regularization)
-            adam_epsilon: Epsilon for AdamW optimizer
-            patience: Number of epochs to wait for improvement before early stopping
+            config: Full evaluation config dictionary
+            dataloader_factory: DataLoaderFactory instance for creating dataloaders
+            model_provider: Callable that creates task-specific model
+                           Signature: (task_name: str, for_training: bool) -> nn.Module
         """
-        self.num_epochs = num_epochs
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.adam_epsilon = adam_epsilon
-        self.patience = patience
+        # Extract fine-tuning config
+        ft_config = config.get('evaluation', {}).get('benchmarks', {}) \
+                        .get('indicglue', {}).get('fine_tuning', {})
 
-    def fine_tune(
+        # Training hyperparameters (all from config)
+        self.num_epochs = int(ft_config.get('num_epochs', 10))
+        self.learning_rate = float(ft_config.get('learning_rate', 2e-5))
+        self.weight_decay = float(ft_config.get('weight_decay', 0.0))
+        self.adam_epsilon = float(ft_config.get('adam_epsilon', 1e-8))
+        self.warmup_ratio = float(ft_config.get('warmup_ratio', 0.1))
+        self.batch_size = int(ft_config.get('batch_size', 32))
+        self.patience = int(ft_config.get('early_stopping', {}).get('patience', 3))
+
+        # Dependencies
+        self.dataloader_factory = dataloader_factory
+        self.model_provider = model_provider
+
+        logger.info(
+            f"FineTuningManager initialized with config: "
+            f"lr={self.learning_rate}, epochs={self.num_epochs}, "
+            f"batch_size={self.batch_size}, warmup_ratio={self.warmup_ratio}, "
+            f"weight_decay={self.weight_decay}, patience={self.patience}"
+        )
+
+    def fine_tune_task(
+        self,
+        task_name: str,
+        train_dataset: Dataset,
+        val_dataset: Optional[Dataset] = None
+    ) -> tuple[torch.nn.Module, Dict[str, Any]]:
+        """
+        High-level method to fine-tune a model on a task.
+
+        This is the main entry point for fine-tuning. It handles:
+        - Model creation via model_provider
+        - Dataloader creation via dataloader_factory
+        - Training loop delegation to _fine_tune()
+        - Metadata collection
+
+        Args:
+            task_name: Name of the task
+            train_dataset: Training dataset
+            val_dataset: Validation dataset (optional)
+
+        Returns:
+            Tuple of (fine_tuned_model, metadata_dict)
+        """
+        # Determine if we have validation data
+        has_validation = val_dataset is not None and len(val_dataset) > 0
+
+        logger.info(f"Starting fine-tuning for {task_name}")
+        if has_validation:
+            logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
+        else:
+            logger.info(f"Train samples: {len(train_dataset)}, No validation set")
+
+        # Get model with trainable head, frozen base
+        model = self.model_provider(task_name, for_training=True)
+
+        # Create dataloaders using DataLoaderFactory (automatic task-type routing)
+        train_loader = self.dataloader_factory.create_dataloader(
+            train_dataset, task_name, shuffle=True, batch_size=self.batch_size
+        )
+        val_loader = None
+        if has_validation:
+            val_loader = self.dataloader_factory.create_dataloader(
+                val_dataset, task_name, shuffle=False, batch_size=self.batch_size*2
+            )
+
+        # Delegate to internal fine-tuning method
+        fine_tuning_info = self._fine_tune(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            task_name=task_name
+        )
+
+        # Add dataset metadata
+        metadata = {
+            **fine_tuning_info,
+            'train_samples': len(train_dataset),
+            'val_samples': len(val_dataset) if has_validation else 0,
+            'had_validation': has_validation
+        }
+
+        return model, metadata
+
+    def _fine_tune(
         self,
         model: torch.nn.Module,
         train_loader: DataLoader,
@@ -57,7 +138,10 @@ class FineTuningManager:
         task_name: str = ""
     ) -> Dict[str, Any]:
         """
-        Fine-tune model on task with optional validation and early stopping.
+        Internal fine-tuning method (low-level, accepts dataloaders).
+
+        This method handles the actual training loop with early stopping.
+        Called by fine_tune_task() after dataloaders are created.
 
         Args:
             model: Model to fine-tune (in-place modification)
@@ -72,14 +156,20 @@ class FineTuningManager:
                 - best_val_accuracy: Best validation accuracy achieved
                 - early_stopped: Whether early stopping was triggered
         """
-        logger.info(f"Starting fine-tuning for {task_name}")
-        logger.info(
-            f"Config: lr={self.learning_rate}, epochs={self.num_epochs}, "
-            f"weight_decay={self.weight_decay}, patience={self.patience}"
-        )
+        logger.info(f"Starting training loop for {task_name}")
 
         # Setup optimizer with parameter groups
         optimizer = self._create_optimizer(model)
+
+        # Setup learning rate scheduler with warmup
+        total_steps = len(train_loader) * self.num_epochs
+        warmup_steps = int(total_steps * self.warmup_ratio)
+        scheduler = self._create_scheduler(optimizer, warmup_steps, total_steps)
+
+        logger.info(
+            f"Training config: total_steps={total_steps}, warmup_steps={warmup_steps} "
+            f"({self.warmup_ratio:.1%})"
+        )
 
         # Training loop state
         best_val_acc = 0.0
@@ -91,7 +181,7 @@ class FineTuningManager:
 
         for epoch in range(self.num_epochs):
             # Training phase
-            train_loss = self._train_epoch(model, train_loader, optimizer, epoch)
+            train_loss = self._train_epoch(model, train_loader, optimizer, scheduler, epoch)
 
             if has_validation:
                 # Validation phase
@@ -179,11 +269,54 @@ class FineTuningManager:
 
         return optimizer
 
+    def _create_scheduler(
+        self,
+        optimizer: torch.optim.Optimizer,
+        warmup_steps: int,
+        total_steps: int
+    ) -> Any:
+        """
+        Create learning rate scheduler with linear warmup and cosine decay.
+
+        Args:
+            optimizer: Optimizer to schedule
+            warmup_steps: Number of warmup steps
+            total_steps: Total training steps
+
+        Returns:
+            Learning rate scheduler
+        """
+        from torch.optim.lr_scheduler import LambdaLR
+
+        def lr_lambda(current_step: int) -> float:
+            """
+            Learning rate schedule:
+            - Linear warmup from 0 to 1.0 over warmup_steps
+            - Cosine decay from 1.0 to 0 over remaining steps
+            """
+            if current_step < warmup_steps:
+                # Linear warmup
+                return float(current_step) / float(max(1, warmup_steps))
+            else:
+                # Cosine decay
+                progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+                return max(0.0, 0.5 * (1.0 + torch.cos(torch.pi * progress)))
+
+        scheduler = LambdaLR(optimizer, lr_lambda)
+
+        logger.info(
+            f"Scheduler created: Linear warmup ({warmup_steps} steps) + "
+            f"Cosine decay ({total_steps - warmup_steps} steps)"
+        )
+
+        return scheduler
+
     def _train_epoch(
         self,
         model: torch.nn.Module,
         train_loader: DataLoader,
         optimizer: torch.optim.Optimizer,
+        scheduler: Any,
         epoch: int
     ) -> float:
         """
@@ -193,6 +326,7 @@ class FineTuningManager:
             model: Model to train
             train_loader: Training data loader
             optimizer: Optimizer
+            scheduler: Learning rate scheduler
             epoch: Current epoch number (for logging)
 
         Returns:
@@ -210,6 +344,7 @@ class FineTuningManager:
             # Backward pass
             loss.backward()
             optimizer.step()
+            scheduler.step()  # Update learning rate
             optimizer.zero_grad()
 
             # Track loss

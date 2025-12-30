@@ -309,12 +309,13 @@ evaluation:
         # Optimization
         learning_rate: 2e-5
         batch_size: 32
-        weight_decay: 0.01
-        warmup_ratio: 0.1
+        weight_decay: 0.0 # from indicbert team
+        adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
+        warmup_ratio: 0.1  # Learning rate warmup (10% of total steps)
 
         # Model settings
         freeze_base_model: true  # Only train classification heads
-        dropout: 0.1
+        dropout: 0.0 # Used by indicbert team
 
         # Task-specific split configurations
         # For tasks where original splits are missing/inadequate
@@ -333,11 +334,6 @@ evaluation:
     multiblimp:
       enabled: true
       n_examples_per_phenomenon: null  # null = use all, or set a number for quick testing
-
-    # morphological_probes:  # REMOVED - No longer available
-    #   enabled: true
-    #   probes: ["case", "number", "gender", "tense", "person", "honorific"]
-    #   layers_to_probe: [6, 12]  # Which transformer layers to probe
 
   # Perplexity Evaluation
   perplexity:
