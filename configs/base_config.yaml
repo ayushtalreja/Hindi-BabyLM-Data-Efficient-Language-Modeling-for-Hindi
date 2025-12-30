@@ -299,7 +299,7 @@ evaluation:
         # For tasks with missing/inadequate splits, use task_specific_splits below
 
         # Training hyperparameters
-        num_epochs: 10
+        num_epochs: 3  # Aligned with official IndicBERT (was 10)
         early_stopping:
           enabled: true
           patience: 3
@@ -311,7 +311,8 @@ evaluation:
         batch_size: 32
         weight_decay: 0.0 # from indicbert team
         adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
-        warmup_ratio: 0.1  # Learning rate warmup (10% of total steps)
+        warmup_ratio: 0.0  # Aligned with official IndicBERT: NO warmup (was 0.1)
+        scheduler_type: "linear"  # 'linear' (official IndicBERT) or 'cosine'
 
         # Model settings
         freeze_base_model: true  # Only train classification heads

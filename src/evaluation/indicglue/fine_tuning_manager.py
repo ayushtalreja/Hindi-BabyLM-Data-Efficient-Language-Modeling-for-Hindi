@@ -55,6 +55,7 @@ class FineTuningManager:
         self.warmup_ratio = float(ft_config.get('warmup_ratio', 0.1))
         self.batch_size = int(ft_config.get('batch_size', 32))
         self.patience = int(ft_config.get('early_stopping', {}).get('patience', 3))
+        self.scheduler_type = ft_config.get('scheduler_type', 'linear')  # 'linear' or 'cosine'
 
         # Dependencies
         self.dataloader_factory = dataloader_factory
@@ -64,6 +65,7 @@ class FineTuningManager:
             f"FineTuningManager initialized with config: "
             f"lr={self.learning_rate}, epochs={self.num_epochs}, "
             f"batch_size={self.batch_size}, warmup_ratio={self.warmup_ratio}, "
+            f"scheduler_type={self.scheduler_type}, "
             f"weight_decay={self.weight_decay}, patience={self.patience}"
         )
 
@@ -276,7 +278,11 @@ class FineTuningManager:
         total_steps: int
     ) -> Any:
         """
-        Create learning rate scheduler with linear warmup and cosine decay.
+        Create learning rate scheduler with warmup and decay.
+
+        Supports two scheduler types:
+        - 'linear': Linear warmup + linear decay (official IndicBERT)
+        - 'cosine': Linear warmup + cosine decay
 
         Args:
             optimizer: Optimizer to schedule
@@ -286,28 +292,41 @@ class FineTuningManager:
         Returns:
             Learning rate scheduler
         """
-        from torch.optim.lr_scheduler import LambdaLR
+        if self.scheduler_type == 'linear':
+            # Linear warmup + linear decay (official IndicBERT implementation)
+            from transformers import get_linear_schedule_with_warmup
 
-        def lr_lambda(current_step: int) -> float:
-            """
-            Learning rate schedule:
-            - Linear warmup from 0 to 1.0 over warmup_steps
-            - Cosine decay from 1.0 to 0 over remaining steps
-            """
-            if current_step < warmup_steps:
-                # Linear warmup
-                return float(current_step) / float(max(1, warmup_steps))
-            else:
-                # Cosine decay
-                progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
-                return max(0.0, 0.5 * (1.0 + torch.cos(torch.pi * progress)))
+            scheduler = get_linear_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=warmup_steps,
+                num_training_steps=total_steps
+            )
 
-        scheduler = LambdaLR(optimizer, lr_lambda)
+            logger.info(
+                f"Scheduler created: Linear schedule with {warmup_steps} warmup steps "
+                f"(total {total_steps} steps)"
+            )
 
-        logger.info(
-            f"Scheduler created: Linear warmup ({warmup_steps} steps) + "
-            f"Cosine decay ({total_steps - warmup_steps} steps)"
-        )
+        elif self.scheduler_type == 'cosine':
+            # Linear warmup + cosine decay (using HuggingFace implementation)
+            from transformers import get_cosine_schedule_with_warmup
+
+            scheduler = get_cosine_schedule_with_warmup(
+                optimizer,
+                num_warmup_steps=warmup_steps,
+                num_training_steps=total_steps
+            )
+
+            logger.info(
+                f"Scheduler created: Cosine schedule with {warmup_steps} warmup steps "
+                f"(total {total_steps} steps)"
+            )
+
+        else:
+            raise ValueError(
+                f"Unknown scheduler_type: {self.scheduler_type}. "
+                f"Must be 'linear' or 'cosine'"
+            )
 
         return scheduler
 
