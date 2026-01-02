@@ -185,6 +185,9 @@ class FineTuningManager:
             # Training phase
             train_loss = self._train_epoch(model, train_loader, optimizer, scheduler, epoch)
 
+            # Update learning rate scheduler (once per epoch, not per batch)
+            scheduler.step()
+
             if has_validation:
                 # Validation phase
                 val_metrics = self._validate(model, val_loader)
@@ -363,7 +366,6 @@ class FineTuningManager:
             # Backward pass
             loss.backward()
             optimizer.step()
-            scheduler.step()  # Update learning rate
             optimizer.zero_grad()
 
             # Track loss

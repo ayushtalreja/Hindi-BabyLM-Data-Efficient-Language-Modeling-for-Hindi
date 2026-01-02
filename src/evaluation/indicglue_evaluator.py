@@ -524,111 +524,123 @@ class IndicGLUEEvaluator:
         Returns:
             Dictionary with evaluation metrics
         """
-        # Validate task name by attempting to get config
         try:
-            _ = self.task_registry.get_task_config(task_name)
-        except ValueError:
-            raise ValueError(f"Unknown task: {task_name}")
+            # Validate task name by attempting to get config
+            try:
+                _ = self.task_registry.get_task_config(task_name)
+            except ValueError:
+                raise ValueError(f"Unknown task: {task_name}")
 
-        # Check if this task should be skipped due to dataset issues
-        if task_name in self.SKIP_TASKS:
-            skip_reason = self.SKIP_TASKS[task_name]
-            logger.warning(f"Skipping {task_name}: {skip_reason}")
-            return {
-                'status': 'skipped',
-                'reason': skip_reason,
-                'task': task_name
-            }
+            # Check if this task should be skipped due to dataset issues
+            if task_name in self.SKIP_TASKS:
+                skip_reason = self.SKIP_TASKS[task_name]
+                logger.warning(f"Skipping {task_name}: {skip_reason}")
+                return {
+                    'status': 'skipped',
+                    'reason': skip_reason,
+                    'task': task_name
+                }
 
-        task_config = self.task_registry.get_task_config(task_name)
+            task_config = self.task_registry.get_task_config(task_name)
 
-        # Check if fine-tuning is enabled
-        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
-                        .get('indicglue', {}).get('fine_tuning', {})
-        fine_tune_enabled = ft_config.get('enabled', False)
+            # Check if fine-tuning is enabled
+            ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
+                            .get('indicglue', {}).get('fine_tuning', {})
+            fine_tune_enabled = ft_config.get('enabled', False)
 
-        # Fine-tuning applies to all task types now (classification, sentiment, and multiple-choice)
-        if fine_tune_enabled:
-            logger.info(f"Fine-tuning mode enabled for {task_name}")
+            # Fine-tuning applies to all task types now (classification, sentiment, and multiple-choice)
+            if fine_tune_enabled:
+                logger.info(f"Fine-tuning mode enabled for {task_name}")
 
-            # Load all splits
-            splits = self._load_all_splits(task_name)
+                # Load all splits
+                splits = self._load_all_splits(task_name)
 
-            if 'train' not in splits:
-                logger.warning(f"Missing train split for {task_name}, "
-                              f"falling back to zero-shot evaluation")
-                fine_tune_enabled = False
-            else:
-                # Check if validation set is available
-                has_validation = 'validation' in splits
-                if not has_validation:
-                    logger.info(f"Fine-tuning {task_name} without validation set")
-                # Fine-tune on train (and val if available)
-                logger.info(f"Fine-tuning on {task_name}...")
-                start_time = time.time()
+                if 'train' not in splits:
+                    logger.warning(f"Missing train split for {task_name}, "
+                                  f"falling back to zero-shot evaluation")
+                    fine_tune_enabled = False
+                else:
+                    # Check if validation set is available
+                    has_validation = 'validation' in splits
+                    if not has_validation:
+                        logger.info(f"Fine-tuning {task_name} without validation set")
+                    # Fine-tune on train (and val if available)
+                    logger.info(f"Fine-tuning on {task_name}...")
+                    start_time = time.time()
 
-                finetuned_model = self.fine_tune_task(
-                    task_name,
-                    splits['train'],
-                    splits.get('validation', None)  # Pass None if no validation set
-                )
+                    finetuned_model = self.fine_tune_task(
+                        task_name,
+                        splits['train'],
+                        splits.get('validation', None)  # Pass None if no validation set
+                    )
 
-                fine_tune_time = time.time() - start_time
+                    fine_tune_time = time.time() - start_time
 
-                # Evaluate on test split
-                logger.info(f"Evaluating fine-tuned model on test set...")
-                test_dataset = splits.get('test')
+                    # Evaluate on test split
+                    logger.info(f"Evaluating fine-tuned model on test set...")
+                    test_dataset = splits.get('test')
 
-                if test_dataset is None:
-                    logger.error(f"No test split for {task_name}")
-                    return {'status': 'no_test_data'}
+                    if test_dataset is None:
+                        logger.error(f"No test split for {task_name}")
+                        return {'status': 'no_test_data'}
+
+                    # Apply sample limit if configured
+                    if self.max_samples and len(test_dataset) > self.max_samples:
+                        test_dataset = test_dataset.select(range(self.max_samples))
+
+                    # Evaluate with fine-tuned model
+                    results = self._evaluate_with_model(
+                        finetuned_model,
+                        test_dataset,
+                        task_name
+                    )
+
+                    results['fine_tuned'] = True
+                    results['fine_tuning_time_seconds'] = fine_tune_time
+
+            if not fine_tune_enabled:
+                # Zero-shot evaluation (original behavior)
+                logger.info(f"Zero-shot mode for {task_name}")
+
+                # Clear fine-tuning info for zero-shot mode
+                # This enables perplexity-based scoring for multiple-choice tasks
+                self._current_fine_tuning_info = None
+                self._is_finetuned_mode = False
+
+                # Load test data
+                try:
+                    dataset = self._load_task_data(task_name, split='test')
+                except Exception as e:
+                    logger.error(f"Could not load data for {task_name}: {e}")
+                    return {'error': str(e), 'status': 'failed'}
+
+                if dataset is None or len(dataset) == 0:
+                    logger.warning(f"No data available for {task_name}")
+                    return {'status': 'no_data'}
 
                 # Apply sample limit if configured
-                if self.max_samples and len(test_dataset) > self.max_samples:
-                    test_dataset = test_dataset.select(range(self.max_samples))
+                if self.max_samples and len(dataset) > self.max_samples:
+                    dataset = dataset.select(range(self.max_samples))
 
-                # Evaluate with fine-tuned model
-                results = self._evaluate_with_model(
-                    finetuned_model,
-                    test_dataset,
-                    task_name
-                )
+                # Get model for zero-shot evaluation
+                model = self._get_model_for_task(task_name, for_training=False)
 
-                results['fine_tuned'] = True
-                results['fine_tuning_time_seconds'] = fine_tune_time
+                # Evaluate
+                results = self._evaluate_with_model(model, dataset, task_name)
+                results['fine_tuned'] = False
 
-        if not fine_tune_enabled:
-            # Zero-shot evaluation (original behavior)
-            logger.info(f"Zero-shot mode for {task_name}")
+                return results
 
-            # Clear fine-tuning info for zero-shot mode
-            # This enables perplexity-based scoring for multiple-choice tasks
-            self._current_fine_tuning_info = None
-            self._is_finetuned_mode = False
+        finally:
+            # Clean up wrapped models to free GPU memory after each task
+            if hasattr(self, 'wrapped_models'):
+                self.wrapped_models.clear()
+                logger.debug(f"Cleared wrapped model cache for {task_name}")
 
-            # Load test data
-            try:
-                dataset = self._load_task_data(task_name, split='test')
-            except Exception as e:
-                logger.error(f"Could not load data for {task_name}: {e}")
-                return {'error': str(e), 'status': 'failed'}
-
-            if dataset is None or len(dataset) == 0:
-                logger.warning(f"No data available for {task_name}")
-                return {'status': 'no_data'}
-
-            # Apply sample limit if configured
-            if self.max_samples and len(dataset) > self.max_samples:
-                dataset = dataset.select(range(self.max_samples))
-
-            # Get model for zero-shot evaluation
-            model = self._get_model_for_task(task_name, for_training=False)
-
-            # Evaluate
-            results = self._evaluate_with_model(model, dataset, task_name)
-            results['fine_tuned'] = False
-
-        return results
+            # Free GPU memory if using CUDA
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                logger.debug("Freed GPU cache")
 
     def _evaluate_with_model(self, model, dataset: Dataset, task_name: str) -> Dict:
         """
@@ -959,6 +971,7 @@ class IndicGLUEEvaluator:
         - Validation of predictions/labels count
         - Automatic task-type routing via DataLoaderFactory
         - Uses same metrics computation for both task types
+        - Prediction caching for faster repeated evaluations
 
         Args:
             dataset: Dataset to evaluate on
@@ -970,6 +983,27 @@ class IndicGLUEEvaluator:
         """
         # Get task configuration to determine task type
         task_config = self.task_registry.get_task_config(task_name)
+
+        # Try to load from cache
+        if self.cache_manager and self.cache_manager.enable_cache:
+            # Generate cache key from task name, dataset size, and config
+            cache_key = self.cache_manager._compute_cache_key(
+                model_hash=getattr(self.model, 'name_or_path', 'unknown_model'),
+                dataset_name=task_name,
+                dataset_split='test',  # IndicGLUE evaluation uses test split
+                config={
+                    'batch_size': self.batch_size,
+                    'max_samples': self.max_samples_per_task,
+                    'num_examples': len(dataset)
+                }
+            )
+
+            # Try to retrieve cached predictions
+            cached_result = self.cache_manager.get_cached_predictions(cache_key)
+            if cached_result is not None:
+                logger.info(f"Using cached predictions for {task_name}")
+                # Return cached metrics directly
+                return cached_result['metadata'].get('metrics', {})
 
         # Log appropriate message based on task type
         if task_config.use_multiple_choice_wrapper:
@@ -1031,7 +1065,23 @@ class IndicGLUEEvaluator:
 
         # Compute metrics
         fine_tuning_info = self._current_fine_tuning_info if hasattr(self, '_current_fine_tuning_info') and self._current_fine_tuning_info else None
-        return self.result_visualizer.compute_classification_metrics(
+        metrics = self.result_visualizer.compute_classification_metrics(
             predictions, labels, task_name,
             self.metrics_aggregator, self.task_registry, fine_tuning_info
         )
+
+        # Save predictions and metrics to cache
+        if self.cache_manager and self.cache_manager.enable_cache:
+            cache_metadata = {
+                'task_name': task_name,
+                'model_name': getattr(self.model, 'name_or_path', 'unknown_model'),
+                'num_examples': len(dataset),
+                'metrics': metrics
+            }
+            self.cache_manager.save_predictions(
+                cache_key,
+                predictions={'predictions': predictions, 'labels': labels},
+                metadata=cache_metadata
+            )
+
+        return metrics

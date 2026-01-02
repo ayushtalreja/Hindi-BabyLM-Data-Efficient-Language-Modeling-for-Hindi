@@ -950,12 +950,12 @@ Examples:
                        default='fine-tune', help='Evaluation mode (default: fine-tune)')
     parser.add_argument('--batch-size', type=int, default=32,
                        help='Batch size for evaluation (default: 32)')
-    parser.add_argument('--epochs', type=int, default=3,
-                       help='Number of fine-tuning epochs (default: 3, aligned with official IndicBERT)')
+    parser.add_argument('--epochs', type=int, default=10,
+                       help='Number of fine-tuning epochs (default: 10, reverted to working config)')
     parser.add_argument('--learning-rate', type=float, default=2e-5,
                        help='Learning rate for fine-tuning (default: 2e-5)')
-    parser.add_argument('--weight-decay', type=float, default=0.0,
-                       help='Weight decay (default: 0.0, aligned with official IndicBERT)')
+    parser.add_argument('--weight-decay', type=float, default=0.01,
+                       help='Weight decay (default: 0.01, L2 regularization)')
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu',
                        help='Device: cuda or cpu (default: auto-detect)')
     parser.add_argument('--output-dir', default='results/indicbert_evaluation',

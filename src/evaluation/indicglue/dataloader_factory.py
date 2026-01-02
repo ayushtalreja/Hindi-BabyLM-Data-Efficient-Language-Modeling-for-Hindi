@@ -197,30 +197,21 @@ class DataLoaderFactory:
                 choices = self.data_extractor.extract_choices(example, task_name)
                 label = self.data_extractor.extract_label(example, task_name)
 
-                # Tokenize each (context, choice) pair separately
-                # This matches official IndicBERT implementation
-                choice_encodings = []
-                for choice in choices:
-                    encoded = self.tokenizer(
-                        context,
-                        choice,
-                        max_length=self.max_length,
-                        padding='max_length',
-                        truncation='longest_first',  # Official IndicBERT uses longest_first for MC
-                        return_tensors='pt'
-                    )
-                    choice_encodings.append({
-                        'input_ids': encoded['input_ids'].squeeze(0),
-                        'attention_mask': encoded['attention_mask'].squeeze(0)
-                    })
+                # Batch tokenize all (context, choice) pairs at once for efficiency
+                # This is ~4x faster than sequential tokenization for 4-choice tasks
+                encoded = self.tokenizer(
+                    [context] * len(choices),  # Repeat context for each choice
+                    choices,                    # List of all choices
+                    max_length=self.max_length,
+                    padding='max_length',
+                    truncation='longest_first',  # Official IndicBERT uses longest_first for MC
+                    return_tensors='pt'
+                )
 
-                # Stack choices for this example
-                batch_input_ids.append(
-                    torch.stack([enc['input_ids'] for enc in choice_encodings])
-                )
-                batch_attention_masks.append(
-                    torch.stack([enc['attention_mask'] for enc in choice_encodings])
-                )
+                # encoded['input_ids'] shape: [num_choices, seq_len]
+                # encoded['attention_mask'] shape: [num_choices, seq_len]
+                batch_input_ids.append(encoded['input_ids'])
+                batch_attention_masks.append(encoded['attention_mask'])
                 batch_labels.append(label)
 
             # Stack across batch
