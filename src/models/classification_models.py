@@ -99,8 +99,7 @@ class GPTForSequenceClassification(nn.Module):
         # Get language model outputs
         lm_outputs = self.lm_model(
             input_ids=input_ids,
-            attention_mask=attention_mask,
-            labels=None  # Don't compute LM loss
+            attention_mask=attention_mask
         )
 
         # Extract hidden states: [batch, seq_len, hidden_size]
@@ -286,8 +285,7 @@ class DeBERTaForSequenceClassification(nn.Module):
         # Get language model outputs
         lm_outputs = self.lm_model(
             input_ids=input_ids,
-            attention_mask=attention_mask,
-            labels=None  # Don't compute LM loss
+            attention_mask=attention_mask
         )
 
         # Extract hidden states: [batch, seq_len, hidden_size]
