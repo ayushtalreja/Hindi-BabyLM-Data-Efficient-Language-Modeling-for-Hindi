@@ -597,6 +597,7 @@ class IndicGLUEEvaluator:
 
                     results['fine_tuned'] = True
                     results['fine_tuning_time_seconds'] = fine_tune_time
+                    return results
 
             if not fine_tune_enabled:
                 # Zero-shot evaluation (original behavior)
