@@ -70,10 +70,14 @@ CMD="python scripts/evaluate_indicbert.py \
     --epochs $EPOCHS \
     --batch-size $BATCH_SIZE \
     --learning-rate $LEARNING_RATE \
-    --freeze-base-model $freeze_base_model \
-    --auto-models $auto_models \
+    $auto_models \
     --device cuda \
     --output-dir results/indicbert_evaluation_${SLURM_JOB_ID}"
+
+# Add freeze-base-model flag if enabled
+if [ "$freeze_base_model" = "true" ]; then
+    CMD="$CMD --freeze-base-model"
+fi
 
 # Add tasks if specified
 if [ "$TASKS" != "all" ]; then
