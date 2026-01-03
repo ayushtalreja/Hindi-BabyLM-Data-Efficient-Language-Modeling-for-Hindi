@@ -315,7 +315,7 @@ evaluation:
         scheduler_type: "linear"  # Linear LR decay with warmup
 
         # Model settings
-        freeze_base_model: true  # Only train classification heads
+        freeze_base_model: false  # Only train classification heads
         dropout: 0.1  # Reverted: Prevent overfitting during fine-tuning
 
         # Task-specific split configurations

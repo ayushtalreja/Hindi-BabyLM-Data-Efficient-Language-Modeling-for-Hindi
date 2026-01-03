@@ -391,12 +391,20 @@ class IndicBERTEvaluationWrapper:
             # Move to device
             wrapped = wrapped.to(self.device)
 
-            # Enable gradients for classifier if training
+            # Enable gradients for training
             if for_training:
+                # Enable gradients for base model (all layers)
+                for param in wrapped.base_model.parameters():
+                    param.requires_grad = True
+
+                # Enable gradients for classifier
                 for param in wrapped.classifier.parameters():
                     param.requires_grad = True
-                num_trainable = sum(p.numel() for p in wrapped.classifier.parameters())
-                logger.info(f"  Enabled gradients for MC classifier ({num_trainable:,} trainable parameters)")
+
+                # Count total trainable parameters
+                num_base_trainable = sum(p.numel() for p in wrapped.base_model.parameters() if p.requires_grad)
+                num_classifier_trainable = sum(p.numel() for p in wrapped.classifier.parameters() if p.requires_grad)
+                logger.info(f"  Enabled gradients for base model ({num_base_trainable:,} parameters) + classifier ({num_classifier_trainable:,} parameters)")
         else:
             # Create ALBERT classification wrapper for standard classification tasks
             wrapped = ALBERTForSequenceClassification(
