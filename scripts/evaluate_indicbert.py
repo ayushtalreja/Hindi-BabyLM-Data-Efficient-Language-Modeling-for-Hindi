@@ -584,7 +584,8 @@ def create_evaluation_config(fine_tune: bool = True, **overrides) -> Dict:
                         'dropout': 0.1,
 
                         # Model settings
-                        'freeze_base_model': True,  # Only train classification heads
+                        'freeze_base_model': overrides.get('freeze_base_model', False),  # Default: end-to-end training
+                        'use_auto_models': overrides.get('use_auto_models', True),  # Default: use AutoModels
 
                         # Early stopping
                         'early_stopping': {
@@ -1056,6 +1057,16 @@ Examples:
                        help='Max samples per task for quick testing (default: None = use all)')
     parser.add_argument('--no-visualizations', action='store_true',
                        help='Skip generating visualizations')
+    parser.add_argument('--freeze-base-model', action='store_true', default=False,
+                       help='Freeze base model and train only classification heads (default: False for end-to-end training)')
+
+    # AutoModel vs custom wrappers (mutually exclusive)
+    auto_models_group = parser.add_mutually_exclusive_group()
+    auto_models_group.add_argument('--use-auto-models', action='store_true', dest='use_auto_models',
+                                   help='Use HuggingFace AutoModel classes (default)')
+    auto_models_group.add_argument('--no-use-auto-models', action='store_false', dest='use_auto_models',
+                                   help='Use custom wrapper classes for backward compatibility')
+    parser.set_defaults(use_auto_models=True)
 
     return parser.parse_args()
 
@@ -1075,6 +1086,8 @@ def main():
             epochs=args.epochs,
             learning_rate=args.learning_rate,
             weight_decay=args.weight_decay,
+            freeze_base_model=args.freeze_base_model,
+            use_auto_models=args.use_auto_models,
             seed=args.seed,
             max_samples=args.max_samples,
             no_visualizations=args.no_visualizations
