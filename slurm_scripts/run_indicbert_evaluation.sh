@@ -47,8 +47,8 @@ MAX_SAMPLES=${3:-}              # Optional: limit samples per task for testing
 EPOCHS=${4:-10}                 # Number of fine-tuning epochs
 BATCH_SIZE=${5:-32}             # Batch size
 LEARNING_RATE=${6:-2e-5}        # Learning rate
-freeze_base_model=${7:-false}  # Freeze base model during fine-tuning
-auto_models=${8:-true}      # Use AutoModel classes
+freeze_base_model=${7:-false}  # Freeze base model during fine-tuning (true/false)
+auto_models=${8:---use-auto-models}      # Use AutoModel classes (or --no-use-auto-models)
 
 echo ""
 echo "=========================================="
