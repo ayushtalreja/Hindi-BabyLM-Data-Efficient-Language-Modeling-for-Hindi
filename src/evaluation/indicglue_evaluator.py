@@ -47,6 +47,9 @@ from .indicglue import (
 # Import classification models for wrapping language models
 from ..models.classification_models import wrap_model_for_classification
 
+# Import HuggingFace AutoModel classes for official IndicBERT compatibility
+from transformers import AutoModelForSequenceClassification, AutoModelForMultipleChoice
+
 logger = logging.getLogger(__name__)
 
 
@@ -378,13 +381,14 @@ class IndicGLUEEvaluator:
 
     def _get_model_for_task(self, task_name: str, for_training: bool = False):
         """
-        Get the appropriate model for a specific task.
-        If the base model is a language model, wrap it with a classification head.
+        Get task-specific model using AutoModel classes or custom wrappers.
+
+        Supports configurable training strategy (frozen base vs end-to-end).
 
         Args:
             task_name: Name of the task
-            for_training: If True, creates model with trainable head (frozen base)
-                         If False, creates fully frozen model for inference
+            for_training: If True, creates model for training with configured strategy
+                         If False, creates fully frozen model for evaluation
 
         Returns:
             Model ready for the task
@@ -393,93 +397,127 @@ class IndicGLUEEvaluator:
             # Already a classification model, use as-is
             return self.base_model
 
-        # Create separate cache keys for training vs evaluation
+        # Create cache key
         cache_key = f"{task_name}_{'train' if for_training else 'eval'}"
 
-        # Check if we already have a wrapped model for this task and mode
+        # Check cache
         if cache_key in self.wrapped_models:
             return self.wrapped_models[cache_key]
 
-        # Wrap the language model with a classification head
+        # Get task configuration
         task_config = self.task_registry.get_task_config(task_name)
         model_config = self._get_model_config()
 
-        # Check if this task uses multiple-choice wrapper
-        if task_config.use_multiple_choice_wrapper:
-            num_choices = task_config.num_choices or 4
+        # Get fine-tuning config
+        ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
+                        .get('indicglue', {}).get('fine_tuning', {})
 
-            logger.info(f"Creating MultipleChoiceWrapper for '{task_name}' "
-                       f"with {num_choices} choices (matches official IndicBERT)")
+        use_auto_models = ft_config.get('use_auto_models', True)
+        freeze_base = ft_config.get('freeze_base_model', True)
+        dropout = 0.0  # Official IndicBERT uses zero dropout
 
-            wrapped_model = MultipleChoiceWrapper(
-                base_model=self.base_model,
-                hidden_size=model_config['hidden_size'],
-                num_choices=num_choices,
-                pooling_strategy='first'  # CLS token (ALBERT/BERT standard)
-            )
+        if use_auto_models:
+            # NEW: Use HuggingFace AutoModel classes
+            base_config = self.base_model.config
+
+            if task_config.use_multiple_choice_wrapper:
+                # Multiple-choice tasks
+                num_classes = task_config.num_choices or 4
+                base_config.num_choices = num_classes
+                wrapped_model = AutoModelForMultipleChoice.from_config(base_config)
+                wrapped_model.albert = self.base_model  # Share pretrained weights
+
+                logger.info(
+                    f"Creating AutoModelForMultipleChoice for '{task_name}' "
+                    f"with {num_classes} choices"
+                )
+            else:
+                # Classification/NLI tasks
+                num_labels = task_config.num_labels or task_config.num_choices or 2
+                base_config.num_labels = num_labels
+                wrapped_model = AutoModelForSequenceClassification.from_config(base_config)
+                wrapped_model.albert = self.base_model  # Share pretrained weights
+
+                logger.info(
+                    f"Creating AutoModelForSequenceClassification for '{task_name}' "
+                    f"with {num_labels} labels"
+                )
 
             # Move to device
             wrapped_model = wrapped_model.to(self.device)
 
-            # For training mode, ensure classifier has gradients enabled
+            # Configure trainable parameters based on mode and config
             if for_training:
-                for param in wrapped_model.classifier.parameters():
-                    param.requires_grad = True
-                num_trainable = sum(p.numel() for p in wrapped_model.classifier.parameters())
-                logger.info(f"Enabled gradients for MC classifier ({num_trainable:,} trainable parameters)")
+                if freeze_base:
+                    # Freeze base, train only head
+                    for param in wrapped_model.albert.parameters():
+                        param.requires_grad = False
+                    for name, param in wrapped_model.named_parameters():
+                        if 'classifier' in name or 'score' in name:
+                            param.requires_grad = True
 
-            # Cache and return
-            self.wrapped_models[cache_key] = wrapped_model
-            return wrapped_model
+                    num_trainable = sum(p.numel() for p in wrapped_model.parameters() if p.requires_grad)
+                    logger.info(f"Frozen base mode: {num_trainable:,} trainable parameters")
+                else:
+                    # End-to-end training
+                    for param in wrapped_model.parameters():
+                        param.requires_grad = True
 
-        # Standard classification/NLI tasks
-        # Determine number of classes based on task type
-        task_type = task_config.task_type
-
-        if task_type == 'classification':
-            # Text classification tasks (BBC, Sentiment, Discourse)
-            num_classes = task_config.num_labels or task_config.num_choices or 2
-            logger.info(f"Task '{task_name}' is classification with {num_classes} classes")
-
-        elif task_type == 'nli':
-            # Natural Language Inference tasks (WinogradNLI)
-            num_classes = task_config.num_labels or task_config.num_choices or 3
-            logger.info(f"Task '{task_name}' is NLI with {num_classes} classes")
+                    num_trainable = sum(p.numel() for p in wrapped_model.parameters() if p.requires_grad)
+                    logger.info(f"End-to-end mode: {num_trainable:,} trainable parameters")
+            else:
+                # Evaluation mode - freeze everything
+                for param in wrapped_model.parameters():
+                    param.requires_grad = False
 
         else:
-            # Unknown task type
-            raise ValueError(
-                f"Unknown task type '{task_type}' for task '{task_name}'. "
-                f"Supported types: 'classification', 'nli', 'multiple_choice'"
-            )
+            # OLD: Use custom wrappers (backward compatibility)
+            if task_config.use_multiple_choice_wrapper:
+                num_choices = task_config.num_choices or 4
 
-        logger.info(f"Wrapping model for task '{task_name}' with {num_classes} classes "
-                   f"(mode: {'training' if for_training else 'evaluation'})...")
+                logger.info(
+                    f"Creating custom MultipleChoiceWrapper for '{task_name}' "
+                    f"with {num_choices} choices"
+                )
 
-        # Official IndicBERT uses zero dropout in base model config
-        # (attention_probs_dropout_prob=0, hidden_dropout_prob=0)
-        # Match this by using zero dropout everywhere to avoid train-test mismatch
-        dropout = 0.0
+                wrapped_model = MultipleChoiceWrapper(
+                    base_model=self.base_model,
+                    hidden_size=model_config['hidden_size'],
+                    num_choices=num_choices,
+                    pooling_strategy='first'
+                )
 
-        wrapped_model = wrap_model_for_classification(
-            lm_model=self.base_model,
-            model_type=model_config['model_type'],
-            num_classes=num_classes,
-            hidden_size=model_config['hidden_size'],
-            dropout=dropout,
-            freeze_base=True,  # Always freeze base model (only train heads)
-            pooling_strategy='auto'
-        )
+                wrapped_model = wrapped_model.to(self.device)
 
-        # Move to correct device
-        wrapped_model = wrapped_model.to(self.device)
+                if for_training:
+                    # Configure gradients based on freeze_base setting
+                    if not freeze_base:
+                        for param in wrapped_model.base_model.parameters():
+                            param.requires_grad = True
 
-        # For training mode, ensure classification head has gradients enabled
-        if for_training:
-            for param in wrapped_model.classifier.parameters():
-                param.requires_grad = True
-            num_trainable = sum(p.numel() for p in wrapped_model.classifier.parameters())
-            logger.info(f"Enabled gradients for classification head ({num_trainable:,} trainable parameters)")
+                    for param in wrapped_model.classifier.parameters():
+                        param.requires_grad = True
+            else:
+                # Classification/NLI tasks
+                num_classes = task_config.num_labels or task_config.num_choices or 2
+
+                logger.info(f"Wrapping model for task '{task_name}' with {num_classes} classes")
+
+                wrapped_model = wrap_model_for_classification(
+                    lm_model=self.base_model,
+                    model_type=model_config['model_type'],
+                    num_classes=num_classes,
+                    hidden_size=model_config['hidden_size'],
+                    dropout=dropout,
+                    freeze_base=freeze_base,  # Use config value
+                    pooling_strategy='auto'
+                )
+
+                wrapped_model = wrapped_model.to(self.device)
+
+                if for_training:
+                    for param in wrapped_model.classifier.parameters():
+                        param.requires_grad = True
 
         # Cache the wrapped model
         self.wrapped_models[cache_key] = wrapped_model

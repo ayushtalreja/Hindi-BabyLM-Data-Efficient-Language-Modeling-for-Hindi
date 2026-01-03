@@ -315,8 +315,24 @@ evaluation:
         scheduler_type: "linear"  # Linear LR decay with warmup
 
         # Model settings
-        freeze_base_model: false  # Only train classification heads
+        # Training Strategy:
+        # - freeze_base_model: true  → Frozen base, train only classification heads (FASTER, less overfitting)
+        # - freeze_base_model: false → End-to-end training (SLOWER, matches IndicBERT paper scores)
+        freeze_base_model: true  # Default to frozen base (proven approach)
+
+        # Model Architecture:
+        # - use_auto_models: true  → HuggingFace AutoModelForSequenceClassification/MultipleChoice
+        # - use_auto_models: false → Custom wrappers (backward compatibility)
+        use_auto_models: true  # Use HuggingFace's AutoModel classes
+
         dropout: 0.1  # Reverted: Prevent overfitting during fine-tuning
+
+        # To replicate IndicBERT paper exactly, use these settings:
+        # freeze_base_model: false
+        # num_epochs: 3
+        # weight_decay: 0.0
+        # warmup_ratio: 0.0
+        # dropout: 0.0
 
         # Task-specific split configurations
         # For tasks where original splits are missing/inadequate

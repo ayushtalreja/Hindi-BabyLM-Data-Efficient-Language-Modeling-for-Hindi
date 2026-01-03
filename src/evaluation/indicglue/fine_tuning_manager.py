@@ -47,10 +47,14 @@ class FineTuningManager:
         ft_config = config.get('evaluation', {}).get('benchmarks', {}) \
                         .get('indicglue', {}).get('fine_tuning', {})
 
+        # Training strategy
+        self.freeze_base_model = bool(ft_config.get('freeze_base_model', True))
+        self.use_auto_models = bool(ft_config.get('use_auto_models', True))
+
         # Training hyperparameters (all from config)
         self.num_epochs = int(ft_config.get('num_epochs', 10))
         self.learning_rate = float(ft_config.get('learning_rate', 2e-5))
-        self.weight_decay = float(ft_config.get('weight_decay', 0.0))
+        self.weight_decay = float(ft_config.get('weight_decay', 0.01))
         self.adam_epsilon = float(ft_config.get('adam_epsilon', 1e-8))
         self.warmup_ratio = float(ft_config.get('warmup_ratio', 0.1))
         self.batch_size = int(ft_config.get('batch_size', 32))
@@ -62,7 +66,9 @@ class FineTuningManager:
         self.model_provider = model_provider
 
         logger.info(
-            f"FineTuningManager initialized with config: "
+            f"FineTuningManager initialized: "
+            f"freeze_base={self.freeze_base_model}, "
+            f"use_auto_models={self.use_auto_models}, "
             f"lr={self.learning_rate}, epochs={self.num_epochs}, "
             f"batch_size={self.batch_size}, warmup_ratio={self.warmup_ratio}, "
             f"scheduler_type={self.scheduler_type}, "
@@ -238,8 +244,7 @@ class FineTuningManager:
         """
         Create AdamW optimizer with parameter-specific weight decay.
 
-        No weight decay is applied to bias terms and LayerNorm parameters,
-        following BERT fine-tuning best practices.
+        Includes validation and logging for training strategy.
 
         Args:
             model: Model to optimize
@@ -247,6 +252,33 @@ class FineTuningManager:
         Returns:
             AdamW optimizer with parameter groups
         """
+        # Count total and trainable parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+        logger.info(
+            f"Model parameters: {total_params:,} total, "
+            f"{trainable_params:,} trainable ({trainable_params/total_params*100:.1f}%)"
+        )
+
+        # Validate frozen base configuration
+        if self.freeze_base_model:
+            # Count base model trainable parameters
+            base_trainable = sum(
+                p.numel() for n, p in model.named_parameters()
+                if ('albert' in n or 'base_model' in n) and p.requires_grad
+            )
+            if base_trainable > 0:
+                logger.warning(
+                    f"⚠️  freeze_base_model=True but {base_trainable:,} base params are trainable! "
+                    f"Check model wrapping logic."
+                )
+            else:
+                logger.info(f"✓ Base model correctly frozen (0 trainable base params)")
+        else:
+            logger.info(f"✓ End-to-end training mode (all parameters trainable)")
+
+        # Create parameter groups (no decay for bias/LayerNorm)
         no_decay = ['bias', 'LayerNorm.weight', 'LayerNorm.bias']
         optimizer_grouped_parameters = [
             {
@@ -268,7 +300,7 @@ class FineTuningManager:
         )
 
         logger.info(
-            f"Optimizer created: AdamW with {len(optimizer_grouped_parameters[0]['params'])} "
+            f"Optimizer: AdamW with {len(optimizer_grouped_parameters[0]['params'])} "
             f"params with decay, {len(optimizer_grouped_parameters[1]['params'])} without decay"
         )
 

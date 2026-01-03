@@ -143,6 +143,83 @@ class IndicBERTModelLoader:
 
 
 # ============================================================================
+# Component A.5: AutoModel Factory Function
+# ============================================================================
+
+def create_auto_model_for_task(
+    base_model,
+    task_config,
+    num_classes: int,
+    freeze_base: bool = True,
+    device: str = 'cuda'
+):
+    """
+    Create HuggingFace AutoModel for task.
+
+    This factory function creates either AutoModelForSequenceClassification
+    or AutoModelForMultipleChoice based on the task type, matching the
+    official IndicBERT implementation.
+
+    Args:
+        base_model: Pretrained base model (e.g., IndicBERT ALBERT)
+        task_config: TaskConfig object with task metadata
+        num_classes: Number of classes/choices for the task
+        freeze_base: If True, freeze base and train only head
+        device: Device to place model on ('cuda' or 'cpu')
+
+    Returns:
+        AutoModel instance ready for training/evaluation
+    """
+    from transformers import AutoModelForSequenceClassification, AutoModelForMultipleChoice
+
+    # Get base model config
+    config = base_model.config
+
+    if task_config.use_multiple_choice_wrapper:
+        # Multiple-choice tasks (WSTP, CSQA, COPA)
+        config.num_choices = num_classes
+        model = AutoModelForMultipleChoice.from_config(config)
+        # Share pretrained weights from base model
+        model.albert = base_model
+        logger.info(f"Created AutoModelForMultipleChoice with {num_classes} choices")
+    else:
+        # Classification/NLI tasks (BBCA, sentiment, discourse, etc.)
+        config.num_labels = num_classes
+        model = AutoModelForSequenceClassification.from_config(config)
+        # Share pretrained weights from base model
+        model.albert = base_model
+        logger.info(f"Created AutoModelForSequenceClassification with {num_classes} labels")
+
+    # Move to device
+    model = model.to(device)
+
+    # Configure trainable parameters
+    if freeze_base:
+        # Freeze base, train only classification head
+        for param in model.albert.parameters():
+            param.requires_grad = False
+        for name, param in model.named_parameters():
+            if 'classifier' in name or 'score' in name:
+                param.requires_grad = True
+        logger.info("Training mode: FROZEN BASE (only head trainable)")
+    else:
+        # End-to-end training (all parameters)
+        for param in model.parameters():
+            param.requires_grad = True
+        logger.info("Training mode: END-TO-END (all parameters trainable)")
+
+    # Log parameter counts
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(
+        f"Parameters: {total_params:,} total, "
+        f"{trainable_params:,} trainable ({trainable_params/total_params*100:.1f}%)"
+    )
+
+    return model
+
+
+# ============================================================================
 # Component B: ALBERT Classification Wrapper
 # ============================================================================
 
@@ -334,10 +411,10 @@ class IndicBERTEvaluationWrapper:
 
     def _wrap_for_task(self, task_name: str, num_classes: int, for_training: bool = False, task_config = None):
         """
-        Create task-specific classification wrapper.
+        Create task-specific model using AutoModel classes or custom wrappers.
 
-        Called by _get_model_for_task_override during evaluation.
-        Creates ALBERT-specific wrapper with proper configuration.
+        Supports both HuggingFace AutoModel (new approach) and custom wrappers (backward compatibility).
+        The choice is controlled by the 'use_auto_models' config parameter.
 
         Args:
             task_name: Name of the task
@@ -364,66 +441,68 @@ class IndicBERTEvaluationWrapper:
         ft_config = self.config.get('evaluation', {}).get('benchmarks', {}) \
                         .get('indicglue', {}).get('fine_tuning', {})
 
-        # Configure dropout based on mode
-        if for_training:
-            dropout = float(ft_config.get('dropout', 0.1))
-        else:
-            dropout = 0.0  # No dropout during evaluation
+        # Read config parameters
+        use_auto_models = ft_config.get('use_auto_models', True)
+        freeze_base = ft_config.get('freeze_base_model', True)
+        dropout = float(ft_config.get('dropout', 0.1)) if for_training else 0.0
 
-        # Check if this is a multiple-choice task
-        # Handle TaskConfig dataclass (post-refactoring) instead of dictionary
-        if task_config:
-            # TaskConfig dataclass has use_multiple_choice_wrapper attribute
-            use_mc_wrapper = task_config.use_multiple_choice_wrapper if hasattr(task_config, 'use_multiple_choice_wrapper') else False
-        else:
-            use_mc_wrapper = False
+        if use_auto_models:
+            # NEW APPROACH: Use HuggingFace AutoModel classes
+            logger.info("  Using HuggingFace AutoModel classes")
 
-        if use_mc_wrapper:
-            # Create MultipleChoiceWrapper for multiple-choice tasks
-            logger.info(f"  Using MultipleChoiceWrapper (matches official IndicBERT)")
-            wrapped = MultipleChoiceWrapper(
+            wrapped = create_auto_model_for_task(
                 base_model=self.base_model,
-                hidden_size=self.hidden_size,
-                num_choices=num_classes,  # For MC tasks, num_classes is actually num_choices
-                pooling_strategy='first'  # [CLS] token pooling (ALBERT/BERT standard)
-            )
-
-            # Move to device
-            wrapped = wrapped.to(self.device)
-
-            # Enable gradients for training
-            if for_training:
-                # Enable gradients for base model (all layers)
-                for param in wrapped.base_model.parameters():
-                    param.requires_grad = True
-
-                # Enable gradients for classifier
-                for param in wrapped.classifier.parameters():
-                    param.requires_grad = True
-
-                # Count total trainable parameters
-                num_base_trainable = sum(p.numel() for p in wrapped.base_model.parameters() if p.requires_grad)
-                num_classifier_trainable = sum(p.numel() for p in wrapped.classifier.parameters() if p.requires_grad)
-                logger.info(f"  Enabled gradients for base model ({num_base_trainable:,} parameters) + classifier ({num_classifier_trainable:,} parameters)")
-        else:
-            # Create ALBERT classification wrapper for standard classification tasks
-            wrapped = ALBERTForSequenceClassification(
-                lm_model=self.base_model,
+                task_config=task_config,
                 num_classes=num_classes,
-                hidden_size=self.hidden_size,
-                dropout=dropout,
-                freeze_base=True,  # Always freeze base for task-specific fine-tuning
-                pooling_strategy='first'  # [CLS] token pooling (from paper)
+                freeze_base=freeze_base if for_training else True,  # Always freeze for eval
+                device=self.device
             )
+        else:
+            # OLD APPROACH: Use custom wrappers (backward compatibility)
+            logger.info("  Using custom wrapper classes")
 
-            # Move to device
-            wrapped = wrapped.to(self.device)
+            # Check if this is a multiple-choice task
+            if task_config and task_config.use_multiple_choice_wrapper:
+                # Multiple-choice tasks
+                wrapped = MultipleChoiceWrapper(
+                    base_model=self.base_model,
+                    hidden_size=self.hidden_size,
+                    num_choices=num_classes,
+                    pooling_strategy='first'  # CLS token
+                )
+                wrapped = wrapped.to(self.device)
 
-            # Enable gradients for head if training
-            if for_training:
-                for param in wrapped.classifier.parameters():
-                    param.requires_grad = True
-                logger.debug("Classification head gradients enabled")
+                # Enable gradients for training
+                if for_training:
+                    # Enable base model gradients based on config
+                    if not freeze_base:
+                        for param in wrapped.base_model.parameters():
+                            param.requires_grad = True
+
+                    # Enable classifier gradients
+                    for param in wrapped.classifier.parameters():
+                        param.requires_grad = True
+
+                    num_base_trainable = sum(p.numel() for p in wrapped.base_model.parameters() if p.requires_grad)
+                    num_classifier_trainable = sum(p.numel() for p in wrapped.classifier.parameters() if p.requires_grad)
+                    logger.info(f"  Enabled gradients for base model ({num_base_trainable:,} parameters) + classifier ({num_classifier_trainable:,} parameters)")
+            else:
+                # Classification/NLI tasks
+                wrapped = ALBERTForSequenceClassification(
+                    lm_model=self.base_model,
+                    num_classes=num_classes,
+                    hidden_size=self.hidden_size,
+                    dropout=dropout,
+                    freeze_base=freeze_base,  # Use config value
+                    pooling_strategy='first'  # CLS token
+                )
+                wrapped = wrapped.to(self.device)
+
+                # Enable gradients for training
+                if for_training:
+                    for param in wrapped.classifier.parameters():
+                        param.requires_grad = True
+                    logger.debug("Classification head gradients enabled")
 
         # Cache the wrapped model
         self.wrapped_models[cache_key] = wrapped
