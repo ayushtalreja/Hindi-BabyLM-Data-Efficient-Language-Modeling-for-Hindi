@@ -556,17 +556,14 @@ def create_indicbert_evaluator(model_wrapper: IndicBERTEvaluationWrapper,
     """
     logger.info("Creating IndicGLUEEvaluator with ALBERT wrapping...")
 
-    # Create standard evaluator
-    evaluator = IndicGLUEEvaluator(model_wrapper, tokenizer, config)
-
-    # Store original method
-    original_get_model = evaluator._get_model_for_task
-
-    # Override with ALBERT-aware version
+    # Define custom model provider BEFORE creating evaluator
+    # This must be defined first so it can be passed to the evaluator constructor
     def _get_model_for_task_override(task_name, for_training=False):
         """Custom task model getter that uses our ALBERT wrapper"""
-        # Use task_registry instead of tasks dictionary (post-refactoring)
-        task_config = evaluator.task_registry.get_task_config(task_name)
+        # Need to import TaskRegistry here since evaluator not yet created
+        from src.evaluation.indicglue import TaskRegistry
+        task_registry = TaskRegistry()
+        task_config = task_registry.get_task_config(task_name)
 
         # Get number of classes based on task type
         # Multiple-choice tasks with wrapper use 'num_choices', others use 'num_labels'
@@ -579,8 +576,14 @@ def create_indicbert_evaluator(model_wrapper: IndicBERTEvaluationWrapper,
         # Use our custom ALBERT wrapper, passing task_config for MC detection
         return model_wrapper._wrap_for_task(task_name, num_classes, for_training, task_config=task_config)
 
-    # Monkey-patch (only for this instance)
-    evaluator._get_model_for_task = _get_model_for_task_override
+    # Create evaluator with custom model_provider passed at initialization
+    # This ensures FineTuningManager uses the correct model provider
+    evaluator = IndicGLUEEvaluator(
+        model_wrapper,
+        tokenizer,
+        config,
+        model_provider=_get_model_for_task_override  # ← Pass at init time!
+    )
 
     logger.info("Evaluator created with custom ALBERT wrapping")
 

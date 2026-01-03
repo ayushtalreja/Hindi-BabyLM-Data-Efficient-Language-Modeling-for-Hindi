@@ -168,7 +168,8 @@ class IndicGLUEEvaluator:
     - Statistical significance testing
     """
 
-    def __init__(self, model, tokenizer, config: Optional[Dict] = None):
+    def __init__(self, model, tokenizer, config: Optional[Dict] = None,
+                 model_provider: Optional[callable] = None):
         """
         Initialize IndicGLUE evaluator
 
@@ -176,6 +177,9 @@ class IndicGLUEEvaluator:
             model: Language model to evaluate
             tokenizer: Tokenizer for the model
             config: Optional configuration dictionary
+            model_provider: Optional callable for creating task-specific models
+                          Signature: (task_name: str, for_training: bool) -> nn.Module
+                          If None, uses self._get_model_for_task
         """
         self.base_model = model
         self.tokenizer = tokenizer
@@ -279,12 +283,23 @@ class IndicGLUEEvaluator:
         )
         logger.info("Initialized evaluation strategies (Classification, MC, Perplexity)")
 
+        # Determine model provider for fine-tuning
+        # Allow external override (for IndicBERT compatibility)
+        if model_provider is not None:
+            # Use provided model_provider (e.g., from evaluate_indicbert.py)
+            fine_tuning_model_provider = model_provider
+            logger.info("Using external model_provider for fine-tuning")
+        else:
+            # Default: use internal _get_model_for_task
+            fine_tuning_model_provider = self._get_model_for_task
+            logger.info("Using internal _get_model_for_task for fine-tuning")
+
         # Fine-tuning manager component
         # Pass full config, dataloader factory, and model provider
         self.fine_tuning_manager = FineTuningManager(
             config=self.config,
             dataloader_factory=self.dataloader_factory,
-            model_provider=self._get_model_for_task
+            model_provider=fine_tuning_model_provider
         )
         logger.info("Initialized FineTuningManager (refactored with config, dataloader_factory, model_provider)")
 
