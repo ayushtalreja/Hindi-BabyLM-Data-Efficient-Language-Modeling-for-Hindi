@@ -47,6 +47,8 @@ MAX_SAMPLES=${3:-}              # Optional: limit samples per task for testing
 EPOCHS=${4:-10}                 # Number of fine-tuning epochs
 BATCH_SIZE=${5:-32}             # Batch size
 LEARNING_RATE=${6:-2e-5}        # Learning rate
+freeze_base_model=${7:-false}  # Freeze base model during fine-tuning
+auto_models=${8:-true}      # Use AutoModel classes
 
 echo ""
 echo "=========================================="
@@ -58,6 +60,8 @@ echo "Max samples per task: ${MAX_SAMPLES:-all}"
 echo "Epochs: $EPOCHS"
 echo "Batch size: $BATCH_SIZE"
 echo "Learning rate: $LEARNING_RATE"
+echo "Freeze base model: $freeze_base_model"
+echo "Use AutoModel classes: $auto_models"
 echo ""
 
 # Build command
@@ -66,6 +70,8 @@ CMD="python scripts/evaluate_indicbert.py \
     --epochs $EPOCHS \
     --batch-size $BATCH_SIZE \
     --learning-rate $LEARNING_RATE \
+    --freeze-base-model $freeze_base_model \
+    --auto-models $auto_models \
     --device cuda \
     --output-dir results/indicbert_evaluation_${SLURM_JOB_ID}"
 
