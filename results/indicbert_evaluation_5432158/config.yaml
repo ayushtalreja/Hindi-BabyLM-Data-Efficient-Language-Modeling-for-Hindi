@@ -13,7 +13,8 @@ evaluation:
         batch_size: 32
         weight_decay: 0.01
         dropout: 0.1
-        freeze_base_model: true
+        freeze_base_model: false
+        use_auto_models: false
         early_stopping:
           patience: 3
           metric: accuracy

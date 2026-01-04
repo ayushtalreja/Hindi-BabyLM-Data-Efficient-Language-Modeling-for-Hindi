@@ -1,0 +1,8 @@
+Task,Accuracy,F1_Macro,F1_Weighted,Precision,Recall,Num_Examples,Status
+Wikipedia Section Title Prediction,0.6130,0.6129,0.6131,0.6130,0.6129,5509,completed
+Cloze-style multiple-choice QA,0.3022,0.3020,0.3021,0.3021,0.3024,3514,completed
+BBCArticlesClassification,0.4215,0.0517,0.2776,0.0502,0.0754,866,completed
+MovieReviewSentiment,0.4097,0.3029,0.3277,0.4567,0.3649,310,completed
+ProductReviewSentiment,0.5335,0.3886,0.4992,0.4684,0.4105,523,completed
+DiscourseMode,0.3480,0.1434,0.2986,0.1586,0.1622,997,completed
+Choice of Plausible Alternatives,0.5341,0.5335,0.5314,0.5501,0.5489,88,completed

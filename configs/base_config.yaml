@@ -318,12 +318,12 @@ evaluation:
         # Training Strategy:
         # - freeze_base_model: true  → Frozen base, train only classification heads (FASTER, less overfitting)
         # - freeze_base_model: false → End-to-end training (SLOWER, matches IndicBERT paper scores)
-        freeze_base_model: true  # Default to frozen base (proven approach)
+        freeze_base_model: false  # Default to unfrozen base (proven approach)
 
         # Model Architecture:
-        # - use_auto_models: true  → HuggingFace AutoModelForSequenceClassification/MultipleChoice
-        # - use_auto_models: false → Custom wrappers (backward compatibility)
-        use_auto_models: true  # Use HuggingFace's AutoModel classes
+        # - use_auto_models: true  → HuggingFace AutoModelForSequenceClassification/MultipleChoice (used by indicbert team)
+        # - use_auto_models: false → Custom wrappers 
+        use_auto_models: false  # Use our implementation which performs better than AutoModel
 
         dropout: 0.1  # Reverted: Prevent overfitting during fine-tuning
 

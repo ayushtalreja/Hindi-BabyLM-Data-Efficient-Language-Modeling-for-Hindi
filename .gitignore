@@ -72,10 +72,10 @@ logs/
 *.err
 
 # Figures (optional - uncomment if you don't want to track)
-# figures/
-# *.png
-# *.jpg
-# *.pdf
+figures/
+*.png
+*.jpg
+*.pdf
 
 # Model files
 /models/
