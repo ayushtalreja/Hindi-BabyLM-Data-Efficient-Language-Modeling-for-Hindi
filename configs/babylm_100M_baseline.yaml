@@ -265,23 +265,44 @@ evaluation:
       fine_tuning:
         enabled: true
 
+        # NOTE: Always uses original HuggingFace splits by default
+        # For tasks with missing/inadequate splits, use task_specific_splits below
+
         # Training hyperparameters
-        num_epochs: 10
+        num_epochs: 10  # Reverted to working config for better convergence
         early_stopping:
           enabled: true
           patience: 3
-          metric: "accuracy"
-          mode: "max"
+          metric: "accuracy"  # Metric to monitor
+          mode: "max"  # "max" for accuracy, "min" for loss
 
         # Optimization
         learning_rate: 2e-5
         batch_size: 32
-        weight_decay: 0.01
-        warmup_ratio: 0.1
+        weight_decay: 0.01  # Reverted: L2 regularization to prevent overfitting
+        adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
+        warmup_ratio: 0.1  # Reverted: 10% warmup for training stability
+        scheduler_type: "linear"  # Linear LR decay with warmup
 
         # Model settings
-        freeze_base_model: true
-        dropout: 0.1
+        # Training Strategy:
+        # - freeze_base_model: true  → Frozen base, train only classification heads (FASTER, less overfitting)
+        # - freeze_base_model: false → End-to-end training (SLOWER, matches IndicBERT paper scores)
+        freeze_base_model: false  # Default to unfrozen base (proven approach)
+
+        # Model Architecture:
+        # - use_auto_models: true  → HuggingFace AutoModelForSequenceClassification/MultipleChoice (used by indicbert team)
+        # - use_auto_models: false → Custom wrappers
+        use_auto_models: false  # Use our implementation which performs better than AutoModel
+
+        dropout: 0.1  # Reverted: Prevent overfitting during fine-tuning
+
+        # To replicate IndicBERT paper exactly, use these settings:
+        # freeze_base_model: false
+        # num_epochs: 3
+        # weight_decay: 0.0
+        # warmup_ratio: 0.0
+        # dropout: 0.0
 
         # Task-specific split configurations
         # For tasks where original splits are missing/inadequate
@@ -293,8 +314,8 @@ evaluation:
             split_seed: 42            # Reproducible splits
             reason: "Dataset only has test split (35,140 examples); custom splits required for fine-tuning"
 
-        # Checkpointing
-        save_finetuned_models: false
+        # Checkpointing (optional)
+        save_finetuned_models: true
         finetuned_models_dir: "finetuned_heads"
 
     multiblimp:
