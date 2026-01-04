@@ -79,17 +79,17 @@ class MultipleChoiceWrapper(nn.Module):
         self.hidden_size = hidden_size
         self.pooling_strategy = pooling_strategy
 
+        # Match base model dtype first
+        base_dtype = next(base_model.parameters()).dtype
+
         # Classifier: maps pooled representation to single score per choice
         # Official implementation uses a single linear layer
-        self.classifier = nn.Linear(hidden_size, 1)
+        # Create in correct dtype from start to avoid precision loss
+        self.classifier = nn.Linear(hidden_size, 1, dtype=base_dtype)
 
         # Initialize classifier weights (match transformers initialization)
         nn.init.normal_(self.classifier.weight, std=0.02)
         nn.init.zeros_(self.classifier.bias)
-
-        # Match base model dtype
-        base_dtype = next(base_model.parameters()).dtype
-        self.classifier = self.classifier.to(dtype=base_dtype)
 
     def forward(self, input_ids, attention_mask, labels=None, **kwargs):
         """
@@ -719,18 +719,37 @@ class IndicGLUEEvaluator:
         # Detect if we're in fine-tuned mode
         is_finetuned = self._is_finetuned_mode
 
-        # Route based on task type
-        # All tasks (classification, NLI, and multiple-choice) use the same unified evaluation method
-        if task_config.use_multiple_choice_wrapper:
-            logger.info(f"[ROUTING] {task_name}: Multiple-choice wrapper → "
-                       f"Process each choice independently (matches official IndicBERT)")
+        # Route based on task type AND evaluation mode
+        if task_config.use_multiple_choice_wrapper and not is_finetuned:
+            # Zero-shot evaluation for MC tasks: use perplexity-based scoring
+            logger.info(f"[ROUTING] {task_name}: Zero-shot MC task → Using perplexity scoring")
+            result = self.perplexity_strategy.evaluate(
+                model=self.base_model,  # Use base model, not wrapped
+                dataset=dataset,
+                task_name=task_name
+            )
+            # Compute metrics from predictions and labels
+            from .result_visualizer import ResultVisualizer
+            fine_tuning_info = None  # No fine-tuning in zero-shot mode
+            metrics = self.result_visualizer.compute_classification_metrics(
+                result['predictions'], result['labels'], task_name,
+                self.metrics_aggregator, self.task_registry, fine_tuning_info
+            )
+            return metrics
+
+        elif task_config.use_multiple_choice_wrapper and is_finetuned:
+            # Fine-tuned MC tasks: use classification head
+            logger.info(f"[ROUTING] {task_name}: Fine-tuned MC task → "
+                       f"Using classification head (matches official IndicBERT)")
+            return self._evaluate_classification(dataset, task_name, model)
+
         elif task_config.task_type in ['classification', 'nli']:
+            # Classification/NLI tasks: always use classification head
             logger.info(f"[ROUTING] {task_name}: Classification/NLI task → Using classification head")
+            return self._evaluate_classification(dataset, task_name, model)
+
         else:
             raise ValueError(f"Unknown task type: {task_config.task_type}")
-
-        # Use unified evaluation method for all task types
-        return self._evaluate_classification(dataset, task_name, model)
 
     def _load_task_data(self, task_name: str, split: str = 'test') -> Optional[Dataset]:
         """
@@ -1042,12 +1061,12 @@ class IndicGLUEEvaluator:
         if self.cache_manager and self.cache_manager.enable_cache:
             # Generate cache key from task name, dataset size, and config
             cache_key = self.cache_manager._compute_cache_key(
-                model_hash=getattr(self.model, 'name_or_path', 'unknown_model'),
+                model_hash=getattr(self.base_model, 'name_or_path', 'unknown_model'),
                 dataset_name=task_name,
                 dataset_split='test',  # IndicGLUE evaluation uses test split
                 config={
                     'batch_size': self.batch_size,
-                    'max_samples': self.max_samples_per_task,
+                    'max_samples': self.max_samples,
                     'num_examples': len(dataset)
                 }
             )
@@ -1128,7 +1147,7 @@ class IndicGLUEEvaluator:
         if self.cache_manager and self.cache_manager.enable_cache:
             cache_metadata = {
                 'task_name': task_name,
-                'model_name': getattr(self.model, 'name_or_path', 'unknown_model'),
+                'model_name': getattr(self.base_model, 'name_or_path', 'unknown_model'),
                 'num_examples': len(dataset),
                 'metrics': metrics
             }

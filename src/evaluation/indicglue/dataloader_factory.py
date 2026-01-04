@@ -129,11 +129,13 @@ class DataLoaderFactory:
                 labels.append(label)
 
             # Tokenize batch
+            # NOTE: Uses truncation=True (default right-truncation) for single text classification
+            # This differs from MC tasks which use truncation='longest_first' to preserve choices
             encoded = self.tokenizer(
                 texts,
                 max_length=self.max_length,
                 padding='max_length',  # Official IndicBERT uses max_length, not 'longest'
-                truncation=True,
+                truncation=True,  # Right-truncation for single sequences
                 return_tensors='pt'
             )
 
@@ -199,12 +201,15 @@ class DataLoaderFactory:
 
                 # Batch tokenize all (context, choice) pairs at once for efficiency
                 # This is ~4x faster than sequential tokenization for 4-choice tasks
+                # NOTE: Uses truncation='longest_first' to preserve choice text when context is long
+                # This differs from classification tasks which use truncation=True (right-truncation)
+                # This is correct: MC needs to preserve choices, classification only has one sequence
                 encoded = self.tokenizer(
                     [context] * len(choices),  # Repeat context for each choice
                     choices,                    # List of all choices
                     max_length=self.max_length,
                     padding='max_length',
-                    truncation='longest_first',  # Official IndicBERT uses longest_first for MC
+                    truncation='longest_first',  # Truncate longer sequence (usually context) first
                     return_tensors='pt'
                 )
 

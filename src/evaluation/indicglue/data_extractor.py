@@ -181,14 +181,25 @@ class TaskDataExtractor:
             answer = example['answer']
             options = example['options']
 
+            # Try exact match first
             try:
                 return options.index(answer)
-            except (ValueError, AttributeError) as e:
-                logger.warning(
-                    f"Answer '{answer}' not found in options for CSQA, defaulting to 0. "
-                    f"Options: {options}. Error: {e}"
-                )
-                return 0
+            except (ValueError, AttributeError):
+                pass
+
+            # Try case-insensitive + whitespace-stripped match
+            if isinstance(answer, str) and isinstance(options, list):
+                answer_normalized = answer.strip().lower()
+                for idx, option in enumerate(options):
+                    if isinstance(option, str) and option.strip().lower() == answer_normalized:
+                        logger.debug(f"CSQA: Matched answer '{answer}' to option '{option}' via normalization")
+                        return idx
+
+            # If still no match, this is likely a data error - raise exception
+            raise ValueError(
+                f"CSQA label extraction failed: Answer '{answer}' not found in options {options}. "
+                f"This indicates corrupted data or mismatched answer-option pairs."
+            )
 
         # Standard label field
         elif task_config.label_field in example:
@@ -263,6 +274,17 @@ class TaskDataExtractor:
             if not isinstance(choices, list):
                 # Single option, wrap in list
                 choices = [choices]
+
+            # Validate choice count matches expected
+            expected_choices = task_config.num_choices
+            if expected_choices and len(choices) != expected_choices:
+                raise ValueError(
+                    f"CSQA choice count mismatch: Expected {expected_choices} choices "
+                    f"but found {len(choices)} in example. "
+                    f"Choices: {choices}. "
+                    f"This indicates inconsistent data or incorrect task configuration."
+                )
+
             return choices
 
         # COPA
