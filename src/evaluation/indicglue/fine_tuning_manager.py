@@ -211,6 +211,12 @@ class FineTuningManager:
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
                     # Save best model state (on CPU to avoid GPU memory buildup)
+                    # Clear previous checkpoint to avoid accumulation across tasks
+                    if best_model_state is not None:
+                        del best_model_state
+                        import gc
+                        gc.collect()
+
                     best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
                     patience_counter = 0
                     best_epoch = epoch + 1

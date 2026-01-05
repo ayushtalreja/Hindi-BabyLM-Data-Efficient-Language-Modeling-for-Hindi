@@ -496,6 +496,13 @@ Examples:
         if args.stage in ['data', 'all']:
             splits = stage_data_processing(config, args.force_reprocess)
 
+            # MEMORY CLEANUP: Free data processing memory before training
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logging.info("✓ Memory cleanup after data processing completed")
+
         # Stage 2: Training
         if args.stage in ['train', 'all']:
             # Load splits if not already loaded
@@ -510,6 +517,13 @@ Examples:
                 resume_from=args.resume,
                 full_config_yaml=full_config_yaml
             )
+
+            # MEMORY CLEANUP: Free training memory before evaluation
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logging.info("✓ Memory cleanup after training completed")
 
         # Stage 3: Evaluation
         if args.stage in ['eval', 'all']:

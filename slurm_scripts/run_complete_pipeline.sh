@@ -3,12 +3,12 @@
 #SBATCH --output=logs/pipeline_%j.out
 #SBATCH --error=logs/pipeline_%j.err
 #SBATCH --time=14:00:00
-#SBATCH --partition=lrz-dgx-a100-80x8
+#SBATCH --partition=lrz-hgx-h100-94x4 #lrz-dgx-a100-80x8
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=80GB
+#SBATCH --mem=94GB
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=ayush1.kumar@tum.de
 

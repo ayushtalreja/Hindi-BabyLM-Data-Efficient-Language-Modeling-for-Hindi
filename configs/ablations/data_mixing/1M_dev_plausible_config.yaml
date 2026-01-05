@@ -422,7 +422,7 @@ resources:
   # Device Configuration
   device: "cuda"  # Options: cuda, cpu, mps (for Apple Silicon)
   gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]  # List of GPU IDs to use
-  num_workers: 64  # DataLoader workers
+  num_workers: 4  # DataLoader workers
 
   # Memory Management
   pin_memory: true

@@ -387,7 +387,7 @@ experiment_tracking:
 resources:
   # Device Configuration
   device: "cuda"
-  num_workers: 64
+  num_workers: 4
 
   # Memory Management
   pin_memory: true

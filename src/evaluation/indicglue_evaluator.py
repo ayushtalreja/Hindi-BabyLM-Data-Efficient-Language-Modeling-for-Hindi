@@ -686,15 +686,21 @@ class IndicGLUEEvaluator:
                 return results
 
         finally:
-            # Clean up wrapped models to free GPU memory after each task
+            # Clean up wrapped models
             if hasattr(self, 'wrapped_models'):
+                # Explicitly delete each model before clearing dict
+                for model_key in list(self.wrapped_models.keys()):
+                    del self.wrapped_models[model_key]
                 self.wrapped_models.clear()
                 logger.debug(f"Cleared wrapped model cache for {task_name}")
 
-            # Free GPU memory if using CUDA
+            # MEMORY CLEANUP: Free both GPU and CPU memory
+            import gc
+            gc.collect()  # Force garbage collection for CPU RAM
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-                logger.debug("Freed GPU cache")
+                logger.debug("Freed GPU and CPU cache")
 
     def _evaluate_with_model(self, model, dataset: Dataset, task_name: str) -> Dict:
         """

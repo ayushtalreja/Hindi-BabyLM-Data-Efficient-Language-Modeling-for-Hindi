@@ -416,7 +416,7 @@ experiment_tracking:
 resources:
   # Device Configuration
   device: "cuda"
-  num_workers: 64  # BabyLM optimization: increased from 8 for faster data loading
+  num_workers: 4  # BabyLM optimization: increased from 8 for faster data loading
 
   # Memory Management
   pin_memory: true

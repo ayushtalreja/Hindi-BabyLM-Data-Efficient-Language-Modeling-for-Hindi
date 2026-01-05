@@ -346,7 +346,7 @@ experiment_tracking:
 # ==============================================================================
 resources:
   device: "cuda"
-  num_workers: 64
+  num_workers: 4
 
   pin_memory: true
   prefetch_factor: 2

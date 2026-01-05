@@ -638,6 +638,13 @@ class CorpusBuilder:
         print(f"\n  Total: {len(splits['train']) + len(splits['val']) + len(splits['test']):,} texts, {total_train_words + total_val_words + total_test_words:,} words")
         print("="*80 + "\n")
 
+        # MEMORY CLEANUP: Clear intermediate data structures that are no longer needed
+        shuffled_sources.clear()
+        used_texts.clear()
+        import gc
+        gc.collect()
+        print("✓ Cleared intermediate split creation data structures\n")
+
         return splits
 
     def create_splits(self, processed_data: List[str]) -> Dict[str, List[str]]:
@@ -750,8 +757,8 @@ class CorpusBuilder:
             batch_size=batch_size,
             shuffle=shuffle,
             num_workers=num_workers,
-            pin_memory=pin_memory,
-            persistent_workers=True  # Keep workers alive between epochs
+            pin_memory=pin_memory,  # Disable for systems with low RAM
+            persistent_workers=False  # Allow workers to be destroyed and memory freed
         )
 
         return dataloader
