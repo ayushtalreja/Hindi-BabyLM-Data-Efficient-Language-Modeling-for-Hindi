@@ -53,7 +53,7 @@ class WikiDownloader(BaseDownloader):
         max_articles: Optional[int] = None,
         min_length: int = 30,
         max_length: int = 2000
-    ) -> List[str]:
+    ) -> tuple[List[str], int]:
         """
         Download Hindi Wikipedia from HuggingFace.
 
@@ -63,7 +63,7 @@ class WikiDownloader(BaseDownloader):
             max_length: Maximum character length for an article
 
         Returns:
-            List of article texts
+            Tuple of (list of article texts, total word count)
         """
         logger.info(f"\nLoading Wikipedia dataset: {self.dataset_version}")
         logger.info(f"  Filters: min_length={min_length}, max_length={max_length}")
@@ -85,6 +85,7 @@ class WikiDownloader(BaseDownloader):
 
             # Process articles
             texts = []
+            total_words = 0  # Track word count incrementally
             articles_processed = 0
             articles_filtered = 0
 
@@ -105,6 +106,8 @@ class WikiDownloader(BaseDownloader):
                 # Apply length filters
                 text_length = len(cleaned_text)
                 if min_length <= text_length <= max_length:
+                    # Count words incrementally (one article at a time to avoid memory spike)
+                    total_words += len(cleaned_text.split())
                     texts.append(cleaned_text)
                 else:
                     articles_filtered += 1
@@ -119,8 +122,9 @@ class WikiDownloader(BaseDownloader):
             logger.info(f"  Total processed: {articles_processed:,}")
             logger.info(f"  Articles kept: {len(texts):,}")
             logger.info(f"  Articles filtered: {articles_filtered:,}")
+            logger.info(f"  Total words: {total_words:,}")
 
-            return texts
+            return texts, total_words
 
         except Exception as e:
             logger.error(f"✗ Failed to download Wikipedia: {e}")

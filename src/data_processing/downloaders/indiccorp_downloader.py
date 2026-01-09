@@ -78,7 +78,7 @@ class IndicCorpDownloader(BaseDownloader):
         files: Optional[List[str]] = None,
         max_lines: Optional[int] = None,
         clean_texts: bool = True
-    ) -> List[str]:
+    ) -> tuple[List[str], int]:
         """
         Download and read Hindi files from IndicCorp V2.
 
@@ -88,7 +88,7 @@ class IndicCorpDownloader(BaseDownloader):
             clean_texts: Whether to apply text cleaning
 
         Returns:
-            List of text strings
+            Tuple of (list of text strings, total word count)
         """
         # Default to only hi-1.txt
         if files is None:
@@ -104,6 +104,7 @@ class IndicCorpDownloader(BaseDownloader):
         logger.info(f"  Max lines: {max_lines or 'all'}")
 
         all_texts = []
+        total_words = 0  # Track word count incrementally
 
         for filename in files:
             logger.info(f"\n[Downloading {filename}]")
@@ -129,12 +130,13 @@ class IndicCorpDownloader(BaseDownloader):
                 else:
                     logger.info(f"  File already exists in output: {output_path}")
 
-                # Read texts from file
+                # Read texts from file (now returns texts and word count)
                 logger.info(f"  Reading texts from {filename}...")
-                texts = self._read_file(output_path, max_lines, clean_texts)
+                texts, word_count = self._read_file(output_path, max_lines, clean_texts)
 
-                logger.info(f"  ✓ Read {len(texts):,} texts from {filename}")
+                logger.info(f"  ✓ Read {len(texts):,} texts ({word_count:,} words) from {filename}")
                 all_texts.extend(texts)
+                total_words += word_count
 
             except Exception as e:
                 logger.error(f"✗ Failed to download {filename}: {e}")
@@ -142,17 +144,18 @@ class IndicCorpDownloader(BaseDownloader):
 
         logger.info(f"\n✓ IndicCorp download complete!")
         logger.info(f"  Total texts: {len(all_texts):,}")
+        logger.info(f"  Total words: {total_words:,}")
 
-        return all_texts
+        return all_texts, total_words
 
     def _read_file(
         self,
         file_path: Path,
         max_lines: Optional[int] = None,
         clean_texts: bool = True
-    ) -> List[str]:
+    ) -> tuple[List[str], int]:
         """
-        Read texts from a file.
+        Read texts from a file and count words incrementally.
 
         Args:
             file_path: Path to the text file
@@ -160,10 +163,11 @@ class IndicCorpDownloader(BaseDownloader):
             clean_texts: Whether to apply text cleaning
 
         Returns:
-            List of text strings
+            Tuple of (list of text strings, total word count)
         """
         texts = []
         line_count = 0
+        total_words = 0  # Track word count incrementally as we read
 
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in tqdm(f, desc=f"Reading {file_path.name}"):
@@ -184,10 +188,13 @@ class IndicCorpDownloader(BaseDownloader):
                 if not text:
                     continue
 
+                # Count words incrementally (one text at a time to avoid memory spike)
+                total_words += len(text.split())
+
                 texts.append(text)
                 line_count += 1
 
-        return texts
+        return texts, total_words
 
     def get_source_info(self) -> Dict[str, Any]:
         """

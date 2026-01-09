@@ -47,13 +47,13 @@ class ChildrensStoryCollector:
         )
         self.text_cleaner = HindiTextCleaner()
 
-    def collect_all_stories(self) -> List[str]:
+    def collect_all_stories(self) -> tuple[List[str], int]:
         """
         Main entry point: Collect stories from StoryWeaver
         Returns empty list if collection fails (non-blocking)
 
         Returns:
-            List of story texts (strings), empty list if collection fails
+            Tuple of (list of story texts, total word count)
         """
         logger.info("Starting children's story collection...")
         all_stories_data = []
@@ -71,22 +71,30 @@ class ChildrensStoryCollector:
         except Exception as e:
             logger.warning(f"   Error collecting from StoryWeaver: {str(e)} - skipping this source")
 
-        # If no stories collected, return empty list (don't crash pipeline)
+        # If no stories collected, return empty list with 0 words (don't crash pipeline)
         if not all_stories_data:
             logger.warning("Could not collect any children's stories from StoryWeaver")
             logger.warning("Continuing pipeline without children's stories data")
-            return []
+            return [], 0
 
         # Filter for quality and age-appropriateness
         logger.info("\n2. Filtering stories for quality and age-appropriateness...")
         filtered_stories = self.filter_stories(all_stories_data)
         logger.info(f"   {len(filtered_stories)} stories passed quality filters")
 
-        # Extract just the text content
-        story_texts = [story['text'] for story in filtered_stories if story.get('text')]
+        # Extract text content and count words incrementally
+        story_texts = []
+        total_words = 0  # Track word count incrementally
+        for story in filtered_stories:
+            text = story.get('text')
+            if text:
+                # Count words incrementally (one story at a time to avoid memory spike)
+                total_words += len(text.split())
+                story_texts.append(text)
 
         logger.info(f"\nTotal stories collected: {len(story_texts)}")
-        return story_texts
+        logger.info(f"Total words: {total_words:,}")
+        return story_texts, total_words
 
     def scrape_storyweaver_api(self) -> List[Dict]:
         """
@@ -393,7 +401,7 @@ class ChildrensStoryCollector:
         return True
 
 
-def collect_childrens_stories(max_stories: int = 2000) -> List[str]:
+def collect_childrens_stories(max_stories: int = 2000) -> tuple[List[str], int]:
     """
     Main entry point for collecting children's stories
 
@@ -404,7 +412,7 @@ def collect_childrens_stories(max_stories: int = 2000) -> List[str]:
         max_stories: Maximum number of stories to collect (default: 2000)
 
     Returns:
-        List of story texts (strings)
+        Tuple of (list of story texts, total word count)
     """
     collector = ChildrensStoryCollector(max_stories=max_stories, rate_limit_delay=2.0)
     return collector.collect_all_stories()

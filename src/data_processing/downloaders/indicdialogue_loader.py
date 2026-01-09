@@ -54,7 +54,7 @@ class IndicDialogueLoader(BaseDownloader):
         max_movies: Optional[int] = None,
         min_dialogue_length: int = 10,
         combine_dialogues: bool = False
-    ) -> List[str]:
+    ) -> tuple[List[str], int]:
         """
         Load IndicDialogue from JSONL file.
 
@@ -65,13 +65,14 @@ class IndicDialogueLoader(BaseDownloader):
                               If False, keep each dialogue line separate.
 
         Returns:
-            List of dialogue texts
+            Tuple of (list of dialogue texts, total word count)
         """
         logger.info(f"\nLoading IndicDialogue from {self.jsonl_path}")
         logger.info(f"  Settings: combine_dialogues={combine_dialogues}, "
                    f"min_length={min_dialogue_length}")
 
         texts = []
+        total_words = 0  # Track word count incrementally
         movies_processed = 0
         dialogues_extracted = 0
         dialogues_filtered = 0
@@ -105,6 +106,8 @@ class IndicDialogueLoader(BaseDownloader):
                             cleaned = clean_text(combined_text)
 
                             if len(cleaned) >= min_dialogue_length:
+                                # Count words incrementally (one text at a time to avoid memory spike)
+                                total_words += len(cleaned.split())
                                 texts.append(cleaned)
                                 dialogues_extracted += 1
                             else:
@@ -115,6 +118,8 @@ class IndicDialogueLoader(BaseDownloader):
                                 cleaned = clean_text(dialogue)
 
                                 if len(cleaned) >= min_dialogue_length:
+                                    # Count words incrementally (one dialogue at a time to avoid memory spike)
+                                    total_words += len(cleaned.split())
                                     texts.append(cleaned)
                                     dialogues_extracted += 1
                                 else:
@@ -136,10 +141,11 @@ class IndicDialogueLoader(BaseDownloader):
             logger.info(f"  Movies processed: {movies_processed:,}")
             logger.info(f"  Dialogues extracted: {dialogues_extracted:,}")
             logger.info(f"  Dialogues filtered: {dialogues_filtered:,}")
+            logger.info(f"  Total words: {total_words:,}")
             if parse_errors > 0:
                 logger.warning(f"  Parse errors: {parse_errors}")
 
-            return texts
+            return texts, total_words
 
         except Exception as e:
             logger.error(f"✗ Failed to load IndicDialogue: {e}")

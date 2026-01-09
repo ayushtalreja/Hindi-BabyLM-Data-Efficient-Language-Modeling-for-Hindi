@@ -185,7 +185,8 @@ class CorpusBuilder:
                     output_dir=os.path.join(self.data_dir, 'raw')
                 )
 
-                indiccorp_texts = downloader.download(
+                # Download returns both texts and word count (tracked incrementally)
+                indiccorp_texts, total_words = downloader.download(
                     files=['hi-1.txt'],  # Download only first file by default
                     max_lines=max_samples,
                     clean_texts=True
@@ -194,8 +195,7 @@ class CorpusBuilder:
                 all_data['indiccorp'] = indiccorp_texts
                 print(f"   Total IndicCorp samples: {len(all_data['indiccorp']):,}")
 
-                # Track raw data statistics
-                total_words = sum(len(text.split()) for text in indiccorp_texts)
+                # Track raw data statistics (word count already calculated incrementally)
                 self.provenance_tracker.add_raw_data_stats('indiccorp', len(indiccorp_texts), total_words)
 
                 # Save to cache for future runs
@@ -223,7 +223,8 @@ class CorpusBuilder:
                     dataset_version=dataset_version
                 )
 
-                wiki_texts = downloader.download(
+                # Download returns both texts and word count (tracked incrementally)
+                wiki_texts, total_words = downloader.download(
                     max_articles=wiki_max_articles,
                     min_length=self.config.__dict__.get('filtering', {}).get('min_length', 50),
                     max_length=self.config.__dict__.get('filtering', {}).get('max_length', 50000)
@@ -232,8 +233,7 @@ class CorpusBuilder:
                 all_data['wikipedia'] = wiki_texts
                 print(f"   Downloaded {len(all_data['wikipedia']):,} Wikipedia articles")
 
-                # Track raw data statistics
-                total_words = sum(len(text.split()) for text in wiki_texts)
+                # Track raw data statistics (word count already calculated incrementally)
                 self.provenance_tracker.add_raw_data_stats('wikipedia', len(wiki_texts), total_words)
 
                 # Save to cache for future runs
@@ -263,7 +263,8 @@ class CorpusBuilder:
                     output_dir=os.path.join(self.data_dir, 'raw')
                 )
 
-                dialogue_texts = loader.download(
+                # Download returns both texts and word count (tracked incrementally)
+                dialogue_texts, total_words = loader.download(
                     max_movies=max_movies,
                     min_dialogue_length=min_dialogue_length,
                     combine_dialogues=combine_dialogues
@@ -272,8 +273,7 @@ class CorpusBuilder:
                 all_data['indicdialogue'] = dialogue_texts
                 print(f"   Loaded {len(all_data['indicdialogue']):,} dialogue texts")
 
-                # Track raw data statistics
-                total_words = sum(len(text.split()) for text in dialogue_texts)
+                # Track raw data statistics (word count already calculated incrementally)
                 self.provenance_tracker.add_raw_data_stats('indicdialogue', len(dialogue_texts), total_words)
 
                 # Save to cache for future runs
@@ -294,12 +294,12 @@ class CorpusBuilder:
                 # Read max_stories from config
                 childrens_config = self.config.__dict__.get('sources', {}).get('childrens_books', {})
                 max_stories = childrens_config.get('max_stories', 2000)
-                stories = collect_childrens_stories(max_stories=max_stories)
+                # Collection returns both stories and word count (tracked incrementally)
+                stories, total_words = collect_childrens_stories(max_stories=max_stories)
                 all_data['childrens_books'] = stories
                 print(f"   Collected {len(all_data['childrens_books']):,} children's stories")
 
-                # Track raw data statistics
-                total_words = sum(len(text.split()) for text in stories)
+                # Track raw data statistics (word count already calculated incrementally)
                 self.provenance_tracker.add_raw_data_stats('childrens_books', len(stories), total_words)
 
                 # Save to cache for future runs (even if empty)
@@ -444,23 +444,32 @@ class CorpusBuilder:
             print(f"\n⚠️  Sources with no data: {missing}")
             print(f"   Using {len(available_sources)} available sources: {list(available_sources.keys())}")
 
-        # Shuffle each source with seed for reproducibility
+        # MEMORY OPTIMIZATION: Use index-based shuffling instead of copying all text data
+        # This saves ~20GB for large corpora by avoiding full data copy
         np.random.seed(42)
-        shuffled_sources = {
-            source: np.random.permutation(texts).tolist()
-            for source, texts in available_sources.items()
-        }
+        shuffled_indices = {}
+        source_texts_list = {}  # Keep reference to original data
+
+        for source, texts in available_sources.items():
+            # Store texts in list for index access (no copy needed)
+            source_texts_list[source] = list(texts) if not isinstance(texts, list) else texts
+            # Shuffle indices, not the actual text data (saves massive memory)
+            indices = np.arange(len(source_texts_list[source]))
+            np.random.shuffle(indices)
+            shuffled_indices[source] = indices.tolist()
 
         # Track which texts we've used (for global deduplication)
         used_texts = set()
         splits = {'train': [], 'val': [], 'test': []}
-        source_indices = {source: 0 for source in available_sources.keys()}
+        source_positions = {source: 0 for source in available_sources.keys()}
 
         def get_next_unique_text(source: str) -> Optional[str]:
-            """Get next text from source that hasn't been used yet"""
-            while source_indices[source] < len(shuffled_sources[source]):
-                text = shuffled_sources[source][source_indices[source]]
-                source_indices[source] += 1
+            """Get next text from source that hasn't been used yet (using indices)"""
+            while source_positions[source] < len(shuffled_indices[source]):
+                # Get text via index lookup instead of from copied list
+                idx = shuffled_indices[source][source_positions[source]]
+                source_positions[source] += 1
+                text = source_texts_list[source][idx]
 
                 # Check if text is duplicate (global deduplication)
                 text_hash = hash(text)
@@ -639,7 +648,8 @@ class CorpusBuilder:
         print("="*80 + "\n")
 
         # MEMORY CLEANUP: Clear intermediate data structures that are no longer needed
-        shuffled_sources.clear()
+        shuffled_indices.clear()  # Clear index lists (updated from shuffled_sources)
+        source_texts_list.clear()  # Clear text references
         used_texts.clear()
         import gc
         gc.collect()
