@@ -55,13 +55,13 @@ data:
     indiccorp:
       enabled: true
       ratio: 0.5  # 50% from news/web
-      max_samples: 50000
+      max_samples: 150000
 
     wikipedia:
       enabled: true
       ratio: 0.3  # 30% from encyclopedia
       dataset_version: "20231101.hi"  # HuggingFace dataset version
-      max_articles: 25000
+      max_articles: 100000  # Increased from 25K to 100K for better diversity (plan fix)
 
     indicdialogue:
       enabled: true
@@ -186,15 +186,15 @@ model:
 # ==============================================================================
 training:
   # Basic Training Parameters
-  batch_size: 32  # Fixed from 64 - reduces effective batch to 256 (32*8) for more frequent updates
-  gradient_accumulation_steps: 8  # Effective batch = batch_size * grad_accum = 256
+  batch_size: 32  # Optimal batch size for H100 GPU
+  gradient_accumulation_steps: 4  # Reduced from 8 - Effective batch = 128 (down from 256) for more frequent updates
   num_epochs: 10
   max_steps: -1  # -1 for epoch-based, or set specific step count
 
   # Optimization
   optimizer:
     type: "adamw"  # Options: adamw, adam, sgd, adafactor
-    learning_rate: 0.0003  # Fixed from 0.007 (23x too high!) - standard LM learning rate
+    learning_rate: 0.0005  # Increased from 0.0003 for faster convergence
     weight_decay: 0.01
     beta1: 0.9
     beta2: 0.999
@@ -204,15 +204,15 @@ training:
   # Learning Rate Scheduling
   lr_scheduler:
     type: "cosine_with_warmup"  # Options: linear, cosine, constant, polynomial
-    warmup_steps: 1000
+    warmup_steps: 1500  # Increased from 1000 for more stable warmup
     warmup_ratio: 0.1  # Alternative to warmup_steps (ratio of total steps)
     num_cycles: 0.5  # For cosine schedule
-    min_lr_ratio: 0.0  # Minimum LR as ratio of initial LR
+    min_lr_ratio: 0.05  # Changed from 0.0 - don't decay to zero (prevents "dead" final epochs)
 
   # Gradient Management
   gradient:
     max_grad_norm: 1.0  # Gradient clipping
-    gradient_checkpointing: false  # Memory-efficient training
+    gradient_checkpointing: true  # Enabled for memory efficiency
 
   # Mixed Precision Training
   mixed_precision:
@@ -245,8 +245,8 @@ training:
   # Early Stopping
   early_stopping:
     enabled: true
-    patience: 3  # Epochs without improvement
-    threshold: 0.001  # Minimum change to qualify as improvement
+    patience: 5  # Increased from 3 - more patience for convergence
+    threshold: 0.0005  # Tighter threshold (down from 0.001) - only stop if improvement < 0.05%
     mode: "max"  # 'min' for metrics that should decrease, 'max' for increase
 
   # Reproducibility
@@ -299,20 +299,27 @@ evaluation:
         # For tasks with missing/inadequate splits, use task_specific_splits below
 
         # Training hyperparameters
-        num_epochs: 10  # Reverted to working config for better convergence
+        num_epochs: 10  # Sufficient for convergence with improved hyperparams
         early_stopping:
           enabled: true
-          patience: 3
+          patience: 5  # Increased from 3 for more training stability
+          min_delta: 0.005  # Only stop if improvement < 0.5%
           metric: "accuracy"  # Metric to monitor
           mode: "max"  # "max" for accuracy, "min" for loss
 
         # Optimization
-        learning_rate: 2e-5
-        batch_size: 32
-        weight_decay: 0.01  # Reverted: L2 regularization to prevent overfitting
+        learning_rate: 3e-5  # Increased from 2e-5 for faster convergence
+        batch_size: 16  # Reduced from 32 for better generalization
+        gradient_accumulation_steps: 2  # Effective batch=32 (maintain stability)
+        weight_decay: 0.05  # Increased from 0.01 for stronger regularization
         adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
-        warmup_ratio: 0.1  # Reverted: 10% warmup for training stability
-        scheduler_type: "linear"  # Linear LR decay with warmup
+        warmup_ratio: 0.15  # Increased from 0.1 for more warmup stability
+        scheduler_type: "cosine"  # Changed from linear - cosine decay works better
+        max_grad_norm: 0.5  # Tighter gradient clipping for stability
+
+        # Regularization
+        dropout: 0.15  # Increased from 0.1 to prevent overfitting
+        label_smoothing: 0.05  # Add label smoothing for multi-class tasks
 
         # Model settings
         # Training Strategy:
@@ -322,10 +329,8 @@ evaluation:
 
         # Model Architecture:
         # - use_auto_models: true  → HuggingFace AutoModelForSequenceClassification/MultipleChoice (used by indicbert team)
-        # - use_auto_models: false → Custom wrappers 
+        # - use_auto_models: false → Custom wrappers
         use_auto_models: false  # Use our implementation which performs better than AutoModel
-
-        dropout: 0.1  # Reverted: Prevent overfitting during fine-tuning
 
         # To replicate IndicBERT paper exactly, use these settings:
         # freeze_base_model: false

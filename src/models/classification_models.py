@@ -39,7 +39,8 @@ class GPTForSequenceClassification(nn.Module):
                  num_classes: int,
                  hidden_size: int,
                  dropout: float = 0.1,
-                 freeze_base: bool = False):
+                 freeze_base: bool = False,
+                 label_smoothing: float = 0.0):
         """
         Args:
             lm_model: Pre-trained GPT language model
@@ -47,12 +48,14 @@ class GPTForSequenceClassification(nn.Module):
             hidden_size: Hidden size of the language model
             dropout: Dropout probability for classification head
             freeze_base: If True, freeze the language model parameters
+            label_smoothing: Label smoothing factor (0.0 = no smoothing)
         """
         super().__init__()
 
         self.lm_model = lm_model
         self.num_classes = num_classes
         self.hidden_size = hidden_size
+        self.label_smoothing = label_smoothing
 
         # Freeze base model if requested
         if freeze_base:
@@ -139,7 +142,7 @@ class GPTForSequenceClassification(nn.Module):
         # Compute loss if labels provided
         loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
+            loss_fct = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
             loss = loss_fct(logits, labels)
 
         return ClassificationOutput(
@@ -164,7 +167,8 @@ class DeBERTaForSequenceClassification(nn.Module):
                  hidden_size: int,
                  dropout: float = 0.1,
                  pooling_strategy: str = 'mean',
-                 freeze_base: bool = False):
+                 freeze_base: bool = False,
+                 label_smoothing: float = 0.0):
         """
         Args:
             lm_model: Pre-trained DeBERTa language model
@@ -173,6 +177,7 @@ class DeBERTaForSequenceClassification(nn.Module):
             dropout: Dropout probability for classification head
             pooling_strategy: Pooling strategy ('mean', 'max', 'first', 'last')
             freeze_base: If True, freeze the language model parameters
+            label_smoothing: Label smoothing factor (0.0 = no smoothing)
         """
         super().__init__()
 
@@ -180,6 +185,7 @@ class DeBERTaForSequenceClassification(nn.Module):
         self.num_classes = num_classes
         self.hidden_size = hidden_size
         self.pooling_strategy = pooling_strategy
+        self.label_smoothing = label_smoothing
 
         # Freeze base model if requested
         if freeze_base:
@@ -312,7 +318,7 @@ class DeBERTaForSequenceClassification(nn.Module):
         # Compute loss if labels provided
         loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
+            loss_fct = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
             loss = loss_fct(logits, labels)
 
         return ClassificationOutput(
@@ -330,7 +336,8 @@ def wrap_model_for_classification(
     hidden_size: int,
     dropout: float = 0.1,
     freeze_base: bool = False,
-    pooling_strategy: str = 'auto'
+    pooling_strategy: str = 'auto',
+    label_smoothing: float = 0.0
 ) -> nn.Module:
     """
     Wrap a language model with a classification head.
@@ -344,6 +351,7 @@ def wrap_model_for_classification(
         freeze_base: If True, freeze the language model parameters
         pooling_strategy: Pooling strategy ('auto', 'mean', 'max', 'first', 'last')
                          'auto' → 'last' for GPT, 'first' for BERT/DeBERTa
+        label_smoothing: Label smoothing factor (0.0 = no smoothing)
 
     Returns:
         Model wrapped with classification head
@@ -357,7 +365,8 @@ def wrap_model_for_classification(
             num_classes=num_classes,
             hidden_size=hidden_size,
             dropout=dropout,
-            freeze_base=freeze_base
+            freeze_base=freeze_base,
+            label_smoothing=label_smoothing
         )
 
     elif model_type == 'bert':
@@ -372,7 +381,8 @@ def wrap_model_for_classification(
             hidden_size=hidden_size,
             dropout=dropout,
             pooling_strategy=pooling_strategy,
-            freeze_base=freeze_base
+            freeze_base=freeze_base,
+            label_smoothing=label_smoothing
         )
 
     elif model_type == 'deberta':
@@ -387,7 +397,8 @@ def wrap_model_for_classification(
             hidden_size=hidden_size,
             dropout=dropout,
             pooling_strategy=pooling_strategy,
-            freeze_base=freeze_base
+            freeze_base=freeze_base,
+            label_smoothing=label_smoothing
         )
 
     else:

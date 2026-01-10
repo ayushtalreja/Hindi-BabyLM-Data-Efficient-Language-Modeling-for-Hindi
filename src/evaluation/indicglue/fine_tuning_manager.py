@@ -58,7 +58,16 @@ class FineTuningManager:
         self.adam_epsilon = float(ft_config.get('adam_epsilon', 1e-8))
         self.warmup_ratio = float(ft_config.get('warmup_ratio', 0.1))
         self.batch_size = int(ft_config.get('batch_size', 32))
-        self.patience = int(ft_config.get('early_stopping', {}).get('patience', 3))
+        self.gradient_accumulation_steps = int(ft_config.get('gradient_accumulation_steps', 1))
+        self.max_grad_norm = float(ft_config.get('max_grad_norm', 1.0))
+        self.dropout = float(ft_config.get('dropout', 0.1))
+        self.label_smoothing = float(ft_config.get('label_smoothing', 0.0))
+
+        # Early stopping parameters
+        early_stop_config = ft_config.get('early_stopping', {})
+        self.patience = int(early_stop_config.get('patience', 3))
+        self.min_delta = float(early_stop_config.get('min_delta', 0.0))
+
         self.scheduler_type = ft_config.get('scheduler_type', 'linear')  # 'linear' or 'cosine'
 
         # Dependencies
@@ -70,9 +79,11 @@ class FineTuningManager:
             f"freeze_base={self.freeze_base_model}, "
             f"use_auto_models={self.use_auto_models}, "
             f"lr={self.learning_rate}, epochs={self.num_epochs}, "
-            f"batch_size={self.batch_size}, warmup_ratio={self.warmup_ratio}, "
-            f"scheduler_type={self.scheduler_type}, "
-            f"weight_decay={self.weight_decay}, patience={self.patience}"
+            f"batch_size={self.batch_size}, grad_accum={self.gradient_accumulation_steps}, "
+            f"warmup_ratio={self.warmup_ratio}, scheduler_type={self.scheduler_type}, "
+            f"weight_decay={self.weight_decay}, dropout={self.dropout}, "
+            f"max_grad_norm={self.max_grad_norm}, label_smoothing={self.label_smoothing}, "
+            f"patience={self.patience}, min_delta={self.min_delta}"
         )
 
     def fine_tune_task(
@@ -207,8 +218,9 @@ class FineTuningManager:
                     f"val_loss={val_loss:.4f}"
                 )
 
-                # Early stopping check
-                if val_acc > best_val_acc:
+                # Early stopping check with min_delta threshold
+                improvement = val_acc - best_val_acc
+                if improvement > self.min_delta:
                     best_val_acc = val_acc
                     # Save best model state (on CPU to avoid GPU memory buildup)
                     # Clear previous checkpoint to avoid accumulation across tasks
@@ -220,10 +232,13 @@ class FineTuningManager:
                     best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
                     patience_counter = 0
                     best_epoch = epoch + 1
-                    logger.info(f"  → New best validation accuracy: {best_val_acc:.4f}")
+                    logger.info(f"  → New best validation accuracy: {best_val_acc:.4f} (improvement: {improvement:.4f})")
                 else:
                     patience_counter += 1
-                    logger.info(f"  → No improvement (patience: {patience_counter}/{self.patience})")
+                    if improvement > 0:
+                        logger.info(f"  → No significant improvement (improvement: {improvement:.4f} < min_delta: {self.min_delta:.4f}, patience: {patience_counter}/{self.patience})")
+                    else:
+                        logger.info(f"  → No improvement (patience: {patience_counter}/{self.patience})")
 
                     if patience_counter >= self.patience:
                         logger.info(f"Early stopping triggered at epoch {epoch+1}")
@@ -380,7 +395,7 @@ class FineTuningManager:
         epoch: int
     ) -> float:
         """
-        Train for one epoch.
+        Train for one epoch with gradient accumulation and clipping.
 
         Args:
             model: Model to train
@@ -396,19 +411,34 @@ class FineTuningManager:
         train_loss = 0.0
         num_batches = 0
 
-        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1} [Train]", leave=False):
+        # Zero gradients at start of epoch
+        optimizer.zero_grad()
+
+        for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1} [Train]", leave=False)):
             # Forward pass
             outputs = model(**batch)
             loss = outputs.loss
 
+            # Scale loss by gradient accumulation steps
+            if self.gradient_accumulation_steps > 1:
+                loss = loss / self.gradient_accumulation_steps
+
             # Backward pass
             loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
 
-            # Track loss
-            train_loss += loss.item()
+            # Track loss (unscaled)
+            train_loss += loss.item() * self.gradient_accumulation_steps
             num_batches += 1
+
+            # Update weights every gradient_accumulation_steps
+            if (batch_idx + 1) % self.gradient_accumulation_steps == 0 or (batch_idx + 1) == len(train_loader):
+                # Gradient clipping
+                if self.max_grad_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.max_grad_norm)
+
+                # Optimizer step
+                optimizer.step()
+                optimizer.zero_grad()
 
         avg_loss = train_loss / num_batches if num_batches > 0 else 0.0
         return avg_loss

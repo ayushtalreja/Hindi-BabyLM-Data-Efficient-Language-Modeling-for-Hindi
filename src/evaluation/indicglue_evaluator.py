@@ -65,19 +65,21 @@ class MultipleChoiceWrapper(nn.Module):
     This matches the official IndicBERT implementation for multiple-choice tasks.
     """
 
-    def __init__(self, base_model, hidden_size, num_choices, pooling_strategy='first'):
+    def __init__(self, base_model, hidden_size, num_choices, pooling_strategy='first', label_smoothing=0.0):
         """
         Args:
             base_model: Pre-trained language model (ALBERT/IndicBERT)
             hidden_size: Hidden dimension of base model
             num_choices: Number of choices per example (e.g., 4 for WSTP, 2 for COPA)
             pooling_strategy: 'first' (CLS token) or 'mean' (mean pooling)
+            label_smoothing: Label smoothing factor (0.0 = no smoothing)
         """
         super().__init__()
         self.base_model = base_model
         self.num_choices = num_choices
         self.hidden_size = hidden_size
         self.pooling_strategy = pooling_strategy
+        self.label_smoothing = label_smoothing
 
         # Match base model dtype first
         base_dtype = next(base_model.parameters()).dtype
@@ -113,16 +115,31 @@ class MultipleChoiceWrapper(nn.Module):
         attention_mask_flat = attention_mask.view(-1, seq_len)
 
         # Get base model outputs
-        outputs = self.base_model(
-            input_ids=input_ids_flat,
-            attention_mask=attention_mask_flat
-        )
-
-        # Extract hidden states
-        if hasattr(outputs, 'last_hidden_state'):
-            hidden_states = outputs.last_hidden_state
+        # CRITICAL FIX: For GPT models, we need to access the transformer directly
+        # Otherwise we get logits [batch, seq, vocab_size] instead of hidden states [batch, seq, hidden_size]
+        if hasattr(self.base_model, 'model') and hasattr(self.base_model.model, 'transformer'):
+            # For GPT models (HindiGPTModel), access transformer directly to get hidden states
+            transformer_outputs = self.base_model.model.transformer(
+                input_ids=input_ids_flat,
+                attention_mask=attention_mask_flat
+            )
+            hidden_states = transformer_outputs.last_hidden_state
         else:
-            hidden_states = outputs[0]
+            # For other models (BERT, DeBERTa, etc.), regular forward pass
+            outputs = self.base_model(
+                input_ids=input_ids_flat,
+                attention_mask=attention_mask_flat,
+                output_hidden_states=True  # Ensure hidden states are returned
+            )
+
+            # Extract hidden states
+            if hasattr(outputs, 'last_hidden_state'):
+                hidden_states = outputs.last_hidden_state
+            elif hasattr(outputs, 'hidden_states') and outputs.hidden_states is not None:
+                hidden_states = outputs.hidden_states[-1]  # Last layer
+            else:
+                # Fallback for unexpected model types
+                hidden_states = outputs[0]
         # Shape: [batch*num_choices, seq_len, hidden_size]
 
         # Pool to sequence representation
@@ -147,7 +164,7 @@ class MultipleChoiceWrapper(nn.Module):
         # Compute loss if labels provided
         loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
+            loss_fct = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
             loss = loss_fct(logits, labels)
 
         # Return in a format compatible with existing code
@@ -414,7 +431,8 @@ class IndicGLUEEvaluator:
 
         use_auto_models = ft_config.get('use_auto_models', True)
         freeze_base = ft_config.get('freeze_base_model', True)
-        dropout = 0.0  # Official IndicBERT uses zero dropout
+        dropout = float(ft_config.get('dropout', 0.1))  # Read from config (default 0.1)
+        label_smoothing = float(ft_config.get('label_smoothing', 0.0))  # Read from config (default 0.0)
 
         if use_auto_models:
             # NEW: Use HuggingFace AutoModel classes
@@ -484,7 +502,8 @@ class IndicGLUEEvaluator:
                     base_model=self.base_model,
                     hidden_size=model_config['hidden_size'],
                     num_choices=num_choices,
-                    pooling_strategy='first'
+                    pooling_strategy='first',
+                    label_smoothing=label_smoothing  # Pass label smoothing from config
                 )
 
                 wrapped_model = wrapped_model.to(self.device)
@@ -510,7 +529,8 @@ class IndicGLUEEvaluator:
                     hidden_size=model_config['hidden_size'],
                     dropout=dropout,
                     freeze_base=freeze_base,  # Use config value
-                    pooling_strategy='auto'
+                    pooling_strategy='auto',
+                    label_smoothing=label_smoothing  # Pass label smoothing from config
                 )
 
                 wrapped_model = wrapped_model.to(self.device)

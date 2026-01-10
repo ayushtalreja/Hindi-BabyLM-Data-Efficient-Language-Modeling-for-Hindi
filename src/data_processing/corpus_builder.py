@@ -478,71 +478,10 @@ class CorpusBuilder:
                     return text
             return None
 
-        # STEP 1: Create balanced validation split (equal from each source)
-        print(f"\n📊 Creating validation split (target: {self.val_word_limit:,} words, balanced across sources)...")
-        val_words_per_source = self.val_word_limit // len(available_sources)
-        val_word_counts = {source: 0 for source in available_sources.keys()}
-        val_doc_counts = {source: 0 for source in available_sources.keys()}
-        total_val_words = 0
-
-        for source in available_sources.keys():
-            print(f"   Collecting from {source} (target: {val_words_per_source:,} words)...", end=" ")
-            source_val_count = 0
-
-            while val_word_counts[source] < val_words_per_source:
-                text = get_next_unique_text(source)
-                if text is None:
-                    print(f"\n   ⚠️  {source} exhausted at {val_word_counts[source]:,} words")
-                    break
-
-                text_words = len(text.split())
-                if val_word_counts[source] + text_words <= val_words_per_source:
-                    splits['val'].append(text)
-                    val_word_counts[source] += text_words
-                    val_doc_counts[source] += 1
-                    total_val_words += text_words
-                    source_val_count += 1
-                else:
-                    # Would exceed limit, skip this text
-                    break
-
-            print(f"{source_val_count} texts, {val_word_counts[source]:,} words")
-
-        print(f"   ✓ Validation split: {len(splits['val'])} texts, {total_val_words:,} words")
-
-        # STEP 2: Create balanced test split (equal from each source)
-        print(f"\n📊 Creating test split (target: {self.test_word_limit:,} words, balanced across sources)...")
-        test_words_per_source = self.test_word_limit // len(available_sources)
-        test_word_counts = {source: 0 for source in available_sources.keys()}
-        test_doc_counts = {source: 0 for source in available_sources.keys()}
-        total_test_words = 0
-
-        for source in available_sources.keys():
-            print(f"   Collecting from {source} (target: {test_words_per_source:,} words)...", end=" ")
-            source_test_count = 0
-
-            while test_word_counts[source] < test_words_per_source:
-                text = get_next_unique_text(source)
-                if text is None:
-                    print(f"\n   ⚠️  {source} exhausted at {test_word_counts[source]:,} words")
-                    break
-
-                text_words = len(text.split())
-                if test_word_counts[source] + text_words <= test_words_per_source:
-                    splits['test'].append(text)
-                    test_word_counts[source] += text_words
-                    test_doc_counts[source] += 1
-                    total_test_words += text_words
-                    source_test_count += 1
-                else:
-                    # Would exceed limit, skip this text
-                    break
-
-            print(f"{source_test_count} texts, {test_word_counts[source]:,} words")
-
-        print(f"   ✓ Test split: {len(splits['test'])} texts, {total_test_words:,} words")
-
-        # STEP 3: Create training split (use configured ratios)
+        # STEP 1: Create training split (use configured ratios)
+        # CRITICAL FIX: Process TRAINING split FIRST to ensure balanced representation
+        # Old order (val→test→train) exhausted Wikipedia in val, leaving 0% for train
+        # New order (train→val→test) gives training priority for balanced data
         print(f"\n📊 Creating training split (target: {self.train_word_limit:,} words, using source ratios)...")
 
         # Get train source ratios from config
@@ -602,6 +541,70 @@ class CorpusBuilder:
             print(f"{source_train_count} texts, {train_word_counts[source]:,} words")
 
         print(f"   ✓ Training split: {len(splits['train'])} texts, {total_train_words:,} words")
+
+        # STEP 2: Create balanced validation split (equal from each source)
+        print(f"\n📊 Creating validation split (target: {self.val_word_limit:,} words, balanced across sources)...")
+        val_words_per_source = self.val_word_limit // len(available_sources)
+        val_word_counts = {source: 0 for source in available_sources.keys()}
+        val_doc_counts = {source: 0 for source in available_sources.keys()}
+        total_val_words = 0
+
+        for source in available_sources.keys():
+            print(f"   Collecting from {source} (target: {val_words_per_source:,} words)...", end=" ")
+            source_val_count = 0
+
+            while val_word_counts[source] < val_words_per_source:
+                text = get_next_unique_text(source)
+                if text is None:
+                    print(f"\n   ⚠️  {source} exhausted at {val_word_counts[source]:,} words")
+                    break
+
+                text_words = len(text.split())
+                if val_word_counts[source] + text_words <= val_words_per_source:
+                    splits['val'].append(text)
+                    val_word_counts[source] += text_words
+                    val_doc_counts[source] += 1
+                    total_val_words += text_words
+                    source_val_count += 1
+                else:
+                    # Would exceed limit, skip this text
+                    break
+
+            print(f"{source_val_count} texts, {val_word_counts[source]:,} words")
+
+        print(f"   ✓ Validation split: {len(splits['val'])} texts, {total_val_words:,} words")
+
+        # STEP 3: Create balanced test split (equal from each source)
+        print(f"\n📊 Creating test split (target: {self.test_word_limit:,} words, balanced across sources)...")
+        test_words_per_source = self.test_word_limit // len(available_sources)
+        test_word_counts = {source: 0 for source in available_sources.keys()}
+        test_doc_counts = {source: 0 for source in available_sources.keys()}
+        total_test_words = 0
+
+        for source in available_sources.keys():
+            print(f"   Collecting from {source} (target: {test_words_per_source:,} words)...", end=" ")
+            source_test_count = 0
+
+            while test_word_counts[source] < test_words_per_source:
+                text = get_next_unique_text(source)
+                if text is None:
+                    print(f"\n   ⚠️  {source} exhausted at {test_word_counts[source]:,} words")
+                    break
+
+                text_words = len(text.split())
+                if test_word_counts[source] + text_words <= test_words_per_source:
+                    splits['test'].append(text)
+                    test_word_counts[source] += text_words
+                    test_doc_counts[source] += 1
+                    total_test_words += text_words
+                    source_test_count += 1
+                else:
+                    # Would exceed limit, skip this text
+                    break
+
+            print(f"{source_test_count} texts, {test_word_counts[source]:,} words")
+
+        print(f"   ✓ Test split: {len(splits['test'])} texts, {total_test_words:,} words")
 
         # Save split statistics to tracker
         for source in available_sources.keys():
