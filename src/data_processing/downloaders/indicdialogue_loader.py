@@ -30,14 +30,14 @@ class IndicDialogueLoader(BaseDownloader):
 
     def __init__(
         self,
-        jsonl_path: str = "data/raw/hindi.jsonl",
+        jsonl_path: str = "data/raw/Hindi.jsonl", # The data was manually downloaded from "https://data.mendeley.com/datasets/wcb4bxbyxx/2" and extracted to this path.
         output_dir: str = "data/raw"
     ):
         """
         Initialize IndicDialogue loader.
 
         Args:
-            jsonl_path: Path to the hindi.jsonl file
+            jsonl_path: Path to the Hindi.jsonl file
             output_dir: Directory for saving output files
         """
         super().__init__(output_dir)
