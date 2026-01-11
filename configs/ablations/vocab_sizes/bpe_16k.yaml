@@ -1,25 +1,25 @@
 # ==============================================================================
-# Hindi BabyLM - Comprehensive Base Configuration
+# Tokenizer Ablation: BPE 16K Vocabulary
+# ==============================================================================
+# Tests larger vocabulary size vs 8K baseline
+# Hypothesis: higher vocab might benefit hindi due to rich morphology
 # ==============================================================================
 
-# Experiment Configuration
 experiment:
-  name: "gpt_10M_baseline_finetuned_8K_Vocab"  # Default experiment name (can be overridden via CLI)
-  description: "Baseline GPT model on 10M word corpus with fine tuning on IndicGLUE with 8K vocab size"
-  tags: ["baseline", "gpt", "10M", "strict-small","8K Vocab"]
+  name: "gpt_10M_bpe_16k"
+  description: "Baseline GPT model on 10M word corpus with fine tuning on IndicGLUE with 16K vocab size"
+  tags: ["ablation", "tokenizer", "bpe", "vocab-16k", "10M"]
 
-# Project Metadata
 project:
   name: "hindi-babylm"
-  description: "Data-efficient language modeling for Hindi (BabyLM Challenge)"
+  description: "Tokenizer ablation: BPE 16K vocab"
   version: "1.0.0"
-  track: "strict-small"  # 10M token limit
+  track: "strict-small"
 
-# Directory Structure
 directories:
   data_dir: "data"
   model_dir: "results/experiment_name/models"
-  tokenizer_dir: "tokenizers"  # Temporary directory for tokenizer training files
+  tokenizer_dir: "tokenizers_bpe_16k"
   results_dir: "results"
   checkpoint_dir: "checkpoints"
   logs_dir: "logs"
@@ -105,7 +105,7 @@ tokenization:
   type: "bpe"  # Options: sentencepiece, wordpiece, bpe
 
   # Vocabulary
-  vocab_size: 8192
+  vocab_size: 16384  # 16K vocabulary size
   character_coverage: 0.9995  # For SentencePiece
 
   # Special Tokens
@@ -245,7 +245,7 @@ training:
   # Early Stopping
   early_stopping:
     enabled: true
-    patience: 3  
+    patience: 3
     threshold: 0.0005  # Tighter threshold (down from 0.001) - only stop if improvement < 0.05%
     mode: "max"  # 'min' for metrics that should decrease, 'max' for increase
 
