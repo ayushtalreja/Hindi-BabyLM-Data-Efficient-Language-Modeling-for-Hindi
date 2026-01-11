@@ -91,8 +91,25 @@ class ExperimentConfig:
     # Mixed precision configuration
     mixed_precision_dtype: Optional[str] = None
 
+    # Nested configuration sections (store as dicts) - Phase 2 fix for config loading
+    sources: Optional[Dict[str, Any]] = field(default_factory=dict)
+    filtering: Optional[Dict[str, Any]] = field(default_factory=dict)
+    deduplication: Optional[Dict[str, Any]] = field(default_factory=dict)
+    train_source_ratios: Optional[Dict[str, float]] = field(default_factory=dict)
+
     def __post_init__(self):
         """Auto-populate model-specific config based on model_type"""
+        # Initialize nested dicts if None (field default_factory handles this, but be defensive)
+        if self.sources is None:
+            self.sources = {}
+        if self.filtering is None:
+            self.filtering = {}
+        if self.deduplication is None:
+            self.deduplication = {}
+        if self.train_source_ratios is None:
+            self.train_source_ratios = {}
+
+        # Existing model-specific config initialization
         if self.model_type == 'gpt' and self.gpt_config is None:
             self.gpt_config = GPTModelConfig()
         elif self.model_type == 'deberta' and self.deberta_config is None:

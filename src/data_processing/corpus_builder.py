@@ -258,8 +258,13 @@ class CorpusBuilder:
                 min_dialogue_length = dialogue_config.get('min_dialogue_length', 10)
 
                 # Use new loader
+                # PHASE 2 FIX: Check both Hindi.jsonl (capital H) and hindi.jsonl (lowercase)
+                jsonl_path = os.path.join(self.data_dir, 'raw', 'Hindi.jsonl')
+                if not os.path.exists(jsonl_path):
+                    jsonl_path = os.path.join(self.data_dir, 'raw', 'hindi.jsonl')
+
                 loader = IndicDialogueLoader(
-                    jsonl_path=os.path.join(self.data_dir, 'raw', 'hindi.jsonl'),
+                    jsonl_path=jsonl_path,
                     output_dir=os.path.join(self.data_dir, 'raw')
                 )
 
@@ -478,16 +483,21 @@ class CorpusBuilder:
                     return text
             return None
 
-        # STEP 1: Create training split (use configured ratios)
-        # CRITICAL FIX: Process TRAINING split FIRST to ensure balanced representation
-        # Old order (val→test→train) exhausted Wikipedia in val, leaving 0% for train
-        # New order (train→val→test) gives training priority for balanced data
-        print(f"\n📊 Creating training split (target: {self.train_word_limit:,} words, using source ratios)...")
+        # PHASE 2 FIX: STEP 0 - Calculate source capacities and check availability
+        print(f"\n📊 Analyzing data availability...")
+        source_capacities = {}
+        for source, texts in available_sources.items():
+            total_words = sum(len(text.split()) for text in texts)
+            source_capacities[source] = total_words
+            print(f"   {source}: {len(texts):,} docs, {total_words:,} words available")
+
+        # PHASE 2 FIX: Calculate total demand per source across all splits
+        print(f"\n📊 Checking capacity vs. demand...")
 
         # Get train source ratios from config
-        train_source_ratios = self.config.__dict__.get('train_source_ratios', {
+        train_source_ratios = self.config.train_source_ratios if hasattr(self.config, 'train_source_ratios') and self.config.train_source_ratios else {
             source: 1.0 / len(available_sources) for source in available_sources.keys()
-        })
+        }
 
         # Handle missing children's books by redistributing ratio
         if 'childrens_books' not in available_sources and 'childrens_books' in train_source_ratios:
@@ -497,17 +507,73 @@ class CorpusBuilder:
             for source in train_source_ratios.keys():
                 train_source_ratios[source] += (train_source_ratios[source] / total_remaining) * childrens_ratio
 
-        # Calculate target words per source for training
-        train_words_per_source = {
+        # Calculate demands per source for each split
+        train_demand = {
             source: int(self.train_word_limit * ratio)
             for source, ratio in train_source_ratios.items()
             if source in available_sources
         }
 
-        print(f"   Training source ratios:")
-        for source, ratio in train_source_ratios.items():
-            if source in available_sources:
-                print(f"      {source}: {ratio:.1%} ({train_words_per_source[source]:,} words)")
+        # Val and test get equal share from each source
+        num_sources = len(available_sources)
+        val_demand = {source: self.val_word_limit // num_sources for source in available_sources.keys()}
+        test_demand = {source: self.test_word_limit // num_sources for source in available_sources.keys()}
+
+        total_demand = {
+            source: train_demand.get(source, 0) + val_demand[source] + test_demand[source]
+            for source in available_sources.keys()
+        }
+
+        # PHASE 2 FIX: Adjust targets for constrained sources (capacity < demand)
+        print(f"\n📊 Reserving capacity for validation and test splits...")
+        reserved_for_val_test = {}
+        adjusted_train_targets = {}
+
+        for source in available_sources.keys():
+            capacity = source_capacities[source]
+            demand = total_demand[source]
+
+            if capacity < demand:
+                # Source is constrained - reserve proportionally
+                print(f"   ⚠️  {source}: demand ({demand:,}) exceeds capacity ({capacity:,})")
+
+                # Calculate what fraction of capacity to give each split (proportional to demand)
+                train_fraction = train_demand.get(source, 0) / demand
+                val_fraction = val_demand[source] / demand
+                test_fraction = test_demand[source] / demand
+
+                # Allocate capacity proportionally
+                train_allocation = int(capacity * train_fraction)
+                val_allocation = int(capacity * val_fraction)
+                test_allocation = capacity - train_allocation - val_allocation  # Remainder
+
+                adjusted_train_targets[source] = train_allocation
+                reserved_for_val_test[source] = {'val': val_allocation, 'test': test_allocation}
+
+                print(f"      → Adjusted allocations:")
+                print(f"         Train: {train_allocation:,} words ({train_fraction:.1%})")
+                print(f"         Val:   {val_allocation:,} words ({val_fraction:.1%})")
+                print(f"         Test:  {test_allocation:,} words ({test_fraction:.1%})")
+            else:
+                # Source has sufficient capacity - use original targets
+                adjusted_train_targets[source] = train_demand.get(source, 0)
+                reserved_for_val_test[source] = {'val': val_demand[source], 'test': test_demand[source]}
+                print(f"   ✓ {source}: sufficient capacity ({capacity:,} >= {demand:,})")
+
+        # STEP 1: Create training split (use adjusted targets)
+        # CRITICAL FIX: Process TRAINING split FIRST to ensure balanced representation
+        # Old order (val→test→train) exhausted Wikipedia in val, leaving 0% for train
+        # New order (train→val→test) gives training priority for balanced data
+        # PHASE 2 FIX: Now uses adjusted targets that respect capacity constraints
+        print(f"\n📊 Creating training split (target: {self.train_word_limit:,} words, using adjusted targets)...")
+
+        # Use adjusted targets (already calculated with capacity reservation)
+        train_words_per_source = adjusted_train_targets
+
+        print(f"   Training adjusted targets:")
+        for source in available_sources.keys():
+            if source in train_words_per_source:
+                print(f"      {source}: {train_words_per_source[source]:,} words")
 
         train_word_counts = {source: 0 for source in available_sources.keys()}
         train_doc_counts = {source: 0 for source in available_sources.keys()}
@@ -542,14 +608,15 @@ class CorpusBuilder:
 
         print(f"   ✓ Training split: {len(splits['train'])} texts, {total_train_words:,} words")
 
-        # STEP 2: Create balanced validation split (equal from each source)
-        print(f"\n📊 Creating validation split (target: {self.val_word_limit:,} words, balanced across sources)...")
-        val_words_per_source = self.val_word_limit // len(available_sources)
+        # STEP 2: Create balanced validation split (using reserved capacity)
+        # PHASE 2 FIX: Uses reserved targets from capacity analysis
+        print(f"\n📊 Creating validation split (target: {self.val_word_limit:,} words, using reserved capacity)...")
         val_word_counts = {source: 0 for source in available_sources.keys()}
         val_doc_counts = {source: 0 for source in available_sources.keys()}
         total_val_words = 0
 
         for source in available_sources.keys():
+            val_words_per_source = reserved_for_val_test[source]['val']
             print(f"   Collecting from {source} (target: {val_words_per_source:,} words)...", end=" ")
             source_val_count = 0
 
@@ -574,14 +641,15 @@ class CorpusBuilder:
 
         print(f"   ✓ Validation split: {len(splits['val'])} texts, {total_val_words:,} words")
 
-        # STEP 3: Create balanced test split (equal from each source)
-        print(f"\n📊 Creating test split (target: {self.test_word_limit:,} words, balanced across sources)...")
-        test_words_per_source = self.test_word_limit // len(available_sources)
+        # STEP 3: Create balanced test split (using reserved capacity)
+        # PHASE 2 FIX: Uses reserved targets from capacity analysis
+        print(f"\n📊 Creating test split (target: {self.test_word_limit:,} words, using reserved capacity)...")
         test_word_counts = {source: 0 for source in available_sources.keys()}
         test_doc_counts = {source: 0 for source in available_sources.keys()}
         total_test_words = 0
 
         for source in available_sources.keys():
+            test_words_per_source = reserved_for_val_test[source]['test']
             print(f"   Collecting from {source} (target: {test_words_per_source:,} words)...", end=" ")
             source_test_count = 0
 
