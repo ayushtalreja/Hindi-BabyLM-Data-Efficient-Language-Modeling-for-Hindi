@@ -2,7 +2,7 @@
 
 ## Overview
 
-The data processing pipeline is responsible for collecting, cleaning, filtering, and preparing Hindi text data for language model training. The goal is to create a high-quality corpus of approximately 10 million tokens from diverse sources while maintaining linguistic quality and removing duplicates.
+The data processing pipeline is responsible for collecting, cleaning, filtering, and preparing Hindi text data for language model training. The goal is to create a high-quality corpus of approximately 10 million and 100 million words from diverse sources while maintaining linguistic quality and removing duplicates.
 
 ## Architecture
 
@@ -16,133 +16,102 @@ Raw Data Sources → Collection → Cleaning → Quality Filtering → Deduplica
 
 **Description**: Large-scale corpus of Hindi text from news articles and web crawls.
 
-**Implementation**: `src/data_processing/indiccorp_downloader.py`
+**Implementation**: `src/data_processing/downloaders/indiccorp_downloader.py`
 
 **Dataset Information**:
 - **Source**: AI4Bharat/HuggingFace (`ai4bharat/IndicCorpusV2`)
 - **Language**: Hindi (hi)
-- **Size**: ~3.5GB (billions of tokens)
+- **Files**: hi-1.txt (26.7 GB), hi-2.txt (26.7 GB), hi-3.txt (26.7 GB)
+- **Total Size**: ~80.1 GB for all three files
 - **License**: CC0-1.0 (Public Domain)
 - **Content**: Web-crawled text, news articles, blogs
 
 #### Main Class: `IndicCorpDownloader`
 
-**Location**: `src/data_processing/indiccorp_downloader.py:46`
+**Location**: `src/data_processing/downloaders/indiccorp_downloader.py:39`
 
-A comprehensive downloader class for IndicCorp Hindi dataset with full feature set:
+A streamlined downloader class that downloads specific Hindi text files from IndicCorp V2 using HuggingFace Hub.
 
 **Key Methods**:
 
-**`download()`** (line 80) - Download dataset from HuggingFace:
+**`download()`** (line 76) - Download Hindi files from HuggingFace Hub:
 ```python
 def download(
     self,
-    num_samples: Optional[int] = None,
-    streaming: bool = False,
-    split: str = 'train'
-) -> Union[Dataset, IterableDataset]:
+    files: Optional[List[str]] = None,
+    max_lines: Optional[int] = None,
+    clean_texts: bool = True
+) -> tuple[List[str], int]:
     """
-    Download IndicCorp Hindi dataset.
+    Download and read Hindi files from IndicCorp V2.
 
     Args:
-        num_samples: Number of samples to download (None for all)
-        streaming: Whether to use streaming mode (memory-efficient)
-        split: Dataset split ('train', 'validation', 'test')
+        files: List of filenames to download (default: ['hi-1.txt'])
+        max_lines: Maximum number of lines to read (None = all)
+        clean_texts: Whether to apply text cleaning
 
     Returns:
-        HuggingFace Dataset or IterableDataset
+        Tuple of (list of text strings, total word count)
     """
 ```
 
-**`save_to_text()`** (line 132) - Save as text file:
+**`get_source_info()`** (line 199) - Get source metadata:
 ```python
-def save_to_text(
-    self,
-    dataset: Union[Dataset, IterableDataset],
-    output_filename: str = 'indiccorp_hindi.txt',
-    text_field: str = 'sentence'
-) -> Path:
-    """Save dataset to text file (one sentence per line)"""
-```
-
-**`save_to_pickle()`** (line 176) - Save as pickle file:
-```python
-def save_to_pickle(
-    self,
-    dataset: Union[Dataset, IterableDataset],
-    output_filename: str = 'indiccorp_hindi.pkl',
-    text_field: str = 'sentence'
-) -> Path:
-    """Save dataset to pickle file (list of strings)"""
-```
-
-**`get_statistics()`** (line 220) - Calculate dataset statistics:
-```python
-def get_statistics(
-    self,
-    dataset: Union[Dataset, IterableDataset],
-    num_samples: int = 10000,
-    text_field: str = 'sentence'
-) -> Dict:
+def get_source_info(self) -> Dict[str, Any]:
     """
-    Calculate comprehensive statistics:
-    - Total/average characters and words
-    - Min/max length
-    - Empty sample detection
+    Get information about the IndicCorp data source.
+
+    Returns:
+        Dict with source metadata (repository, language, license, etc.)
     """
 ```
 
 #### Convenience Function
 
-**`download_indiccorp_hindi()`** (line 371) - One-line download:
+**`download_indiccorp_hindi()`** (line 216) - One-line download:
 
 ```python
-from src.data_processing.indiccorp_downloader import download_indiccorp_hindi
+from src.data_processing.downloaders.indiccorp_downloader import download_indiccorp_hindi
 
 # Download single file (hi-1.txt ~26.7GB) - default for efficiency
-paths = download_indiccorp_hindi(
+cache_path = download_indiccorp_hindi(
     output_dir='data/raw',
-    num_samples=100000,
-    save_format='both'  # 'text', 'pickle', or 'both'
+    max_lines=100000,
+    clean_texts=True,
+    save_stats=True
 )
 
 # Download all three files if needed (~80GB total)
-paths = download_indiccorp_hindi(
+cache_path = download_indiccorp_hindi(
     output_dir='data/raw',
     files=['hi-1.txt', 'hi-2.txt', 'hi-3.txt'],
-    num_samples=100000,
-    save_format='both'
+    max_lines=100000,
+    save_stats=True
 )
 
-# Returns dictionary with paths:
-# {
-#     'hi-1.txt': Path('data/raw/hi-1_sampled.txt'),
-#     'hi-1.txt_pickle': Path('data/raw/hi-1_sampled.pkl'),
-#     'metadata': Path('data/raw/indiccorp_metadata.json')
-# }
+# Returns path to cached pickle file
 ```
 
 #### Command Line Usage
 
 ```bash
-# Download 100K samples (downloads hi-1.txt by default)
-python src/data_processing/indiccorp_downloader.py \
+# Download 100K lines (downloads hi-1.txt by default)
+python src/data_processing/downloaders/indiccorp_downloader.py \
     --output-dir data/raw \
-    --num-samples 100000 \
-    --format both
+    --max-lines 100000
 
 # Download all three files
-python src/data_processing/indiccorp_downloader.py \
+python src/data_processing/downloaders/indiccorp_downloader.py \
     --output-dir data/raw \
     --files hi-1.txt hi-2.txt hi-3.txt \
-    --num-samples 100000 \
-    --format pickle
+    --max-lines 100000 \
+    --cache-dir /custom/cache
 ```
 
 #### Advanced Usage
 
 ```python
-from src.data_processing.indiccorp_downloader import IndicCorpDownloader
+from src.data_processing.downloaders import IndicCorpDownloader
 
 # Initialize downloader
 downloader = IndicCorpDownloader(
@@ -151,80 +120,53 @@ downloader = IndicCorpDownloader(
 )
 
 # Download with full control
-dataset = downloader.download(
-    num_samples=100000,
-    streaming=False,
-    split='train'
+texts, total_words = downloader.download(
+    files=['hi-1.txt'],
+    max_lines=100000,
+    clean_texts=True
 )
 
-# Get statistics (samples 10K for efficiency)
-stats = downloader.get_statistics(dataset, num_samples=10000)
-print(f"Avg words/sample: {stats['avg_words_per_sample']:.1f}")
-print(f"Avg chars/sample: {stats['avg_chars_per_sample']:.1f}")
+print(f"Downloaded {len(texts)} texts with {total_words} words")
 
-# Save in preferred format
-text_path = downloader.save_to_text(dataset)
-pickle_path = downloader.save_to_pickle(dataset)
-stats_path = downloader.save_statistics(stats)
-metadata_path = downloader.save_metadata(dataset, stats)
-```
-
-#### Loading from Cache
-
-```python
-from src.data_processing.indiccorp_downloader import load_indiccorp_from_cache
-
-# Load previously downloaded data
-texts = load_indiccorp_from_cache(
-    'data/raw/indiccorp_hindi.pkl',
-    file_format='pickle'  # or 'text'
+# Use BaseDownloader's process_and_cache for complete pipeline
+cache_path = downloader.process_and_cache(
+    max_samples=None,  # We limit during download
+    save_stats=True,
+    files=['hi-1.txt'],
+    max_lines=100000,
+    clean_texts=True
 )
-
-print(f"Loaded {len(texts)} samples from cache")
 ```
 
 #### Output Files
 
-1. **`indiccorp_hindi.txt`** - Plain text file (one sentence per line)
-2. **`indiccorp_hindi.pkl`** - Python pickle file (list of strings)
-3. **`indiccorp_statistics.json`** - Dataset statistics:
-   ```json
-   {
-     "dataset_name": "ai4bharat/IndicCorpusV2",
-     "language": "hi",
-     "samples_analyzed": 10000,
-     "total_words": 156789,
-     "avg_words_per_sample": 15.7,
-     "avg_chars_per_sample": 89.3,
-     "min_length": 12,
-     "max_length": 458,
-     "empty_samples": 23
-   }
-   ```
-4. **`indiccorp_metadata.json`** - Download metadata with timestamp
+When using `process_and_cache()`:
+1. **`indiccorp.pkl`** - Python pickle file (list of strings)
+2. **`indiccorp_metadata.json`** - Source metadata and statistics
+3. **`indiccorp_sample.txt`** - First 100 samples for inspection
 
 **Characteristics**:
 - **Source**: News articles, web content, blogs
-- **Size**: Configurable (100K samples ≈ 6M tokens for BabyLM)
+- **Size**: Configurable via `max_lines` parameter
 - **Quality**: High, formal register
 - **Language**: Modern Standard Hindi
-- **Streaming Support**: Memory-efficient for large downloads
+- **Incremental Processing**: Word counts calculated during download to avoid memory spikes
 
 **Pros**:
 - Large scale, high quality
 - Formal, well-edited text
 - Diverse topics (news, web, blogs)
-- HuggingFace integration (automatic caching)
-- Memory-efficient streaming mode
-- Comprehensive statistics and metadata
+- HuggingFace Hub integration (automatic caching)
+- Efficient file-based downloads
+- Incremental word counting for memory efficiency
 
 **Cons**:
 - Formal register may not match child language
 - May contain some web scraping noise
 - Requires internet connection for initial download
+- Large file sizes (26.7 GB per file)
 
 ### 2. Hindi Wikipedia (`wiki_downloader.py`)
-<!-- Updated: 2025-12-01 -->
 
 **Description**: Encyclopedia articles from Hindi Wikipedia using HuggingFace Datasets.
 
@@ -235,40 +177,103 @@ print(f"Loaded {len(texts)} samples from cache")
 - **Language**: Hindi (hi)
 - **Content**: Pre-processed Wikipedia dump
 - **Quality**: High, edited content
+- **Format**: Parquet via datasets library
 
-**Key Class: `WikipediaDownloader`**
+**Key Class: `WikiDownloader`**
+
+**Location**: `src/data_processing/downloaders/wiki_downloader.py:22`
 
 Extends `BaseDownloader` with Wikipedia-specific functionality:
 
 ```python
-def download(self, max_articles: Optional[int] = None) -> List[str]:
+def download(
+    self,
+    max_articles: Optional[int] = None,
+    min_length: int = 30,
+    max_length: int = 2000
+) -> tuple[List[str], int]:
     """
-    Download Hindi Wikipedia articles from HuggingFace.
+    Download Hindi Wikipedia from HuggingFace.
 
     Args:
-        max_articles: Maximum number of articles to download (None for all)
+        max_articles: Maximum number of articles to download (None = all)
+        min_length: Minimum character length for an article
+        max_length: Maximum character length for an article
 
     Returns:
-        List of article texts
+        Tuple of (list of article texts, total word count)
     """
-    dataset = load_dataset(
-        'wikimedia/wikipedia',
-        '20231101.hi',
-        split='train',
-        streaming=True
-    )
 ```
 
+#### Convenience Function
+
+**`download_wikipedia_hindi()`** (line 149) - One-line download:
+
+```python
+from src.data_processing.downloaders.wiki_downloader import download_wikipedia_hindi
+
+# Download Wikipedia articles
+cache_path = download_wikipedia_hindi(
+    output_dir='data/raw',
+    dataset_version='20231101.hi',
+    max_articles=25000,
+    min_length=50,
+    max_length=50000,
+    save_stats=True
+)
+
+# Returns path to cached pickle file
+```
+
+#### Advanced Usage
+
+```python
+from src.data_processing.downloaders import WikiDownloader
+
+# Initialize downloader
+downloader = WikiDownloader(
+    output_dir='data/raw',
+    dataset_version='20231101.hi',
+    cache_dir='/custom/cache'  # Optional
+)
+
+# Download with full control
+texts, total_words = downloader.download(
+    max_articles=25000,
+    min_length=30,
+    max_length=2000
+)
+
+print(f"Downloaded {len(texts)} articles with {total_words} words")
+
+# Use BaseDownloader's process_and_cache for complete pipeline
+cache_path = downloader.process_and_cache(
+    max_samples=None,  # We filter during download
+    save_stats=True,
+    max_articles=25000,
+    min_length=30,
+    max_length=2000
+)
+```
+
+#### Output Files
+
+When using `process_and_cache()`:
+1. **`wikipedia.pkl`** - Python pickle file (list of article texts)
+2. **`wikipedia_metadata.json`** - Source metadata and statistics
+3. **`wikipedia_sample.txt`** - First 100 articles for inspection
+
 **Filtering Parameters**:
-- `min_length`: Minimum article length (default: 100 characters)
-- `max_length`: Maximum article length (default: 50,000 characters)
-- Filters out stub articles and disambiguation pages
+- `min_length`: Minimum article length (default: 30 characters)
+- `max_length`: Maximum article length (default: 2000 characters)
+- Filters out stub articles automatically based on length
 
 **Characteristics**:
-- Source: Pre-processed Wikipedia dumps
-- Size: Configurable (thousands of articles available)
-- Quality: High, well-structured, edited content
-- Language: Formal encyclopedic Hindi
+- **Source**: Pre-processed Wikipedia dumps
+- **Size**: Configurable via `max_articles` parameter (thousands of articles available)
+- **Quality**: High, well-structured, edited content
+- **Language**: Formal encyclopedic Hindi
+- **Incremental Processing**: Word counts calculated during download to avoid memory spikes
 
 **Pros**:
 - ✅ No web scraping needed (uses HuggingFace dataset)
@@ -277,6 +282,7 @@ def download(self, max_articles: Optional[int] = None) -> List[str]:
 - ✅ Structured information
 - ✅ Diverse topics
 - ✅ Reliable and reproducible
+- ✅ Incremental word counting for memory efficiency
 
 **Cons**:
 - ❌ Formal register
@@ -284,48 +290,109 @@ def download(self, max_articles: Optional[int] = None) -> List[str]:
 - ❌ Encyclopedia style may not match natural language
 
 ### 3. IndicDialogue - Conversational Hindi (`indicdialogue_loader.py`)
-<!-- Updated: 2025-12-01 - NEW SECTION -->
 
 **Description**: Movie subtitle data providing conversational and informal Hindi.
 
 **Implementation**: `src/data_processing/downloaders/indicdialogue_loader.py`
 
 **Dataset Information**:
-- **Source**: Local JSONL file (`hindi.jsonl`) from Mendeley dataset
+- **Source**: Local JSONL file (`Hindi.jsonl` or `hindi.jsonl`) from Mendeley dataset
+- **URL**: https://data.mendeley.com/datasets/wcb4bxbyxx/2
 - **Content**: Movie subtitles (dialogues)
 - **Language**: Conversational/informal Hindi
-- **Size**: Configurable based on local file
+- **Format**: JSONL (JSON Lines)
+- **Note**: Must be manually downloaded and placed in `data/raw/` directory
 
 **Key Class: `IndicDialogueLoader`**
+
+**Location**: `src/data_processing/downloaders/indicdialogue_loader.py:23`
 
 Extends `BaseDownloader` for dialogue data:
 
 ```python
-def load(
+def download(
     self,
-    aggregation: str = 'dialogue',
-    min_length: int = 10,
-    max_length: int = 500
-) -> List[str]:
+    max_movies: Optional[int] = None,
+    min_dialogue_length: int = 10,
+    combine_dialogues: bool = False
+) -> tuple[List[str], int]:
     """
-    Load IndicDialogue data from local JSONL file.
+    Load IndicDialogue from JSONL file.
 
     Args:
-        aggregation: 'dialogue' (line-by-line) or 'movie' (aggregate per movie)
-        min_length: Minimum dialogue length in characters
-        max_length: Maximum dialogue length in characters
+        max_movies: Maximum number of movies to process (None = all)
+        min_dialogue_length: Minimum characters per dialogue line
+        combine_dialogues: If True, combine all dialogues from a movie into one text.
+                          If False, keep each dialogue line separate.
 
     Returns:
-        List of dialogue texts
+        Tuple of (list of dialogue texts, total word count)
     """
 ```
 
+#### Convenience Function
+
+**`load_indicdialogue_hindi()`** (line 172) - One-line load:
+
+```python
+from src.data_processing.downloaders.indicdialogue_loader import load_indicdialogue_hindi
+
+# Load dialogue data
+cache_path = load_indicdialogue_hindi(
+    jsonl_path='data/raw/Hindi.jsonl',
+    output_dir='data/raw',
+    max_movies=None,  # All movies
+    min_dialogue_length=10,
+    combine_dialogues=False,  # Keep each dialogue separate
+    save_stats=True
+)
+
+# Returns path to cached pickle file
+```
+
+#### Advanced Usage
+
+```python
+from src.data_processing.downloaders import IndicDialogueLoader
+
+# Initialize loader
+loader = IndicDialogueLoader(
+    jsonl_path='data/raw/Hindi.jsonl',
+    output_dir='data/raw'
+)
+
+# Load with full control
+texts, total_words = loader.download(
+    max_movies=100,
+    min_dialogue_length=10,
+    combine_dialogues=False
+)
+
+print(f"Loaded {len(texts)} dialogues with {total_words} words")
+
+# Use BaseDownloader's process_and_cache for complete pipeline
+cache_path = loader.process_and_cache(
+    max_samples=None,  # We filter during loading
+    save_stats=True,
+    max_movies=None,
+    min_dialogue_length=10,
+    combine_dialogues=False
+)
+```
+
+#### Output Files
+
+When using `process_and_cache()`:
+1. **`indicdialogue.pkl`** - Python pickle file (list of dialogue texts)
+2. **`indicdialogue_metadata.json`** - Source metadata and statistics
+3. **`indicdialogue_sample.txt`** - First 100 dialogues for inspection
+
 **Aggregation Modes**:
-1. **Dialogue-level**: Each dialogue turn as separate text
+1. **Dialogue-level** (`combine_dialogues=False`): Each dialogue turn as separate text
    - More samples, shorter texts
    - Better for learning conversational patterns
 
-2. **Movie-level**: All dialogues from a movie aggregated
+2. **Movie-level** (`combine_dialogues=True`): All dialogues from a movie aggregated
    - Fewer samples, longer texts
    - Preserves narrative context
 
@@ -334,6 +401,7 @@ def load(
 - **Style**: Natural spoken Hindi with code-mixing
 - **Quality**: Variable (subtitle quality)
 - **Unique feature**: Captures spoken language patterns not found in written corpora
+- **Incremental Processing**: Word counts calculated during loading to avoid memory spikes
 
 **Pros**:
 - ✅ Conversational/informal register
@@ -341,11 +409,12 @@ def load(
 - ✅ Complements formal written sources (IndicCorp, Wikipedia)
 - ✅ Captures code-mixing and colloquialisms
 - ✅ Dialogue structure
+- ✅ Incremental word counting for memory efficiency
 
 **Cons**:
 - ❌ Subtitle quality varies
 - ❌ May contain transcription errors
-- ❌ Requires local file (not downloadable)
+- ❌ Requires manual download (not automated)
 - ❌ Limited to movie domain
 
 **Why Include This Source?**
@@ -355,32 +424,131 @@ def load(
 
 ### 4. Children's Books (`childrens_books.py`)
 
-**Description**: Collection of children's literature in Hindi.
+**Description**: Collection of children's literature in Hindi from StoryWeaver (Pratham Books).
 
-**Implementation**: `src/data_processing/childrens_books.py:18`
+**Implementation**: `src/data_processing/childrens_books.py`
 
-**Key Function**:
+**Dataset Information**:
+- **Source**: StoryWeaver API (storyweaver.org.in by Pratham Books)
+- **Content**: Openly-licensed children's stories
+- **Language**: Simple, age-appropriate Hindi
+- **Quality**: High, curated content
+- **Access**: API-based collection with rate limiting
+
+**Key Class: `ChildrensStoryCollector`**
+
+**Location**: `src/data_processing/childrens_books.py:26`
+
+Collects Hindi children's stories from StoryWeaver with robust error handling:
+
 ```python
-def collect_childrens_stories():
-    """Collect children's stories from various sources"""
-    # Simpler vocabulary and structures
-    # Developmentally appropriate content
+def collect_all_stories(self) -> tuple[List[str], int]:
+    """
+    Main entry point: Collect stories from StoryWeaver
+    Returns empty list if collection fails (non-blocking)
+
+    Returns:
+        Tuple of (list of story texts, total word count)
+    """
 ```
 
+**Key Methods**:
+
+**`scrape_storyweaver_api()`** (line 99) - Collect stories via API:
+```python
+def scrape_storyweaver_api(self) -> List[Dict]:
+    """
+    Collect stories from StoryWeaver using their public API
+
+    Uses: https://storyweaver.org.in/api/v1/books-search
+    - Filters for Hindi language
+    - Collects from multiple pages
+    - Respects rate limits (2 second delay)
+
+    Returns:
+        List of story dictionaries with metadata
+    """
+```
+
+**`filter_stories()`** (line 337) - Quality and age-appropriateness filtering:
+```python
+def filter_stories(self, stories: List[Dict]) -> List[Dict]:
+    """
+    Filter stories for quality and age-appropriateness
+
+    Filters:
+    - Length: 100-10,000 characters
+    - Word count: 20-2,000 words
+    - Hindi content check (≥80% Devanagari)
+    - Age-appropriate complexity
+
+    Returns:
+        Filtered list of stories
+    """
+```
+
+#### Main Entry Point
+
+**`collect_childrens_stories()`** (line 404) - Convenience function:
+
+```python
+from src.data_processing.childrens_books import collect_childrens_stories
+
+# Collect children's stories
+stories, total_words = collect_childrens_stories(max_stories=2000)
+
+print(f"Collected {len(stories)} stories with {total_words} words")
+```
+
+#### Advanced Usage
+
+```python
+from src.data_processing.childrens_books import ChildrensStoryCollector
+
+# Initialize collector
+collector = ChildrensStoryCollector(
+    max_stories=2000,
+    rate_limit_delay=2.0  # Seconds between requests
+)
+
+# Collect stories
+stories, total_words = collector.collect_all_stories()
+
+print(f"Collected {len(stories)} stories with {total_words} words")
+```
+
+**Filtering Criteria**:
+- **Length**: 100-10,000 characters
+- **Word Count**: 20-2,000 words
+- **Hindi Ratio**: ≥80% Devanagari characters
+- **Average Word Length**: ≤10 characters (age-appropriate)
+- **Content**: No complex vocabulary (filtered for children's level)
+
 **Characteristics**:
-- Source: Children's literature
-- Size: Small to medium
-- Quality: High, age-appropriate
-- Language: Simple, natural Hindi
+- **Source**: StoryWeaver (Pratham Books) - openly-licensed children's literature
+- **Size**: Configurable (default: 2000 stories)
+- **Quality**: High, curated, age-appropriate
+- **Language**: Simple, natural Hindi suitable for children
+- **Rate Limiting**: 2-second delay between API requests
+- **Error Handling**: Non-blocking - returns empty list if collection fails
+- **Incremental Processing**: Word counts calculated during collection to avoid memory spikes
 
 **Pros**:
 - Developmentally plausible complexity
 - Simple vocabulary and structures
 - Natural language patterns
+- High-quality curated content
+- API-based (reliable, no web scraping)
+- Openly licensed (CC BY)
+- Incremental word counting for memory efficiency
+- Robust error handling (doesn't crash pipeline)
 
 **Cons**:
-- Smaller corpus size
+- Smaller corpus size compared to other sources
 - May be too simple for some tasks
+- Requires internet connection
+- Rate-limited API (slower collection)
+- Collection may fail if API is unavailable (gracefully handles failures)
 
 ## Pipeline Components
 
@@ -388,91 +556,173 @@ def collect_childrens_stories():
 
 **Main Class**: `CorpusBuilder`
 
-**Location**: `src/data_processing/corpus_builder.py:47`
+**Location**: `src/data_processing/corpus_builder.py:67`
 
-**Purpose**: Orchestrates the entire data processing pipeline.
+**Purpose**: Orchestrates the entire data processing pipeline with smart caching and balanced split creation.
+
+**Key Features**:
+- **Smart Caching**: Per-source cache files to avoid re-downloading
+- **Balanced Splits**: New method maintains source distribution across train/val/test
+- **Memory Optimization**: Index-based shuffling and incremental word counting
+- **Data Provenance**: Tracks statistics and lineage through entire pipeline
+- **Separate Word Limits**: Configurable word limits for train/val/test splits
 
 **Key Methods**:
 
-#### `collect_all_data()` (line 68)
-Collects data from all sources and combines them.
+#### `collect_all_data()` (line 147)
+Collects data from all sources with smart caching.
 
 ```python
-def collect_all_data(self) -> Dict[str, List[str]]:
+def collect_all_data(self, force_redownload: bool = False) -> Dict[str, List[str]]:
     """
-    Collect data from all sources
+    Collect data from all sources with smart caching
+
+    Args:
+        force_redownload: If True, ignore cache and download fresh data
 
     Returns:
         Dictionary mapping source names to lists of text samples
         {
             'indiccorp': [...],
             'wikipedia': [...],
+            'indicdialogue': [...],
             'childrens_books': [...]
         }
     """
 ```
 
 **Process**:
-1. Download IndicCorp Hindi dataset
-2. Scrape Wikipedia articles from specified categories
-3. Collect children's literature
-4. Save raw data as pickle file
+1. Check per-source cache files (`.pkl` in `data/raw/`)
+2. If cache exists and `force_redownload=False`, load from cache
+3. Otherwise, download from source:
+   - IndicCorp Hindi dataset (via HuggingFace Hub)
+   - Wikipedia articles (via HuggingFace datasets)
+   - IndicDialogue (from local JSONL)
+   - Children's stories (via StoryWeaver API)
+4. Save each source to separate cache file
+5. Track raw data statistics with `DataProvenanceTracker`
 
-**Output**: `data/raw/raw_corpus.pkl`
+**Cache Files**:
+- `data/raw/indiccorp.pkl`
+- `data/raw/wikipedia.pkl`
+- `data/raw/indicdialogue.pkl`
+- `data/raw/childrens_stories.pkl`
 
-#### `process_and_filter()` (line 114)
+**Benefits of Smart Caching**:
+- Avoid re-downloading data on subsequent runs
+- Faster pipeline iteration during development
+- Can force re-download with `force_redownload=True`
+
+#### `process_and_filter()` (line 329)
 Applies cleaning and filtering to collected data.
 
 ```python
-def process_and_filter(self, raw_data: Dict[str, List[str]]) -> List[str]:
+def process_and_filter(
+    self,
+    raw_data: Dict[str, List[str]],
+    preserve_sources: bool = False
+) -> Dict[str, List[str]]:
     """
     Process and filter collected data
 
-    Steps:
-        1. Clean text (normalization, formatting)
-        2. Filter by length
-        3. Filter by language (Hindi character ratio)
-        4. Deduplicate (exact and fuzzy matching)
-        5. Limit to max tokens
+    Args:
+        raw_data: Dictionary with source names as keys and lists of texts as values
+        preserve_sources: If True, return processed data grouped by source (for new split creation)
+                         If False, return combined list (for legacy split creation)
 
     Returns:
-        List of processed text samples
+        If preserve_sources=True: Dictionary with source names as keys
+        If preserve_sources=False: Dictionary with single key 'combined'
     """
 ```
 
-**Filtering Pipeline**:
-1. **Text Cleaning**: Normalize Unicode, remove extra whitespace
-2. **Length Filtering**: Remove texts that are too short or too long
-3. **Language Filtering**: Ensure high ratio of Devanagari characters
-4. **Deduplication**: Remove exact and near-duplicate texts
-5. **Token Limiting**: Limit corpus to ~10M tokens
+**Filtering Pipeline (Per-Source)**:
+1. **Text Cleaning**: Normalize Unicode, remove extra whitespace, URLs, noise patterns
+2. **Length Filtering**: Remove texts outside bounds (default: 30-2000 characters)
+3. **Language Filtering**: Ensure ≥80% Devanagari character ratio
+4. **Deduplication**:
+   - If `preserve_sources=True`: Deduplicate within each source separately
+   - If `preserve_sources=False`: Combine all sources, then deduplicate
+5. **Statistics Tracking**: Track filtering and deduplication stats with `DataProvenanceTracker`
 
-#### `create_splits()` (line 171)
-Creates train/validation/test splits.
+**Key Change**: Now supports per-source processing to maintain source information for balanced split creation.
+
+#### `create_balanced_splits_with_limits()` (line 424)
+**NEW METHOD** - Creates balanced train/val/test splits with separate word limits.
 
 ```python
-def create_splits(self, processed_data: List[str]) -> Dict[str, List[str]]:
+def create_balanced_splits_with_limits(
+    self,
+    raw_data: Dict[str, List[str]]
+) -> Dict[str, List[str]]:
     """
-    Create train/val/test splits
+    Create balanced train/val/test splits with separate word limits
 
-    Split Ratios (configurable):
-        - Train: 80%
-        - Validation: 10%
-        - Test: 10%
+    Strategy:
+    1. Apply global deduplication first (no text appears in multiple splits)
+    2. Training split: Use configured train_source_ratios until train_word_limit reached
+    3. Validation split: Take equal proportions from each source until val_word_limit reached
+    4. Test split: Take equal proportions from remaining data until test_word_limit reached
+
+    Args:
+        raw_data: Dictionary with keys as source names and values as lists of texts
 
     Returns:
-        Dictionary with 'train', 'val', 'test' keys
+        Dictionary with 'train', 'val', 'test' splits
     """
 ```
 
 **Process**:
-1. Shuffle data with fixed random seed (42) for reproducibility
+1. **Analyze Capacity**: Calculate available words per source
+2. **Check Constraints**: Compare capacity vs. demand for each source
+3. **Adjust Targets**: For constrained sources, allocate capacity proportionally
+4. **Create Training Split**: Use adjusted targets respecting source ratios
+5. **Create Validation Split**: Equal representation from each source
+6. **Create Test Split**: Equal representation from remaining data
+7. **Track Statistics**: Save detailed split statistics with `DataProvenanceTracker`
+8. **Memory Cleanup**: Clear intermediate data structures, run garbage collection
+
+**Key Features**:
+- **Separate Word Limits**: `train_word_limit`, `val_word_limit`, `test_word_limit` from config
+- **Source Balance**: Maintains configured source ratios in training, equal ratios in val/test
+- **Global Deduplication**: No text appears in multiple splits (hash-based tracking)
+- **Memory Optimization**: Index-based shuffling instead of copying data (~20GB savings)
+- **Capacity-Aware**: Adjusts targets when source data is insufficient
+
+**Configuration** (from `configs/base_config.yaml`):
+```yaml
+train_word_limit: 10000000  # 10M words
+val_word_limit: 10000000    # 10M words
+test_word_limit: 10000000   # 10M words
+
+train_source_ratios:
+  indiccorp: 0.60
+  wikipedia: 0.25
+  indicdialogue: 0.10
+  childrens_books: 0.05
+```
+
+#### `create_splits()` (line 731)
+**DEPRECATED** - Legacy method for backward compatibility.
+
+```python
+def create_splits(self, processed_data: List[str]) -> Dict[str, List[str]]:
+    """
+    Create train/val/test splits (legacy method for backward compatibility)
+
+    NOTE: This method is deprecated. Use create_balanced_splits_with_limits() for new pipeline.
+    """
+```
+
+**Process**:
+1. Shuffle combined data with fixed random seed (42)
 2. Calculate split sizes based on ratios
 3. Create splits
-4. Return dictionary with train/val/test data
 
-#### `save_splits()` (line 198)
-Saves processed splits to disk.
+**Use**: Only for backward compatibility. New code should use `create_balanced_splits_with_limits()`.
+
+#### `save_splits()` (line 762)
+Saves processed splits to disk with comprehensive metadata.
 
 **Outputs**:
 - `data/splits/train.pkl` - Training data (pickle)
@@ -482,11 +732,28 @@ Saves processed splits to disk.
 - `data/splits/val.txt` - First 100 samples as text
 - `data/splits/test.txt` - First 100 samples as text
 - `data/splits/metadata.json` - Metadata about splits
+- `results/data_processing/data_provenance_report.json` - Comprehensive provenance tracking
 
-#### `load_splits()` (line 233)
+**New Feature**: Data provenance report includes detailed statistics about:
+- Raw data collection per source
+- Filtering and deduplication statistics
+- Split creation details with per-source breakdowns
+- Word counts and document counts
+
+#### `load_splits()` (line 803)
 Loads processed splits from disk.
 
-#### `create_dataloader()` (line 251)
+```python
+def load_splits(self) -> Dict[str, List[str]]:
+    """
+    Load processed splits from disk
+
+    Returns:
+        Dictionary with 'train', 'val', 'test' keys
+    """
+```
+
+#### `create_dataloader()` (line 821)
 Creates PyTorch DataLoader for a split.
 
 ```python
@@ -505,52 +772,117 @@ def create_dataloader(self, texts: List[str], tokenizer, split: str = 'train') -
     """
 ```
 
+**Configuration** (from config):
+- `batch_size`: Batch size for DataLoader
+- `num_workers`: Number of worker processes (default: 4, was 64)
+- `pin_memory`: Pin memory for faster GPU transfer (default: True)
+- `persistent_workers`: Set to False for memory efficiency
+
+**Memory Optimization**: Reduced `num_workers` from 64 to 4 saves 30-60GB RAM with minimal performance impact.
+
 ### 2. Text Cleaner (`text_cleaner.py`)
 
 **Location**: `src/data_processing/text_cleaner.py`
 
-**Function**: `clean_text(text: str) -> str`
+**Main Class**: `HindiTextCleaner`
 
-**Purpose**: Normalize and clean raw text data.
+**Location**: `src/data_processing/text_cleaner.py:6`
+
+A comprehensive Hindi text cleaning class with configurable operations.
+
+**Key Methods**:
+
+```python
+def clean_text(
+    self,
+    text: str,
+    remove_urls: bool = True,
+    remove_noise: bool = True,
+    normalize_punctuation: bool = True
+) -> str:
+    """
+    Complete text cleaning pipeline with configurable options.
+
+    Args:
+        text: Input text to clean
+        remove_urls: Whether to remove URLs
+        remove_noise: Whether to remove common noise patterns
+        normalize_punctuation: Whether to normalize repeated punctuation
+
+    Returns:
+        Cleaned text string
+    """
+```
 
 **Operations**:
-1. **Unicode Normalization**: Convert to NFC form
-2. **Whitespace Normalization**:
-   - Remove extra spaces
-   - Normalize line breaks
+1. **Unicode Normalization**: Convert to NFC form for consistency
+2. **URL Removal**: Remove HTTP/HTTPS URLs (if enabled)
+3. **Noise Pattern Removal**: Remove common noise like "click here", "download", "read more" (if enabled)
+4. **Non-Hindi Character Removal**: Keep only:
+   - Devanagari characters (0x0900-0x097F)
+   - Devanagari Extended (0xA8E0-0xA8FF)
+   - Basic punctuation (।, ॥, common punctuation marks)
+   - Digits
+   - Whitespace
+5. **Whitespace Normalization**:
+   - Replace multiple spaces with single space
    - Remove leading/trailing whitespace
-3. **Special Character Handling**:
-   - Remove or normalize special characters
-   - Keep Hindi punctuation (।, ॥)
-4. **HTML Entity Removal**: Strip any HTML tags or entities
+   - Normalize spacing around punctuation
+6. **Punctuation Normalization**: Normalize repeated punctuation marks (if enabled)
+7. **Special Case Handling**:
+   - Convert English digits to Devanagari (0-9 → ०-९)
+   - Remove zero-width characters
+   - Normalize danda (।) and double danda (॥)
+
+**Module-Level Convenience Function**:
+
+```python
+from src.data_processing.text_cleaner import clean_text
+
+# Simple usage (all cleaning operations enabled)
+cleaned = clean_text(text)
+```
+
+**Centralized Utilities**:
+- Uses `HindiValidator` from utils for consistent Devanagari range handling
+- Shared Unicode range definitions across all modules
 
 **Example**:
 ```python
-raw_text = "यह    एक   \n\n   परीक्षण  है।  "
-clean_text = clean_text(raw_text)
-# Result: "यह एक परीक्षण है।"
+from src.data_processing.text_cleaner import HindiTextCleaner
+
+cleaner = HindiTextCleaner()
+
+raw_text = "यह    एक   \n\n   परीक्षण  है।  http://example.com 123"
+cleaned = cleaner.clean_text(
+    raw_text,
+    remove_urls=True,
+    remove_noise=True,
+    normalize_punctuation=True
+)
+# Result: "यह एक परीक्षण है। १२३"
 ```
 
 ### 3. Quality Filter (`quality_filter.py`)
 
 **Class**: `QualityFilter`
 
-**Location**: `src/data_processing/quality_filter.py:4`
+**Location**: `src/data_processing/quality_filter.py:5`
 
 **Purpose**: Apply quality checks to ensure high-quality corpus.
 
 **Configuration**:
 ```python
 QualityFilter(
-    min_length=10,        # Minimum characters
-    max_length=1000,      # Maximum characters
+    min_length=30,        # Minimum characters (default)
+    max_length=2000,      # Maximum characters (default)
     min_hindi_ratio=0.8   # Minimum ratio of Hindi/Devanagari characters
 )
 ```
 
 #### Methods:
 
-**`filter_by_length()` (line 10)**
+**`filter_by_length()` (line 11)**
 Filters texts based on character length.
 
 ```python
@@ -563,25 +895,40 @@ def filter_by_length(self, texts: List[str]) -> List[str]:
     """
 ```
 
-**`filter_by_language()` (line 15)**
-Ensures texts are primarily in Hindi.
+**`filter_by_language()` (line 16)**
+Ensures texts are primarily in Hindi using centralized validator.
 
 ```python
 def filter_by_language(self, texts: List[str]) -> List[str]:
     """
-    Filter texts with high Hindi character ratio
+    Filter texts with high Hindi character ratio using centralized validator
 
-    Devanagari Unicode Ranges:
-        - 0x0900-0x097F: Devanagari
-        - 0xA8E0-0xA8FF: Devanagari Extended
+    Uses HindiValidator.calculate_hindi_ratio() for consistency
 
     Texts with < min_hindi_ratio are removed
     """
 ```
 
+**Key Change**: Now uses centralized `HindiValidator` from utils module for consistent Hindi detection across all components.
+
 **Rationale**: Removes texts with too much English, numbers, or other scripts.
 
-**`calculate_readability_score()` (line 48)**
+**`detect_duplicates()` (line 28)**
+Detect near-duplicate texts using fuzzy matching (legacy method).
+
+```python
+def detect_duplicates(self, texts: List[str], threshold=0.9) -> List[int]:
+    """
+    Detect near-duplicate texts using difflib.SequenceMatcher
+
+    Note: For production, use TextDeduplicator class instead (faster MinHash LSH)
+
+    Returns:
+        List of duplicate indices
+    """
+```
+
+**`calculate_readability_score()` (line 46)**
 Calculates text readability based on sentence and word complexity.
 
 ```python
@@ -590,7 +937,7 @@ def calculate_readability_score(self, text: str) -> float:
     Calculate readability score
 
     Factors:
-        - Average sentence length
+        - Average sentence length (split by Hindi danda ।)
         - Average word length
 
     Returns:
@@ -603,6 +950,8 @@ def calculate_readability_score(self, text: str) -> float:
 score = 1.0 / (1.0 + (avg_sentence_length / 20.0) + (avg_word_length / 10.0))
 ```
 
+**Sentence Detection**: Splits by Hindi danda (।) first, falls back to period (.) if no danda found.
+
 ### 4. Deduplicator (`deduplicator.py`)
 
 **Class**: `TextDeduplicator`
@@ -611,7 +960,7 @@ score = 1.0 / (1.0 + (avg_sentence_length / 20.0) + (avg_word_length / 10.0))
 
 **Purpose**: Remove duplicate and near-duplicate texts to ensure corpus diversity.
 
-**Technology**: MinHash LSH (Locality-Sensitive Hashing)
+**Technology**: MinHash LSH (Locality-Sensitive Hashing) from `datasketch` library
 
 **Configuration**:
 ```python
@@ -621,9 +970,11 @@ TextDeduplicator(
 )
 ```
 
+**Note**: Default `num_perm=128` in code, though config typically uses 256. Higher values = more accurate but slower.
+
 #### Two-Pass Deduplication:
 
-**Pass 1: Exact Duplicate Detection** (line 25)
+**Pass 1: Exact Duplicate Detection** (line 11)
 ```python
 def get_text_hash(self, text: str) -> str:
     """Generate MD5 hash for exact duplicate detection"""
@@ -633,7 +984,7 @@ def get_text_hash(self, text: str) -> str:
 - O(n) time complexity
 - Removes identical texts
 
-**Pass 2: Fuzzy Duplicate Detection** (line 36)
+**Pass 2: Fuzzy Duplicate Detection** (line 15)
 ```python
 def get_minhash(self, text: str) -> MinHash:
     """Generate MinHash for fuzzy duplicate detection"""
@@ -647,18 +998,102 @@ def get_minhash(self, text: str) -> MinHash:
 - Detects near-duplicates (similarity ≥ threshold)
 - Efficient for large corpora
 
+**`deduplicate_corpus()` (line 23)**
+Main deduplication method with LSH index reset.
+
+```python
+def deduplicate_corpus(self, texts: List[str]) -> Tuple[List[str], List[int]]:
+    """
+    Remove duplicates and return cleaned corpus with indices
+
+    Returns:
+        Tuple of (deduplicated_texts, removed_indices)
+    """
+```
+
 **Algorithm**:
-1. Compute hash for each text
-2. Track exact duplicates via hash collisions
-3. For non-duplicates:
-   - Compute MinHash signature
+1. **Reset LSH Index**: Clears index to avoid key collisions from previous runs
+2. **Exact Deduplication**: Compute MD5 hash for each text, track collisions
+3. **Fuzzy Deduplication**:
+   - Skip texts marked as exact duplicates
+   - Compute MinHash signature for remaining texts
    - Query LSH index for similar texts
-   - If no similar texts found, add to corpus
+   - If no similar texts found, add to index and keep text
    - Otherwise, mark as duplicate
+4. **Return Results**: Deduplicated texts and list of removed indices
+
+**Key Change**: LSH index is reset at the start of each deduplication run to prevent key collisions.
 
 **Result**: Corpus with no exact or near-duplicate texts
 
-### 5. Data Mixer (`data_mixer.py`)
+### 5. Base Downloader (`base_downloader.py`)
+
+**Class**: `BaseDownloader` (Abstract Base Class)
+
+**Location**: `src/data_processing/downloaders/base_downloader.py:25`
+
+**Purpose**: Provides common interface and shared functionality for all data source downloaders.
+
+**Key Feature**: All downloader classes (IndicCorpDownloader, WikiDownloader, IndicDialogueLoader, etc.) inherit from this base class for consistency.
+
+#### Shared Methods:
+
+**`process_and_cache()` (line 69)**
+Complete pipeline: download → sample → calculate stats → cache.
+
+```python
+def process_and_cache(
+    self,
+    max_samples: Optional[int] = None,
+    save_stats: bool = True,
+    save_sample_text: bool = True,
+    sample_text_size: int = 100,
+    **download_kwargs
+) -> Path:
+    """
+    Complete pipeline: download -> sample -> calculate stats -> cache.
+
+    This is a convenience method that handles the full workflow.
+
+    Args:
+        max_samples: Maximum number of samples to keep (None = all)
+        save_stats: Whether to calculate and save statistics
+        save_sample_text: Whether to save a sample text file for inspection
+        sample_text_size: Number of texts to include in sample file
+        **download_kwargs: Additional arguments to pass to download()
+
+    Returns:
+        Path to the cached pickle file
+    """
+```
+
+**Process**:
+1. Call subclass's `download()` method
+2. Sample if `max_samples` specified
+3. Calculate corpus statistics (word/character counts, length distributions)
+4. Save to pickle file (`.pkl`)
+5. Save metadata (`.json`)
+6. Save sample text file (`.txt`)
+
+**Abstract Methods** (must be implemented by subclasses):
+- `download(**kwargs) -> List[str]`: Download/load data from source
+- `get_source_info() -> Dict[str, Any]`: Return source metadata
+
+**Utilities Used**:
+- Uses centralized utilities from `src/data_processing/utils/`:
+  - `save_pickle()` / `load_pickle()`: File I/O
+  - `calculate_corpus_stats()`: Statistics calculation
+  - `generate_metadata()` / `save_metadata()`: Metadata handling
+  - `sample_texts()`: Random sampling
+  - `configure_logger()`: Logging
+
+**Benefits**:
+- Consistent interface across all downloaders
+- Reduces code duplication
+- Automatic metadata and statistics generation
+- Standardized output format
+
+### 6. Data Mixer (`data_mixer.py`)
 
 **Location**: `src/data_processing/data_mixer.py`
 
@@ -751,6 +1186,8 @@ class TextDataset(Dataset):
 
 ## Complete Pipeline Example
 
+### New Pipeline (Recommended)
+
 ```python
 from src.data_processing.corpus_builder import CorpusBuilder
 from src.utils.experiment_config import ExperimentConfig
@@ -761,25 +1198,32 @@ config = ExperimentConfig.load_config('configs/base_config.yaml')
 # Create corpus builder
 corpus_builder = CorpusBuilder(config)
 
-# Step 1: Collect raw data
-raw_data = corpus_builder.collect_all_data()
-# Output: data/raw/raw_corpus.pkl
+# Step 1: Collect raw data (with smart caching)
+raw_data = corpus_builder.collect_all_data(force_redownload=False)
+# Output: data/raw/{indiccorp,wikipedia,indicdialogue,childrens_stories}.pkl
+# Automatically uses cache if available
 
-# Step 2: Process and filter
-processed_data = corpus_builder.process_and_filter(raw_data)
-# - Cleans text
-# - Filters by length and language
-# - Deduplicates
-# - Limits to max_tokens
+# Step 2: Process and filter (per-source, preserving source info)
+processed_data = corpus_builder.process_and_filter(raw_data, preserve_sources=True)
+# - Cleans text per source
+# - Filters by length and language per source
+# - Deduplicates within each source
+# - Tracks statistics with DataProvenanceTracker
 
-# Step 3: Create splits
-splits = corpus_builder.create_splits(processed_data)
+# Step 3: Create balanced splits with separate word limits (NEW METHOD)
+splits = corpus_builder.create_balanced_splits_with_limits(processed_data)
 # Output: {'train': [...], 'val': [...], 'test': [...]}
+# - Maintains source distribution across splits
+# - Applies global deduplication (no text in multiple splits)
+# - Respects train/val/test word limits from config
+# - Memory-optimized with index-based shuffling
 
 # Step 4: Save splits
 corpus_builder.save_splits(splits)
 # Output: data/splits/{train,val,test}.pkl
+#         data/splits/{train,val,test}.txt (first 100 samples)
 #         data/splits/metadata.json
+#         results/data_processing/data_provenance_report.json
 
 # Later: Load splits
 splits = corpus_builder.load_splits()
@@ -791,6 +1235,33 @@ train_dataloader = corpus_builder.create_dataloader(
     'train'
 )
 ```
+
+### Legacy Pipeline (Deprecated)
+
+```python
+# Step 2: Process and filter (combined, for legacy split creation)
+processed_data = corpus_builder.process_and_filter(raw_data, preserve_sources=False)
+# Returns: {'combined': [...]}
+
+# Step 3: Create splits (legacy method)
+splits = corpus_builder.create_splits(processed_data['combined'])
+# Simple ratio-based splitting (80/10/10)
+# Does not maintain source distribution
+
+# Step 4: Save splits
+corpus_builder.save_splits(splits)
+```
+
+### Key Differences:
+
+| Feature | New Pipeline | Legacy Pipeline |
+|---------|-------------|-----------------|
+| Split Method | `create_balanced_splits_with_limits()` | `create_splits()` |
+| Source Balance | ✅ Maintained across splits | ❌ Lost after mixing |
+| Word Limits | ✅ Separate per split | ❌ Combined max_words |
+| Memory Usage | ✅ Optimized (index-based) | ❌ Higher (data copying) |
+| Provenance Tracking | ✅ Detailed per-source stats | ❌ Limited |
+| Status | **Recommended** | Deprecated |
 
 ## Data Quality Metrics
 
