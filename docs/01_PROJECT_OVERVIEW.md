@@ -2,7 +2,7 @@
 
 ## Project Summary
 
-The Hindi BabyLM project implements a comprehensive framework for training data-efficient language models for Hindi, a morphologically rich language. This project is part of the BabyLM challenge, which focuses on training language models with developmentally plausible amounts of data (approximately 10 million tokens).
+The Hindi BabyLM project implements a comprehensive framework for training data-efficient language models for Hindi, a morphologically rich language. This project is part of the BabyLM challenge, which focuses on training language models with developmentally plausible amounts of data (approximately 10 and 100 million tokens).
 
 ## Motivation
 
@@ -15,9 +15,10 @@ Traditional language models require massive amounts of training data (billions t
 
 ## Key Research Questions
 
-1. **Tokenization Strategy**: Which tokenization method (SentencePiece, WordPiece, BPE) best preserves morphological information in Hindi?
-2. **Model Architecture**: What architecture (GPT-style autoregressive, BERT-style masked LM, or hybrid) performs best with limited Hindi data?
+1. **Tokenization Strategy**: Which tokenization method (Unigram, BPE, Wordpiece, Character-level, Character-Bigram) best preserves morphological information in Hindi?
+2. **Model Architecture**: What architecture (GPT-style autoregressive, DeBERTa-style masked LM with disentangled attention) performs best with limited Hindi data?
 3. **Data Quality vs Quantity**: What types of text data are most valuable for learning Hindi linguistic competence?
+4. **Vocab Size impact**: What's the optimal vocab size for Hindi and does hindi benefits from a larger vocab size, given its rich morpholgy?  
 
 ## System Architecture
 
@@ -26,44 +27,45 @@ Traditional language models require massive amounts of training data (billions t
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     DATA COLLECTION                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
-│  │  IndicCorp   │  │  Wikipedia   │  │ Children's Books│   │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬────────┘   │
-│         │                 │                    │             │
-└─────────┼─────────────────┼────────────────────┼─────────────┘
-          │                 │                    │
-          └─────────────────┴────────────────────┘
+│  ┌──────────┐ ┌──────────┐ ┌───────────┐ ┌──────────────┐  │
+│  │IndicCorp │ │Wikipedia │ │IndicDialogue│ │Children's   │  │
+│  │ (HF)     │ │  (HF)    │ │(Subtitles)│ │    Books     │  │
+│  └────┬─────┘ └────┬─────┘ └─────┬─────┘ └──────┬───────┘  │
+│       │            │              │               │          │
+└───────┼────────────┼──────────────┼───────────────┼──────────┘
+        │            │              │               │
+        └────────────┴──────────────┴───────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
-│                   DATA PROCESSING                            │
+│                   DATA PROCESSING                           │
 │  • Text Cleaning & Normalization                            │
-│  • Language Detection                                        │
+│  • Language Detection                                       │
 │  • Quality Filtering (length, readability)                  │
 │  • Deduplication (exact & fuzzy matching)                   │
 │  • Token Limiting (~10M tokens)                             │
-│  • Train/Val/Test Splitting (80/10/10)                      │
+│  • Train/Val/Test Splitting (80/10/10) / User defined limits│                 
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
 │                      TOKENIZATION                            │
 │  ┌─────────────────┐ ┌─────────────┐ ┌──────────────┐      │
-│  │ SentencePiece   │ │ WordPiece   │ │     BPE      │      │
-│  │ (Unigram LM)    │ │ (BERT-style)│ │  (Byte-Pair) │      │
+│  │ SentencePiece   │ │  Character  │ │Char-Bigram   │      │
+│  │ (Unigram/BPE)   │ │  (UACT)     │ │   (HCBT)     │      │
 │  └─────────────────┘ └─────────────┘ └──────────────┘      │
-│  • Vocabulary Size: 32,000 tokens                           │
+│  • Vocabulary Size: 128-32K tokens (depends on strategy)   │
 │  • Morphological Preservation Analysis                      │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
 │                    MODEL ARCHITECTURE                        │
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────┐    │
-│  │   GPT-2     │  │    BERT      │  │  Hybrid Model   │    │
-│  │ (Causal LM) │  │ (Masked LM)  │  │ (GPT + BERT)    │    │
-│  └─────────────┘  └──────────────┘  └─────────────────┘    │
-│  • Hidden Size: 768                                         │
-│  • Layers: 12                                               │
-│  • Attention Heads: 12                                      │
-│  • Parameters: ~110M                                        │
+│  ┌──────────────────┐  ┌─────────────────────────────┐     │
+│  │     GPT-2        │  │        DeBERTa V2           │     │
+│  │  (Causal LM)     │  │ (Masked LM + Disentangled)  │     │
+│  └──────────────────┘  └─────────────────────────────┘     │
+│  • Model Sizes: Tiny (50M), Small (110M), Medium (350M)    │
+│  • Hidden Size: 768 (Small), 1024 (Medium)                 │
+│  • Layers: 12 (Small), 24 (Medium)                         │
+│  • Attention: Causal (GPT) / Disentangled (DeBERTa)        │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
@@ -78,13 +80,13 @@ Traditional language models require massive amounts of training data (billions t
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
 │                       EVALUATION                             │
-│  ┌────────────────┐ ┌───────────────┐ ┌─────────────────┐  │
-│  │   IndicGLUE    │ │  MultiBLiMP   │ │ Morphological   │  │
-│  │  (NLP Tasks)   │ │  (Syntax)     │ │    Probes       │  │
-│  └────────────────┘ └───────────────┘ └─────────────────┘  │
-│  • Classification, NER, QA                                  │
-│  • Grammatical Acceptability                                │
-│  • Case Marking, Agreement, Word Order                      │
+│  ┌────────────────────────┐ ┌───────────────────────────┐  │
+│  │     IndicGLUE          │ │      MultiBLiMP           │  │
+│  │    (8 NLP Tasks)       │ │ (5 Phenomena, 1,447 Pairs)│  │
+│  └────────────────────────┘ └───────────────────────────┘  │
+│  • Classification, Sentiment, QA, NLI                       │
+│  • Subject-Verb/Predicate Agreement (Number, Gender, Person)│
+│  • Perplexity-based Grammatical Acceptability Testing      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -103,25 +105,30 @@ hindi-babylm/
 ├── src/                         # Source code
 │   ├── data_processing/         # Data collection & processing
 │   │   ├── corpus_builder.py           # Main corpus building pipeline
-│   │   ├── indiccorp_downloader.py     # IndicCorp dataset handler
-│   │   ├── wiki_scraper.py             # Wikipedia scraper
+│   │   ├── downloaders/
+│   │   │   ├── indiccorp_downloader.py # IndicCorp dataset handler
+│   │   │   ├── wiki_downloader.py      # Wikipedia downloader (HuggingFace)
+│   │   │   ├── indicdialogue_loader.py # IndicDialogue movie subtitles
+│   │   │   └── base_downloader.py      # Base class for downloaders
 │   │   ├── childrens_books.py          # Children's literature collection
 │   │   ├── text_cleaner.py             # Text normalization
 │   │   ├── quality_filter.py           # Quality filtering
 │   │   ├── deduplicator.py             # Deduplication logic
-│   │   ├── data_mixer.py               # Data mixing strategies
 │   │   └── corpus_analyzer.py          # Corpus statistics
 │   │
 │   ├── tokenization/            # Tokenization experiments
 │   │   ├── tokenizer_factory.py        # Factory for creating tokenizers
 │   │   ├── sentencepiece_tokenizer.py  # SentencePiece implementation
+│   │   ├── character_tokenizer.py      # Character-level tokenizer (UACT)
+│   │   ├── character_bigram_tokenizer.py # Character-bigram tokenizer (HCBT)
 │   │   ├── tokenizer_comparison.py     # Tokenizer benchmarking
 │   │   └── morphological_eval.py       # Morphological analysis
 │   │
 │   ├── models/                  # Model architectures
 │   │   ├── model_factory.py            # Factory for creating models
 │   │   ├── gpt_model.py                # GPT-2 style model
-│   │   └── bert_model.py               # BERT style model
+│   │   ├── deberta_model.py            # DeBERTa V2 style model
+│   │   └── classification_models.py    # Classification adapters
 │   │
 │   ├── training/                # Training pipeline
 │   │   ├── trainer.py                  # Training loop
@@ -129,9 +136,15 @@ hindi-babylm/
 │   │
 │   ├── evaluation/              # Evaluation framework
 │   │   ├── evaluation_manager.py       # Evaluation orchestration
-│   │   ├── indicglue_evaluator.py      # IndicGLUE benchmarks
-│   │   ├── multiblimp_evaluator.py     # MultiBLiMP syntax tests (14 phenomena)
-│   │   └── morphological_probes.py     # Morphological probing (10 tasks, layer-wise)
+│   │   ├── indicglue_evaluator.py      # IndicGLUE benchmarks (8 tasks)
+│   │   ├── multiblimp_evaluator.py     # MultiBLiMP syntax tests (5 phenomena, 1,447 pairs)
+│   │   ├── indicglue/                  # IndicGLUE sub-components
+│   │   │   ├── task_registry.py        # Task configurations
+│   │   │   ├── fine_tuning_manager.py  # Fine-tuning management
+│   │   │   └── ...                     # Other IndicGLUE components
+│   │   ├── evaluation_cache.py         # Evaluation caching
+│   │   ├── comparative_analysis.py     # Cross-model comparison
+│   │   └── metrics_utils.py            # Metrics computation
 │   │
 │   ├── analysis/                # Results analysis tools (Phase 2)
 │   │   ├── results_analyzer.py         # Statistical analysis & LaTeX tables
@@ -143,37 +156,28 @@ hindi-babylm/
 │
 ├── data/                        # Data storage
 │   ├── raw/                     # Raw downloaded data
-│   ├── processed/               # Processed datasets
 │   ├── splits/                  # Train/validation/test splits
 │   └── corpus_statistics.json  # Corpus analysis results (Phase 2)
 │
-├── tokenizers/                  # Trained tokenizers
-├── models/                      # Model checkpoints
 ├── results/                     # Experiment results
 │   └── [experiment_name]/
+│       ├── tokenizers/                  # Trained tokenizers
+│       ├── models/                      # Model checkpoints
 │       ├── metadata.json               # Experiment metadata
 │       ├── config.yaml                 # Configuration snapshot
 │       ├── training_summary.json       # Training metrics
 │       ├── evaluation_results.json     # Evaluation results
-│       └── checkpoints/                # Model checkpoints
 │
-├── notebooks/                   # Jupyter notebooks (Phase 2)
+├── notebooks/                   # Jupyter notebooks
 │   ├── 01_data_exploration.ipynb       # Corpus analysis
-│   └── 02_results_analysis.ipynb       # Results visualization
+│   ├── 02_results_analysis.ipynb       # Results visualization
+│   └── finetuning.ipynb                # Fine-tuning Nb from indicBert team (Broken / Deprecated Code)
 │
-├── figures/                     # Generated figures (Phase 2)
-│   ├── training_curves.png
-│   ├── indicglue_comparison.png
-│   ├── multiblimp_comparison.png
-│   └── morphological_probes_comparison.png
+├── figures/                     # Generated figures
 │
-├── tables/                      # LaTeX tables (Phase 2)
-│   ├── indicglue_results.tex
-│   ├── multiblimp_results.tex
-│   └── probes_results.tex
+├── tables/                      # LaTeX tables 
 │
-├── reports/                     # Generated reports (Phase 2)
-│   └── [experiment_name]_report.md
+├── reports/                     # Generated reports
 │
 └── docs/                        # Documentation (this directory)
     ├── 01_PROJECT_OVERVIEW.md
@@ -183,99 +187,96 @@ hindi-babylm/
     ├── 05_TRAINING.md
     ├── 06_EVALUATION.md
     ├── 07_CONFIGURATION.md
-    ├── 08_ANALYSIS_AND_VISUALIZATION.md    # Phase 2
-    ├── 09_JUPYTER_NOTEBOOKS.md             # Phase 2
-    └── 10_THESIS_INTEGRATION.md            # Phase 2
+    ├── 08_ANALYSIS_AND_VISUALIZATION.md
+    ├── 08b_TOKENIZER_EVALUATION.md
+    ├── 08c_JUPYTER_NOTEBOOKS.md
 ```
 
 ## Core Components
 
 ### 1. Data Processing Pipeline (`src/data_processing/`)
-Handles all data collection, cleaning, filtering, and preparation tasks.
+Handles all data collection, cleaning, filtering, and preparation tasks from 4 data sources.
 
 **Key Classes:**
 - `CorpusBuilder`: Orchestrates the entire data pipeline
-- `QualityFilter`: Applies quality checks to text
-- `TextDeduplicator`: Removes duplicate content
-- `DataMixer`: Combines multiple data sources
-- `CorpusAnalyzer`: Statistical analysis of corpus (Phase 2)
+- `BaseDownloader`: Abstract base class for downloaders
+- `IndicCorpDownloader`: HuggingFace IndicCorp dataset handler
+- `WikiDownloader`: Wikipedia Hindi articles (HuggingFace)
+- `IndicDialogueLoader`: Movie/TV subtitles (IndicDialogue dataset)
+- `QualityFilter`: Applies quality checks to text (length, language detection)
+- `TextDeduplicator`: Removes duplicate content (MinHash LSH algorithm)
+- `CorpusAnalyzer`: Statistical analysis of corpus
 
 ### 2. Tokenization Module (`src/tokenization/`)
 Implements and compares different tokenization strategies for Hindi.
 
 **Key Classes:**
 - `TokenizerFactory`: Creates tokenizers based on configuration
-- `HindiSentencePieceTokenizer`: SentencePiece wrapper
+- `HindiSentencePieceTokenizer`: SentencePiece wrapper (implements BPE/Unigram/Wordpiece tokenizers)
+- `DevanagariCharacterTokenizer`: Pure character-level tokenizer (UACT)
+- `CharacterBigramTokenizer`: Hybrid character-bigram tokenizer (HCBT)
 - `TokenizerComparison`: Benchmarking tools
 - `MorphologicalEvaluator`: Morphological preservation analysis
 
 ### 3. Model Architectures (`src/models/`)
-Implements various transformer-based model architectures with advanced features.
+Implements transformer-based model architectures for Hindi language modeling.
 
 **Key Classes:**
 - `ModelFactory`: Creates models based on configuration
 - `HindiGPTModel`: GPT-2 style autoregressive model
-- **`EnhancedGPT`** (Phase 1): Advanced GPT with configurable position encodings
-- **`PositionEncodings`** (Phase 1): Multiple position encoding types
-  - Sinusoidal (original Transformer)
-  - Learned (GPT-2 style)
-  - RoPE (Rotary Position Embedding)
-  - ALiBi (Attention with Linear Biases)
-  - Relative Position Bias (T5-style)
-- `HindiBERTModel`: BERT style masked language model
-- `HybridGPTBERTModel`: Combined architecture
+- `HindiDeBERTaModel`: DeBERTa V2 style model with disentangled attention
+- `ClassificationModelForSequenceClassification`: Adapter for classification tasks
+- `ClassificationModelForMultipleChoice`: Adapter for multiple-choice tasks
 
-**Model Sizes Available** (Phase 1):
-- Tiny: 50M parameters (6 layers, 512 hidden)
-- Small: 110M parameters (12 layers, 768 hidden)
-- Medium: 350M parameters (24 layers, 1024 hidden)
+**Model Sizes Available**:
+
+**GPT-2 Models** (Causal Language Modeling):
+- Tiny: 50M parameters (6 layers, 512 hidden, 8 heads)
+- Small: 110M parameters (12 layers, 768 hidden, 12 heads)
+- Medium: 350M parameters (24 layers, 1024 hidden, 16 heads)
+
+**DeBERTa Models** (Masked Language Modeling):
+- Tiny: 22M parameters (6 layers, 384 hidden)
+- Small: 86M parameters (12 layers, 768 hidden)
+- Base: 86M parameters (12 layers, 768 hidden)
+- Large: 304M parameters (24 layers, 1024 hidden)
 
 ### 4. Training Pipeline (`src/training/`)
-Enhanced training pipeline with curriculum learning and advanced optimization.
+Advanced training pipeline with mixed precision and optimization features.
 
 **Key Classes:**
-- **`HindiLanguageModelTrainer`** (Enhanced Phase 1): Main training loop with:
-  - Multiple optimizer support (AdamW, Adam, SGD)
-  - LR schedulers (Linear warmup, Cosine, Constant)
+- **`HindiLanguageModelTrainer`**: Main training loop with:
+  - Multiple optimizer support (AdamW, Adam, SGD, Adafactor)
+  - LR schedulers (Cosine with warmup, Linear, Constant)
   - Mixed precision training (FP16/BF16)
   - Gradient accumulation
   - Early stopping
   - Comprehensive checkpointing
-- **`CurriculumStrategies`** (Phase 1): 5 curriculum learning strategies
-  - Morphological complexity-based
-  - Length-based
-  - Frequency-based
-  - Combined multi-factor
-  - Dynamic difficulty
-- **`CurriculumScheduler`** (Phase 1): 5 progression schedules
-  - Linear
-  - Square root (sqrt)
-  - Exponential
-  - Step-wise
-  - Performance-based
-- `DataLoader`: Data loading utilities with curriculum support
+  - Weights & Biases integration
+  - Memory optimization
+- `DataLoader`: Data loading utilities for efficient batching
 
 ### 5. Evaluation Framework (`src/evaluation/`)
-Comprehensive multi-dimensional evaluation with detailed linguistic analysis.
+Comprehensive evaluation with NLP tasks and syntactic competence testing.
 
 **Key Classes:**
 - `EvaluationManager`: Orchestrates all evaluations
-- `IndicGLUEEvaluator`: NLP task benchmarking (6 tasks)
-- **`MultiBLiMPEvaluator`** (Enhanced): Syntactic competence testing
-  - **14 linguistic phenomena** (updated)
-  - Agreement: number, person, gender, honorific
-  - Case marking: ergative, accusative, dative
-  - Structural: word order, negation, binding, control
-  - **70+ minimal pairs** with perplexity-based evaluation
-- **`MorphologicalProbe`** (Enhanced): Morphological understanding tests
-  - **10 probe tasks** (updated)
-  - Case, number, gender, tense, person
-  - Aspect, mood, voice, honorific, definiteness
-  - **Layer-wise probing** (all 12 layers + embedding)
-  - Linear classifier methodology for interpretability
+- `IndicGLUEEvaluator`: NLP task benchmarking (8 tasks)
+  - Modular architecture with TaskRegistry, DataLoaderFactory, EvaluationStrategies
+  - Optional fine-tuning with FineTuningManager
+  - Evaluation caching (30-day TTL)
+  - Bootstrap confidence intervals
+- **`MultiBLiMPEvaluator`**: Syntactic competence testing
+  - **5 linguistic phenomena** from HuggingFace dataset `jumelet/multiblimp`
+  - Subject-Verb Agreement: Number (407 pairs), Gender (419 pairs), Person (412 pairs)
+  - Subject-Predicate Agreement: Number (100 pairs), Gender (109 pairs)
+  - **1,447 total minimal pairs** with perplexity-based evaluation
+- `EvaluationCache`: Hash-based caching system
+- `MetricsAggregator`: Bootstrap confidence intervals and statistical testing
+- `ComparativeAnalyzer`: Cross-model comparison with visualizations
 
-### 6. Analysis and Visualization (`src/analysis/`) - **Phase 2**
-Publication-ready analysis tools for thesis integration.
+### 6. Analysis and Visualization (`src/analysis/`)
+Publication-ready analysis tools.
 
 **Key Classes:**
 - **`ResultsAnalyzer`**: Statistical analysis and comparison
@@ -285,28 +286,24 @@ Publication-ready analysis tools for thesis integration.
   - Evaluation comparison plots
   - **LaTeX table generation** for thesis
   - Markdown report generation
-- **`ThesisPlotter`**: Publication-quality visualizations
-  - Consistent thesis formatting
-  - 10+ specialized plot types
-  - Layer-wise probe visualization
-  - Curriculum progression plots
-  - High-resolution export (300 DPI)
-  - Multiple format support (PNG, PDF, SVG)
 
-### 7. Jupyter Notebooks (`notebooks/`) - **Phase 2**
+### 7. Jupyter Notebooks (`notebooks/`)
 Interactive data exploration and results analysis.
 
 **Notebooks:**
-- **`01_data_exploration.ipynb`**: Corpus analysis
-  - Length distributions, character analysis
-  - Word frequency, morphological markers
-  - Data quality assessment
-- **`02_results_analysis.ipynb`**: Results visualization
-  - Training curve comparison
-  - Evaluation metric analysis
-  - Statistical significance testing
-  - Thesis figure generation
-
+- **`01_data_exploration.ipynb`**: Comprehensive corpus analysis
+  - Font configuration for Hindi/Devanagari display
+  - 10 analysis sections: basic stats, distributions, character analysis, word-level analysis
+  - Morphological analysis, linguistic phenomena detection
+  - Data quality assessment, cross-source comparison
+- **`02_results_analysis.ipynb`**: Experimental results visualization
+  - Multi-experiment loading and comparison
+  - Training curve and dynamics analysis (4-panel plots)
+  - IndicGLUE and MultiBLiMP detailed analysis
+  - Statistical significance testing (t-test, Wilcoxon, effect size)
+  - LaTeX table generation for thesis
+  - Confusion matrices and comparative visualizations
+- **`finetuning.ipynb`**: Fine-tuning Notebook from indicbert team to fine tune the provided indicbert model on their HF and github repositories. However, the code is written in **TF 1.15** and is incompatible with current **TF 2.x** versions. 
 ### 8. Configuration System (`src/utils/`)
 Flexible configuration management for experiments.
 
@@ -363,20 +360,21 @@ All hyperparameters and settings are specified in YAML configuration files, enab
 ## Workflow: From Data to Evaluation
 
 ### Stage 1: Data Collection and Processing
-1. Download IndicCorp Hindi dataset
-2. Scrape Hindi Wikipedia articles
-3. Collect children's literature
-4. Clean and normalize text
-5. Apply quality filters
-6. Deduplicate corpus
-7. Limit to ~10M tokens
-8. Create train/val/test splits
+1. Download IndicCorp Hindi dataset (HuggingFace)
+2. Download Hindi Wikipedia articles (HuggingFace)
+3. Download IndicDialogue movie/TV subtitles
+4. Collect children's literature
+5. Clean and normalize text (Unicode normalization)
+6. Apply quality filters (length, language detection, word count)
+7. Deduplicate corpus (MinHash LSH with 0.8 similarity threshold)
+8. Create balanced train/val/test splits (maintain source ratios) 
+9. Limit to target token counts (configurable per split)
 
-**Output**: Processed text files ready for tokenization
+**Output**: Processed splits (train.pkl, val.pkl, test.pkl) ready for tokenization
 
 ### Stage 2: Tokenization
 1. Load training text
-2. Train tokenizer (SentencePiece/WordPiece/BPE)
+2. Train tokenizer (Unigram/WordPiece/BPE)
 3. Evaluate morphological preservation
 4. Save trained tokenizer
 
@@ -401,9 +399,8 @@ All hyperparameters and settings are specified in YAML configuration files, enab
 1. Load trained model and tokenizer
 2. Run IndicGLUE benchmarks
 3. Run MultiBLiMP syntax tests
-4. Run morphological probes
-5. Compile results and statistics
-6. Generate evaluation report
+4. Compile results and statistics
+5. Generate evaluation report
 
 **Output**: Comprehensive evaluation results
 
@@ -443,96 +440,103 @@ python main.py --config configs/base_config.yaml --stage eval --experiment_name 
 
 ## Project Phases
 
-### Phase 1: Advanced Training and Evaluation (Completed)
+### Phase 1: Core Implementation (Completed)
 
-**Objectives**: Enhance model architectures and training strategies for better Hindi language learning.
+**Objectives**: Build comprehensive framework for data-efficient Hindi language modeling.
 
-**Key Additions**:
-1. **Enhanced Model Architectures**:
-   - 5 position encoding types (Sinusoidal, Learned, RoPE, ALiBi, Relative)
-   - 3 model size configurations (50M, 110M, 350M parameters)
-   - Advanced features: Gradient checkpointing, RMS Norm, Flash Attention, SwiGLU
+**Key Implementations**:
+1. **Data Processing Pipeline**:
+   - 4 data sources: IndicCorp (HuggingFace), Wikipedia, IndicDialogue, Children's Books
+   - BaseDownloader abstract class for consistent interfaces
+   - Quality filtering, deduplication (MinHash LSH), balanced splitting
+   - Corpus analysis and statistics
 
-2. **Curriculum Learning Framework**:
-   - 5 curriculum strategies (morphological, length, frequency, combined, dynamic)
-   - 5 progression schedules (linear, root, exponential, step, performance-based)
-   - Automatic difficulty scoring and sample ranking
+2. **Tokenization Strategies**:
+   - SentencePiece (Unigram LM and BPE modes)
+   - Pure Character tokenizer (UACT) for maximum morphological preservation
+   - Character-Bigram tokenizer (HCBT) for balanced compression
+   - Comprehensive morphological evaluation framework
+   - Tokenizer comparison tools
 
-3. **Enhanced Training Pipeline**:
-   - Multiple optimizer options (AdamW, Adam, SGD)
-   - 3 LR schedulers with warmup (Linear, Cosine, Constant)
+3. **Model Architectures**:
+   - GPT-2 models (Tiny/Small/Medium: 50M/110M/350M parameters)
+   - DeBERTa V2 models (Tiny/Small/Base/Large: 22M/86M/86M/304M parameters)
+   - Classification adapters for downstream tasks
+   - ModelFactory for easy instantiation
+
+4. **Training Pipeline**:
+   - HindiLanguageModelTrainer with multiple optimizers (AdamW, Adam, SGD, Adafactor)
+   - LR schedulers with warmup (Cosine, Linear, Constant)
    - Mixed precision training (FP16/BF16)
-   - Gradient accumulation for larger effective batch sizes
-   - Early stopping with configurable patience
+   - Gradient accumulation, early stopping, checkpointing
+   - Weights & Biases integration
 
-4. **Comprehensive Evaluation**:
-   - **MultiBLiMP**: Expanded to 14 linguistic phenomena (70+ minimal pairs)
-   - **Morphological Probes**: 10 probe tasks with layer-wise analysis
-   - Perplexity-based syntactic evaluation
-   - Linear probing for morphological competence
-
-**Files Added**:
-- `src/models/enhanced_gpt.py` (526 lines)
-- `src/models/position_encodings.py` (440 lines)
-- `src/training/curriculum_strategies.py` (502 lines)
-- `src/training/curriculum_scheduler.py` (485 lines)
-- Enhanced `src/training/trainer.py` (586 lines)
-- Enhanced `src/evaluation/multiblimp_evaluator.py` (474 lines)
-- Enhanced `src/evaluation/morphological_probes.py` (668 lines)
+5. **Evaluation Framework**:
+   - **IndicGLUE**: 8 Hindi NLP tasks with modular architecture
+     - TaskRegistry, DataLoaderFactory, EvaluationStrategies
+     - Optional fine-tuning with FineTuningManager
+     - Zero-shot and fine-tuned evaluation modes
+   - **MultiBLiMP**: 5 linguistic phenomena, 1,447 minimal pairs from HuggingFace
+     - Perplexity-based grammatical acceptability testing
+     - Subject-Verb and Subject-Predicate agreement
+   - Evaluation caching (30-day TTL)
+   - Bootstrap confidence intervals (1000 samples)
+   - Comparative analysis tools
 
 ### Phase 2: Analysis and Thesis Integration (Completed)
 
 **Objectives**: Provide comprehensive analysis tools and thesis-ready outputs.
 
-**Key Additions**:
+**Key Implementations**:
 1. **Results Analysis Framework**:
-   - Multi-experiment loading and comparison
-   - Statistical significance testing (t-test, Wilcoxon, effect size, bootstrap CI)
-   - Training curve visualization
-   - Evaluation comparison plots
-   - LaTeX table generation for thesis
-   - Markdown report generation
+   - Multi-experiment loading and comparison (ResultsAnalyzer)
+   - Statistical significance testing (paired t-test, Wilcoxon, Cohen's d effect size, bootstrap CI)
+   - Training curve visualization (loss, perplexity, learning rate)
+   - Evaluation comparison plots (IndicGLUE, MultiBLiMP)
+   - LaTeX table generation for thesis (booktabs format, bold best values)
+   - Markdown report generation (experiment summaries)
 
 2. **Publication-Quality Visualization**:
-   - ThesisPlotter with consistent formatting
-   - 10+ specialized plot types
-   - Layer-wise probe visualization
-   - Curriculum progression plots
+   - ThesisPlotter with consistent formatting (matplotlib-based)
+   - 10+ specialized plot types (training curves, comparison bars, confusion matrices)
    - High-resolution export (300 DPI)
    - Multiple formats (PNG, PDF, SVG)
+   - Thesis-ready figures with proper fonts and sizing
 
 3. **Interactive Jupyter Notebooks**:
-   - Data exploration notebook (corpus statistics, distributions, quality)
-   - Results analysis notebook (comparisons, significance testing, figure generation)
+   - **`01_data_exploration.ipynb`**: 10-section corpus analysis
+     - Font configuration for Devanagari display
+     - Basic statistics, distributions, character/word analysis
+     - Morphological patterns, linguistic phenomena detection
+     - Data quality assessment, cross-source comparison
+   - **`02_results_analysis.ipynb`**: Comprehensive results visualization
+     - Multi-experiment comparison with color-coded tables
+     - 4-panel training dynamics analysis
+     - IndicGLUE per-task comparison with confidence intervals
+     - MultiBLiMP phenomenon-level analysis
+     - Statistical significance testing with p-values
+     - Confusion matrices for classification tasks
+     - LaTeX table generation (`.tex` files)
 
 4. **Thesis Integration Workflow**:
-   - Automated LaTeX table generation
-   - Figure generation with thesis formatting
-   - Comprehensive experiment reports
-   - Direct .tex and .pdf output for thesis inclusion
+   - Automated LaTeX table generation (IndicGLUE, MultiBLiMP, comparison tables)
+   - Figure generation with thesis formatting (consistent fonts, sizes, DPI)
+   - Comprehensive experiment reports (markdown format)
+   - Direct `.tex` output for thesis `\input{}` commands
 
-**Files Added**:
-- `src/analysis/results_analyzer.py` (571 lines)
-- `src/analysis/visualization_utils.py` (487 lines)
-- `notebooks/01_data_exploration.ipynb`
-- `notebooks/02_results_analysis.ipynb`
+**Output Directories Created**:
+- `figures/` - PNG/PDF/SVG figures ready for thesis (300 DPI)
+- `tables/` - LaTeX `.tex` tables (IndicGLUE, MultiBLiMP, comparisons)
+- `reports/` - Markdown experiment reports (one per experiment)
 
-**Output Directories**:
-- `figures/` - PNG/PDF figures ready for thesis
-- `tables/` - LaTeX .tex tables
-- `reports/` - Markdown experiment reports
-
-### Implementation Statistics
-
-**Total Lines of Code**:
-- Phase 1: ~3,500 lines of production code
-- Phase 2: ~2,000 lines of analysis code
-- Documentation: ~6,000 lines across 10 markdown files
-
-**Testing Coverage**:
-- Unit tests for curriculum strategies
-- Integration tests for evaluation pipelines
-- Manual validation of all probe tasks
+**Key Components**:
+- 4 data downloaders with BaseDownloader abstract class
+- 5 tokenizer implementations (SentencePiece, Character, Character-Bigram)
+- 2 model architectures (GPT-2, DeBERTa V2) with multiple size configs
+- 8 IndicGLUE tasks with modular evaluation framework
+- 1,447 MultiBLiMP minimal pairs from HuggingFace dataset
+- 10+ analysis sections in data exploration notebook
+- 14 analysis cells in results notebook
 
 ## Next Steps
 
@@ -544,20 +548,21 @@ python main.py --config configs/base_config.yaml --stage eval --experiment_name 
 
 ### For Developers
 
-1. **Add New Curriculum Strategies**: Extend `CurriculumStrategies` class
-2. **Add New Position Encodings**: Implement in `position_encodings.py`
-3. **Add New Probe Tasks**: Extend `MorphologicalProbe` class
+1. **Add New Data Sources**: Create downloader class extending `BaseDownloader`
+2. **Add New Tokenizers**: Implement in `src/tokenization/` and register in `TokenizerFactory`
+3. **Add New Model Architectures**: Implement in `src/models/` and register in `ModelFactory`
+4. **Add New Evaluation Tasks**: Add task config to `TaskRegistry` in IndicGLUE framework
 
 ### Detailed Documentation
 
 For detailed information on specific components, see:
-- [Data Processing Documentation](02_DATA_PROCESSING.md)
-- [Tokenization Documentation](03_TOKENIZATION.md)
-- [Model Architecture Documentation](04_MODELS.md) - **Updated with Phase 1**
-- [Training Pipeline Documentation](05_TRAINING.md) - **Updated with Phase 1**
-- [Evaluation Framework Documentation](06_EVALUATION.md) - **Updated with Phase 1**
-- [Configuration Guide](07_CONFIGURATION.md)
-- [Analysis and Visualization Documentation](08_ANALYSIS_AND_VISUALIZATION.md) - **Phase 2**
-- [Jupyter Notebooks Documentation](09_JUPYTER_NOTEBOOKS.md) - **Phase 2**
-- [Thesis Integration Guide](10_THESIS_INTEGRATION.md) - **Phase 2**
+- [Data Processing Documentation](02_DATA_PROCESSING.md) - Corpus building and data sources
+- [Tokenization Documentation](03_TOKENIZATION.md) - Tokenizer implementations and strategies
+- [Model Architecture Documentation](04_MODELS.md) - GPT-2 and DeBERTa model details
+- [Training Pipeline Documentation](05_TRAINING.md) - Training loop and optimization
+- [Evaluation Framework Documentation](06_EVALUATION.md) - IndicGLUE and MultiBLiMP details
+- [Configuration Guide](07_CONFIGURATION.md) - YAML configuration reference
+- [Analysis and Visualization Documentation](08_ANALYSIS_AND_VISUALIZATION.md) - ResultsAnalyzer and ThesisPlotter
+- [Tokenizer Evaluation Documentation](08b_TOKENIZER_EVALUATION.md) - Morphological evaluation and comparison
+- [Jupyter Notebooks Documentation](08c_JUPYTER_NOTEBOOKS.md) - Interactive analysis notebooks
 
