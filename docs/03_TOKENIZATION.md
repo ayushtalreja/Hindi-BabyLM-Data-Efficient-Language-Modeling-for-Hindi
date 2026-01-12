@@ -1,9 +1,11 @@
 # Tokenization for Hindi Language Models
-<!-- Updated: 2025-12-01 -->
+<!-- Updated: 2026-01-11 -->
 
 ## Overview
 
-Tokenization is a critical component for Hindi language models due to the morphological richness of the language. This module implements and compares **five tokenization strategies**: **SentencePiece**, **WordPiece**, **BPE** (Byte-Pair Encoding), **Character-Level**, and a novel **Morphology-Aware Character-Bigram** approach.
+Tokenization is a critical component for Hindi language models due to the morphological richness of the language. This module implements and compares **five tokenization strategies**: **Unigram**, **WordPiece**, **BPE** (Byte-Pair Encoding), **Character-Level**, and a novel **Morphology-Aware Character-Bigram** approach.
+
+All tokenizers implement a HuggingFace-compatible interface with `__call__` methods for seamless integration with transformers models and datasets.
 
 ## Why Tokenization Matters for Hindi
 
@@ -41,7 +43,7 @@ Hindi presents unique tokenization challenges:
 
 **Location**: `src/tokenization/tokenizer_factory.py:10`
 
-**Purpose**: Factory class for creating and managing different tokenizers.
+**Purpose**: Factory class for creating and managing different tokenizers based on configuration.
 
 **Usage**:
 ```python
@@ -50,15 +52,25 @@ from src.tokenization.tokenizer_factory import TokenizerFactory
 # Create factory with configuration
 factory = TokenizerFactory(config)
 
-# Train tokenizer on corpus
+# Train tokenizer on corpus (automatically selects type based on config)
 tokenizer = factory.create_tokenizer(training_texts)
 
-# Save tokenizer
-factory.save_tokenizer(tokenizer, experiment_name)
+# Save tokenizer to experiment directory
+save_path = 'results/my_experiment/tokenizer'
+factory.save_tokenizer(tokenizer, save_path)
 
-# Load tokenizer
-tokenizer = TokenizerFactory.load_tokenizer(experiment_name)
+# Load tokenizer (static method)
+tokenizer = TokenizerFactory.load_tokenizer('my_experiment')
+# OR with full path:
+tokenizer = TokenizerFactory.load_tokenizer('results/my_experiment/tokenizer')
 ```
+
+**Supported Tokenizer Types**:
+- `"sentencepiece"` → Creates `HindiSentencePieceTokenizer`
+- `"wordpiece"` → Creates `WordPieceTokenizerWrapper`
+- `"bpe"` → Creates `BPETokenizerWrapper`
+- `"character"` → Creates `DevanagariCharacterTokenizer`
+- `"character_bigram"` → Creates `CharacterBigramTokenizer`
 
 **Methods**:
 
@@ -81,27 +93,52 @@ def create_tokenizer(self, training_texts: List[str]):
     """
 ```
 
-#### `load_tokenizer(experiment_name)` (line 134)
+#### `save_tokenizer(tokenizer, save_path)` (line 220)
+```python
+def save_tokenizer(self, tokenizer, save_path: str):
+    """
+    Save tokenizer with metadata
+
+    Args:
+        tokenizer: The tokenizer to save
+        save_path: Directory path where tokenizer should be saved
+                  (e.g., 'results/experiment_name/tokenizer')
+
+    Saves:
+        - Tokenizer files:
+          * SentencePiece: sentencepiece.model
+          * WordPiece: wordpiece.json
+          * BPE: bpe.json
+          * Character: char_vocab.pkl
+          * Character-bigram: char_bigram_vocab.pkl
+        - tokenizer_metadata.pkl containing:
+          * tokenizer_type: Type of tokenizer
+          * vocab_size: Vocabulary size
+          * experiment_name: Name of experiment
+    """
+```
+
+#### `load_tokenizer(experiment_name)` (line 161)
 ```python
 @staticmethod
-def load_tokenizer(experiment_name: str, tokenizer_dir: str = 'tokenizers'):
+def load_tokenizer(experiment_name: str, results_dir: str = 'results'):
     """
     Load a saved tokenizer
 
     Args:
-        experiment_name: Name of experiment
-        tokenizer_dir: Directory containing tokenizers
+        experiment_name: Either an experiment name (e.g., 'my_experiment') or
+                       a full directory path (e.g., 'results/my_experiment/tokenizer')
+        results_dir: Base results directory. Defaults to 'results'.
 
     Returns:
-        Loaded tokenizer
+        Loaded tokenizer instance
 
-    Searches for:
-        1. Metadata file with experiment name
-        2. Standard tokenizer files (sentencepiece.model, etc.)
+    Automatically detects if experiment_name is a directory path or experiment name,
+    and loads tokenizer from: results/{experiment_name}/tokenizer/
     """
 ```
 
-## 1. SentencePiece Tokenizer
+## 1. SentencePiece (Unigram) Tokenizer
 
 ### Overview
 
@@ -151,7 +188,7 @@ spm.SentencePieceTrainer.train(
     model_prefix=model_prefix,
     vocab_size=32000,                # Vocabulary size
     character_coverage=0.995,        # High coverage for Hindi characters
-    model_type='bpe',                # Can be 'unigram', 'bpe', 'char', 'word'
+    model_type='unigram',                # Can be 'unigram', 'bpe', 'char', 'word'
     pad_id=0,                        # Padding token ID
     unk_id=1,                        # Unknown token ID
     bos_id=2,                        # Beginning of sentence
@@ -161,10 +198,11 @@ spm.SentencePieceTrainer.train(
 )
 ```
 
-**Key Parameter: `character_coverage`**
-- Set to 0.995 for Hindi
-- Ensures rare Devanagari characters are included
-- Balance between vocabulary size and coverage
+**Key Parameters**:
+- `character_coverage=0.995`: Ensures rare Devanagari characters are included
+- `model_type='unigram'`: Can also be 'unigram', 'char', or 'word'
+- `vocab_size=32000`: Configurable vocabulary size
+- Special tokens: Automatically uses IDs 0-3 for pad, unk, bos, eos
 
 ### Example
 
@@ -184,7 +222,38 @@ ids = tokenizer.encode(text)
 # Decoding
 decoded = tokenizer.decode(ids)
 # Output: "मैं विश्वविद्यालय जा रहा हूँ।"
+
+# HuggingFace-style interface (for model compatibility)
+encoded = tokenizer(
+    text,
+    return_tensors='pt',
+    padding=True,
+    truncation=True,
+    max_length=512
+)
+# Returns: {'input_ids': tensor(...), 'attention_mask': tensor(...)}
 ```
+
+### HuggingFace-Compatible Interface
+
+All tokenizers in this project implement a `__call__` method for HuggingFace compatibility:
+
+```python
+tokenizer(
+    text: Union[str, List[str]],
+    text_pair: Optional[Union[str, List[str]]] = None,
+    return_tensors: Optional[str] = None,  # 'pt' for PyTorch tensors
+    padding: Union[bool, str] = False,      # True, False, or 'max_length'
+    truncation: bool = False,
+    max_length: Optional[int] = None,
+    add_special_tokens: bool = False        # For character tokenizers
+)
+```
+
+**Benefits**:
+- Drop-in replacement for HuggingFace tokenizers
+- Consistent interface across all tokenizer types
+- Easy integration with HuggingFace models and datasets
 
 ### Morphological Behavior
 
@@ -221,7 +290,7 @@ decoded = tokenizer.decode(ids)
 
 ### Implementation
 
-**Created in**: `TokenizerFactory._create_wordpiece_tokenizer()` (line 58)
+**Created in**: `TokenizerFactory._create_wordpiece_tokenizer()` (line 60)
 
 ```python
 def _create_wordpiece_tokenizer(self, training_texts: List[str]):
@@ -235,8 +304,8 @@ def _create_wordpiece_tokenizer(self, training_texts: List[str]):
     # Initialize tokenizer
     tokenizer = Tokenizer(WordPiece(unk_token="[UNK]"))
 
-    # Set normalizer (NFD for Hindi)
-    tokenizer.normalizer = Sequence([NFD()])
+    # Set normalizer (NFC for Hindi)
+    tokenizer.normalizer = Sequence([NFC()])
 
     # Set pre-tokenizer (whitespace splitting)
     tokenizer.pre_tokenizer = Whitespace()
@@ -306,7 +375,7 @@ ids = tokenizer.encode(text)
 
 ### Implementation
 
-**Created in**: `TokenizerFactory._create_bpe_tokenizer()` (line 96)
+**Created in**: `TokenizerFactory._create_bpe_tokenizer()` (line 94)
 
 ```python
 def _create_bpe_tokenizer(self, training_texts: List[str]):
@@ -321,7 +390,7 @@ def _create_bpe_tokenizer(self, training_texts: List[str]):
     tokenizer = Tokenizer(BPE(unk_token="<unk>"))
 
     # Set normalizer
-    tokenizer.normalizer = Sequence([NFD()])
+    tokenizer.normalizer = Sequence([NFC()])
 
     # Set pre-tokenizer
     tokenizer.pre_tokenizer = Whitespace()
@@ -366,8 +435,9 @@ ids = tokenizer.encode(text)
 ### Overview
 
 **Algorithm**: Pure character tokenization with grapheme cluster preservation
-**Library**: Custom implementation
+**Library**: Custom implementation (extends DevanagariCharacterTokenizer)
 **Location**: `src/tokenization/character_tokenizer.py`
+**Class**: `DevanagariCharacterTokenizer` (line 16)
 
 **Advantages**:
 - **Zero OOV** (out-of-vocabulary) tokens
@@ -383,7 +453,7 @@ ids = tokenizer.encode(text)
 
 ### Implementation
 
-**Class**: `DevanagariCharacterTokenizer` (`character_tokenizer.py:16`)
+**Class**: `DevanagariCharacterTokenizer` (line 16)
 
 ```python
 class DevanagariCharacterTokenizer:
@@ -396,6 +466,13 @@ class DevanagariCharacterTokenizer:
         Args:
             preserve_grapheme_clusters: If True, preserves grapheme clusters
                                        (e.g., क + ि = कि as single unit)
+
+        The tokenizer automatically builds a vocabulary of ~200 characters including:
+        - Special tokens (7): <pad>, <unk>, <s>, </s>, <mask>, <sep>, <cls>
+        - Whitespace (3): space, newline, tab
+        - Devanagari Unicode block (128): U+0900 to U+097F
+        - ASCII digits and letters (62)
+        - Common punctuation (20+)
         """
         self.preserve_grapheme_clusters = preserve_grapheme_clusters
         self.vocab = self._build_vocabulary()
@@ -512,8 +589,9 @@ loaded_tokenizer = DevanagariCharacterTokenizer.load("tokenizers/character_token
 ### Overview
 
 **Algorithm**: Hybrid character + frequency-based bigrams with morphological boosting
-**Library**: Custom implementation (novel contribution)
+**Library**: Custom implementation (extends DevanagariCharacterTokenizer)
 **Location**: `src/tokenization/character_bigram_tokenizer.py`
+**Class**: `CharacterBigramTokenizer` (line 17)
 
 **Key Innovation**: Extends character tokenization by identifying frequent character bigrams, with **special boosting for morphologically meaningful patterns** in Hindi.
 
@@ -531,7 +609,7 @@ loaded_tokenizer = DevanagariCharacterTokenizer.load("tokenizers/character_token
 
 ### Implementation
 
-**Class**: `CharacterBigramTokenizer` (`character_bigram_tokenizer.py:17`)
+**Class**: `CharacterBigramTokenizer` (line 17)
 
 ```python
 class CharacterBigramTokenizer(DevanagariCharacterTokenizer):
@@ -569,49 +647,69 @@ class CharacterBigramTokenizer(DevanagariCharacterTokenizer):
 - `से` - Instrumental/Ablative (हाथ से)
 - `में` - Locative (घर में)
 - `पर` - Locative (मेज पर)
-- `का/के/की` - Genitive markers
+- `का`, `के`, `की` - Genitive markers
 
 **Verbal Morphology** (8 patterns):
-- `ता/ती/ते` - Habitual aspect (जाता है)
-- `गा/गी/गे` - Future tense (जाएगा)
+- `ता`, `ती`, `ते` - Habitual aspect (जाता है)
+- `गा`, `गी`, `गे` - Future tense (जाएगा)
+- `ेग` - Future tense part (part of ेगा, ेगी, ेगे)
 - `रह` - Progressive aspect (जा रहा)
 
 **Derivational Morphology**:
-- `वा` - Causative marker (पढ़वाना)
+- `वा` - Causative marker (पढ़वाना, part of वाला/वाली)
 - `पन` - Abstract noun suffix (मीठापन)
 
 **Common Verb Roots** (7 roots):
 - `पढ़` (read), `लिख` (write), `दे` (give), `ले` (take), `जा` (go), `आ` (come), `कर` (do)
 
+**Common Function Words**:
+- `है`, `हैं` - Is/are
+- `था`, `थी`, `थे` - Was/were
+- `और` - And, `या` - Or
+
 ### Training Process
 
 ```python
-def train_from_corpus(self, texts: List[str]):
+def train_bigrams(self, training_texts: List[str]):
     """
     Train bigram tokenizer on corpus.
 
     Process:
-        1. Extract character bigrams from corpus
+        1. Extract character bigrams from corpus (skipping space-adjacent and newline/tab)
         2. Count bigram frequencies
-        3. Apply morphological boosting (3x frequency) if morphological_aware=True
+        3. Apply morphological boosting (1.5x frequency) if morphological_aware=True
         4. Select top bigrams by boosted frequency
         5. Add to vocabulary
     """
     bigram_counts = Counter()
 
-    for text in texts:
+    for text in training_texts:
         chars = list(text)
         for i in range(len(chars) - 1):
-            bigram = chars[i] + chars[i+1]
+            char1, char2 = chars[i], chars[i + 1]
+
+            # Skip bigrams crossing word boundaries (space-adjacent)
+            if char1 == ' ' or char2 == ' ':
+                continue
+
+            # Skip bigrams with newlines or tabs
+            if char1 in ['\n', '\t'] or char2 in ['\n', '\t']:
+                continue
+
+            bigram = char1 + char2
             bigram_counts[bigram] += 1
 
     # Morphological boosting
     if self.morphological_aware:
-        for bigram in bigram_counts:
+        boosted_counts = {}
+        for bigram, count in bigram_counts.items():
             if bigram in self.morphological_patterns:
-                bigram_counts[bigram] *= 3  # 3x boost
+                boosted_counts[bigram] *= 1.5  # 1.5x boost (50% increase)
+            else:
+                boosted_counts[bigram] = count
+        bigram_counts = Counter(boosted_counts)
 
-    # Select top bigrams
+    # Select top bigrams above threshold
     self.bigrams = set([
         bigram for bigram, count in bigram_counts.most_common(self.target_bigrams)
         if count >= self.min_frequency
@@ -662,7 +760,7 @@ tokenizer = CharacterBigramTokenizer(
 
 # Train on corpus
 training_texts = [...]  # Your Hindi corpus
-tokenizer.train_from_corpus(training_texts)
+tokenizer.train_bigrams(training_texts)
 
 # Tokenization
 text = "लड़कों ने किताब पढ़ी।"
@@ -682,11 +780,11 @@ The morphological boosting ensures grammatically important patterns are prioriti
 
 ```python
 # Frequency before boosting:
-# "कों" (plural): 150 occurrences
+# "कों" (plural): 300 occurrences
 # "हो" (common word): 400 occurrences
 
-# After 3x morphological boost:
-# "कों": 150 * 3 = 450 (selected)
+# After 1.5x morphological boost (50% increase):
+# "कों": 300 * 1.5 = 450 (selected)
 # "हो": 400 (selected)
 
 # "कों" is now ranked higher despite lower raw frequency!
@@ -718,8 +816,6 @@ The morphological boosting ensures grammatically important patterns are prioriti
 - When morphological competence is critical
 - Research on morphologically rich languages
 
-**Recommended for Hindi BabyLM**: This is the **optimal choice** for data-efficient Hindi language modeling.
-
 ---
 
 ## Tokenizer Wrappers
@@ -728,7 +824,7 @@ To provide a consistent interface, WordPiece and BPE tokenizers are wrapped:
 
 ### WordPieceTokenizerWrapper
 
-**Location**: `src/tokenization/tokenizer_factory.py:213`
+**Location**: `src/tokenization/tokenizer_factory.py:278`
 
 ```python
 class WordPieceTokenizerWrapper:
@@ -755,15 +851,21 @@ class WordPieceTokenizerWrapper:
 
 ### BPETokenizerWrapper
 
-**Location**: `src/tokenization/tokenizer_factory.py:235`
+**Location**: `src/tokenization/tokenizer_factory.py:413`
 
 Similar interface to WordPieceTokenizerWrapper.
+
+**Key Differences**:
+- Uses GPT-style special tokens: `<pad>`, `<unk>`, `<s>`, `</s>`, `<mask>`
+- No `##` prefix for subwords
+- Combines text pairs with `</s>` separator instead of `[SEP]`
 
 ## Morphological Evaluation
 
 **Location**: `src/tokenization/morphological_eval.py`
+**Class**: `MorphologicalEvaluator` (line 4)
 
-**Purpose**: Evaluate how well tokenizers preserve morphological information.
+**Purpose**: Evaluate how well tokenizers preserve morphological information using predefined Hindi inflection and compound word patterns.
 
 ### Evaluation Metrics
 
@@ -805,8 +907,9 @@ results = evaluate_morphology(tokenizer, paradigm)
 ## Tokenizer Comparison
 
 **Location**: `src/tokenization/tokenizer_comparison.py`
+**Class**: `TokenizerComparison` (line 8)
 
-**Purpose**: Benchmark and compare different tokenization strategies.
+**Purpose**: Benchmark and compare different tokenization strategies on various metrics including compression ratio, fertility, and morphological preservation.
 
 ### Comparison Dimensions
 
@@ -870,17 +973,18 @@ results = compare_tokenizers(
 
 ### 3. Normalization
 
-**Recommended**: Unicode NFD (Canonical Decomposition)
+**Recommended**: Unicode NFC (Canonical Composition)
 
 ```python
-from tokenizers.normalizers import NFD
-tokenizer.normalizer = NFD()
+from tokenizers.normalizers import NFC
+tokenizer.normalizer = NFC()
 ```
 
 **Why**:
-- Separates base characters from diacritics
-- Consistent representation of matras
-- Better handling of variant spellings
+- Ensures consistent Unicode representation
+- Combines base characters with diacritics into single codepoints
+- Better handling of Devanagari script with matras
+- Standard normalization form for Hindi text processing
 
 ### 4. Pre-tokenization
 
@@ -914,15 +1018,20 @@ tokenizer.pre_tokenizer = Whitespace()
 
 ```yaml
 tokenization:
-  tokenizer_type: "sentencepiece"  # or "wordpiece", "bpe"
-  vocab_size: 32000
-  character_coverage: 0.995
-  model_type: "bpe"  # for SentencePiece: "bpe", "unigram", "char", "word"
+  tokenizer_type: "sentencepiece"  # Options: "sentencepiece", "wordpiece", "bpe", "character", "character_bigram"
+  vocab_size: 32000                # For character: ~200, character_bigram: ~1000, others: 8000-32000
+  tokenizer_dir: "tokenizers"      # Directory for tokenizer files
 
-  # Optional parameters
-  normalization: "nfkc"
-  split_by_whitespace: true
-  remove_accents: false  # Keep Hindi diacritics
+  # SentencePiece-specific (only used if tokenizer_type is "sentencepiece")
+  character_coverage: 0.995        # High coverage for Devanagari
+  model_type: "bpe"               # Options: "bpe", "unigram", "char", "word"
+  normalization: "nfkc"           # Unicode normalization
+
+  # Character-bigram-specific (only used if tokenizer_type is "character_bigram")
+  target_bigrams: 800             # Number of bigrams to extract
+  min_frequency: 100              # Minimum frequency threshold
+  morphological_aware: true       # Apply morphological boosting
+  preserve_grapheme_clusters: true # Preserve Devanagari grapheme clusters
 ```
 
 ### Python Configuration
@@ -931,8 +1040,8 @@ tokenization:
 from src.utils.experiment_config import ExperimentConfig
 
 config = ExperimentConfig(
-    tokenizer_type="sentencepiece",
-    vocab_size=32000,
+    tokenizer_type="character_bigram",  # or "sentencepiece", "wordpiece", "bpe", "character"
+    vocab_size=1000,                     # Vocab size varies by tokenizer type
     tokenizer_dir="tokenizers"
 )
 ```
@@ -942,14 +1051,15 @@ config = ExperimentConfig(
 ### Issue: Unknown Tokens (UNK) in Output
 
 **Causes**:
-1. Vocabulary too small
-2. Character coverage too low
-3. Text contains unseen scripts
+1. Vocabulary too small (for subword tokenizers)
+2. Character coverage too low (for SentencePiece)
+3. Text contains unseen scripts or characters
 
 **Solutions**:
-1. Increase `vocab_size`
-2. Increase `character_coverage` (for SentencePiece)
-3. Add `user_defined_symbols` for special characters
+1. Increase `vocab_size` for subword tokenizers
+2. Increase `character_coverage` to 0.995 or higher (for SentencePiece)
+3. Use character-level or character-bigram tokenizers (zero OOV)
+4. Add `user_defined_symbols` for special characters (SentencePiece)
 
 ### Issue: Poor Morphological Segmentation
 
@@ -959,9 +1069,10 @@ config = ExperimentConfig(
 3. Inappropriate pre-tokenization
 
 **Solutions**:
-1. Try SentencePiece (generally best for Hindi)
-2. Increase training corpus size
-3. Adjust pre-tokenization strategy
+1. Use character-bigram tokenizer with morphological awareness
+2. Try SentencePiece with higher character_coverage
+3. Increase training corpus size
+4. For WordPiece/BPE, ensure proper Unicode normalization (NFC)
 
 ### Issue: Inconsistent Tokenization
 
@@ -971,12 +1082,13 @@ config = ExperimentConfig(
 3. Tokenizer not deterministic
 
 **Solutions**:
-1. Apply NFD normalization
+1. Apply NFC normalization (standard for this project)
 2. Ensure UTF-8 encoding
-3. Set random seeds if applicable
+3. Use consistent Unicode normalization across all text
+4. Save and load tokenizers properly using TokenizerFactory methods
 
 ## Recommendations for Hindi
-<!-- Updated: 2025-12-01 -->
+<!-- Updated: 2026-01-11 -->
 
 Based on experiments and linguistic analysis:
 
@@ -984,12 +1096,11 @@ Based on experiments and linguistic analysis:
 |-----------|-------------|---------|
 | **Morphology** | **Character-Bigram** | Morphologically aware with explicit boosting |
 | **Low-Resource (<1M)** | Character | Zero OOV, tiny vocab |
-| **Medium-Resource (1-10M)** | **Character-Bigram** | Best balance for BabyLM |
-| **High-Resource (>10M)** | SentencePiece | Efficient with abundant data |
+| **High-Resource (>10M)** | Unigram | Efficient with abundant data |
 | **Speed** | Character | Simplest algorithm |
 | **Simplicity** | Character | Pure character-level |
 | **BERT-style** | WordPiece | Standard for masked LM |
-| **GPT-style** | SentencePiece/BPE | Standard for autoregressive |
+| **GPT-style** | BPE | Standard for autoregressive |
 | **Hindi-Specific** | **Character-Bigram** | Leverages Hindi morphology |
 
 **Overall Recommendation for Hindi BabyLM**: **Morphology-Aware Character-Bigram Tokenizer**
@@ -1008,4 +1119,3 @@ Based on experiments and linguistic analysis:
 - [Data Processing Documentation](02_DATA_PROCESSING.md)
 - [Model Architecture Documentation](04_MODELS.md)
 - [Configuration Guide](07_CONFIGURATION.md)
-- [API Reference](08_API_REFERENCE.md)
