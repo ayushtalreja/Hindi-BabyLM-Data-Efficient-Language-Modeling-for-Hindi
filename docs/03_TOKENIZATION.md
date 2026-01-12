@@ -1103,17 +1103,6 @@ Based on experiments and linguistic analysis:
 | **GPT-style** | BPE | Standard for autoregressive |
 | **Hindi-Specific** | **Character-Bigram** | Leverages Hindi morphology |
 
-**Overall Recommendation for Hindi BabyLM**: **Morphology-Aware Character-Bigram Tokenizer**
-
-**Rationale**:
-1. Optimal morphological preservation (98% vs. 70% for SentencePiece)
-2. Zero OOV rate (critical for low-resource)
-3. Moderate vocabulary (~1K vs. 32K for subword)
-4. Explicitly designed for Hindi morphology
-5. Best balance of efficiency and linguistic awareness
-
-**Alternative**: SentencePiece for comparison baseline
-
 ## Related Documentation
 
 - [Data Processing Documentation](02_DATA_PROCESSING.md)
