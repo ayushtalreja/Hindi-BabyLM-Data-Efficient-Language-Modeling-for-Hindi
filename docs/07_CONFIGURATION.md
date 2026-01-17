@@ -21,64 +21,108 @@ YAML Configuration File
 
 ## ExperimentConfig Class
 
-**Location**: `src/utils/experiment_config.py:8`
+**Location**: `src/utils/experiment_config.py:29`
 
-**Purpose**: Central configuration management using Python dataclass
+**Purpose**: Central configuration management using Python dataclass with support for model-specific configurations.
 
-### Full Configuration Schema
+### Configuration Schema
 
 ```python
 @dataclass
 class ExperimentConfig:
     # ===== Experiment Metadata =====
-    experiment_name: str = "default_experiment"
+    experiment_name: Optional[str] = None
+    experiment_description: Optional[str] = None
+    experiment_tags: Optional[List[str]] = None
 
     # ===== Directory Configuration =====
-    data_dir: str = "data"
-    model_dir: str = "models"
-    tokenizer_dir: str = "tokenizers"
-    results_dir: str = "results"
+    data_dir: Optional[str] = None
+    model_dir: Optional[str] = None
+    tokenizer_dir: Optional[str] = None
+    results_dir: Optional[str] = None
 
     # ===== Data Configuration =====
-    max_tokens: int = 10_000_000    # Total tokens (~10M for BabyLM)
-    train_ratio: float = 0.8         # Training split ratio
-    val_ratio: float = 0.1           # Validation split ratio
-    test_ratio: float = 0.1          # Test split ratio
+    max_words: Optional[int] = None           # Total words in corpus
+    max_tokens: Optional[int] = None          # Deprecated: use max_words instead
+
+    # Separate word limits for each split
+    train_word_limit: Optional[int] = None    # Words for training split
+    val_word_limit: Optional[int] = None      # Words for validation split
+    test_word_limit: Optional[int] = None     # Words for test split
+
+    train_ratio: Optional[float] = None
+    val_ratio: Optional[float] = None
+    test_ratio: Optional[float] = None
 
     # ===== Tokenization Configuration =====
-    tokenizer_type: str = "sentencepiece"  # sentencepiece, wordpiece, bpe
-    vocab_size: int = 32000                 # Vocabulary size
+    tokenizer_type: Optional[str] = None      # sentencepiece, wordpiece, bpe
+    vocab_size: Optional[int] = None
 
     # ===== Model Configuration =====
-    model_type: str = "gpt"          # gpt, bert, hybrid
-    hidden_size: int = 768           # Hidden dimension
-    num_layers: int = 12             # Number of transformer layers
-    num_heads: int = 12              # Number of attention heads
-    max_length: int = 512            # Maximum sequence length
-    dropout: float = 0.1             # Dropout probability
-    intermediate_size: int = 3072    # FFN intermediate size (4*hidden_size)
+    model_type: Optional[str] = None          # gpt, deberta
+    model_size: Optional[str] = None          # tiny, small, medium/base, large
+    hidden_size: Optional[int] = None
+    num_layers: Optional[int] = None
+    num_heads: Optional[int] = None
+    max_length: Optional[int] = None
+    dropout: Optional[float] = None
+    intermediate_size: Optional[int] = None
+
+    # Model-specific configurations
+    gpt_config: Optional[GPTModelConfig] = None
+    deberta_config: Optional[DeBERTaModelConfig] = None
 
     # ===== Training Configuration =====
-    batch_size: int = 32             # Training batch size
-    learning_rate: float = 3e-4      # Initial learning rate
-    num_epochs: int = 10             # Number of training epochs
-    weight_decay: float = 0.01       # L2 regularization
-    warmup_steps: int = 1000         # LR warmup steps
-
-    # ===== Curriculum Learning =====
-    use_curriculum: bool = False              # Enable curriculum learning
-    curriculum_strategy: str = "morphological"  # morphological, length, random
+    batch_size: Optional[int] = None
+    learning_rate: Optional[float] = None
+    num_epochs: Optional[int] = None
+    weight_decay: Optional[float] = None
+    warmup_steps: Optional[int] = None
 
     # ===== Evaluation Configuration =====
-    eval_steps: int = 500            # Evaluate every N steps
-    save_steps: int = 1000           # Save checkpoint every N steps
+    eval_steps: Optional[int] = None
+    save_steps: Optional[int] = None
+
+    # ===== Resource Configuration =====
+    num_workers: Optional[int] = None
+    pin_memory: Optional[bool] = None
+    device: Optional[str] = None
+
+    # ===== Nested Configuration Sections =====
+    sources: Optional[Dict[str, Any]] = field(default_factory=dict)
+    filtering: Optional[Dict[str, Any]] = field(default_factory=dict)
+    deduplication: Optional[Dict[str, Any]] = field(default_factory=dict)
+    train_source_ratios: Optional[Dict[str, float]] = field(default_factory=dict)
 ```
 
-### Methods
+### Model-Specific Configurations
 
-#### `load_config(path)` (line 58)
+**GPTModelConfig** (line 10):
+```python
+@dataclass
+class GPTModelConfig:
+    use_cache: Optional[bool] = None
+    scale_attn_weights: Optional[bool] = None
+    reorder_and_upcast_attn: Optional[bool] = None
+```
 
-**Purpose**: Load configuration from YAML file
+**DeBERTaModelConfig** (line 18):
+```python
+@dataclass
+class DeBERTaModelConfig:
+    position_buckets: Optional[int] = None
+    relative_attention: Optional[bool] = None
+    max_relative_positions: Optional[int] = None
+    pooler_hidden_size: Optional[int] = None
+    pooler_dropout: Optional[float] = None
+    pooler_hidden_act: Optional[str] = None
+```
+
+### Key Methods
+
+#### `load_config(path)` (line 152)
+
+**Purpose**: Load configuration from YAML file with support for nested structures
 
 ```python
 @classmethod
@@ -87,519 +131,562 @@ def load_config(cls, path: str):
     with open(path, 'r') as f:
         config_dict = yaml.safe_load(f)
 
-    # Handle nested YAML structure
-    flat_config = {}
+    # Handles nested YAML structure (experiment, directories, data, etc.)
+    # Extracts and flattens configuration sections
+    # Creates model-specific config instances
+    # Filters out non-dataclass fields
 
-    # Parse nested sections
-    if 'data' in config_dict:
-        flat_config.update(config_dict.get('data', {}))
-    if 'tokenization' in config_dict:
-        tokenization = config_dict.get('tokenization', {})
-        if 'vocab_size' in tokenization:
-            flat_config['vocab_size'] = tokenization['vocab_size']
-        if 'methods' in tokenization:
-            flat_config['tokenizer_type'] = tokenization['methods'][0]
-    if 'training' in config_dict:
-        training = config_dict.get('training', {})
-        flat_config.update(training)
-        if 'max_epochs' in training:
-            flat_config['num_epochs'] = training['max_epochs']
-    if 'model' in config_dict:
-        flat_config.update(config_dict.get('model', {}))
-
-    # If config is flat (not nested), use directly
-    if not any(key in config_dict for key in ['data', 'tokenization', 'training', 'model']):
-        flat_config = config_dict
-
-    return cls(**flat_config)
+    return cls(**filtered_config)
 ```
 
-#### `save_config(path)` (line 52)
+**Features**:
+- Handles nested YAML sections (experiment, directories, data, tokenization, model, training, resources)
+- Maps nested fields to flat dataclass attributes (e.g., `model.architecture.hidden_size` → `hidden_size`)
+- Creates GPTModelConfig or DeBERTaModelConfig instances from nested model configs
+- Filters out extra YAML fields not in dataclass schema
 
-**Purpose**: Save configuration to YAML file
+#### `save_config(path)` (line 146)
+
+**Purpose**: Save configuration to YAML file with only relevant model-specific parameters
 
 ```python
 def save_config(self, path: str):
-    """Save configuration to YAML file"""
+    """Save configuration to YAML file (with clean model-specific params)"""
     with open(path, 'w') as f:
-        yaml.dump(self.__dict__, f, default_flow_style=False)
+        yaml.dump(self.to_clean_dict(), f, default_flow_style=False)
+```
+
+#### `to_clean_dict()` (line 127)
+
+**Purpose**: Return dictionary representation with only active model-specific configuration
+
+```python
+def to_clean_dict(self):
+    """
+    Return a dictionary representation with only relevant model-specific params.
+    This ensures saved configs don't contain cross-contamination.
+    """
+    # Includes only the active model config (gpt_config OR deberta_config)
+    # Skips inactive model configs to prevent contamination
+```
+
+#### `from_checkpoint_config(config_dict)` (line 302)
+
+**Purpose**: Create ExperimentConfig from checkpoint with backward compatibility
+
+```python
+@classmethod
+def from_checkpoint_config(cls, config_dict: Dict[str, Any]):
+    """
+    Create ExperimentConfig from a checkpoint config dict.
+    Handles backward compatibility with old flat configs.
+    """
+    # Migrates old flat model-specific params to nested structure
+    # Handles both dict and dataclass instances for nested configs
+    # Removes cross-contamination from other model types
+```
+
+#### Path Helper Methods (lines 360-370)
+
+```python
+def get_tokenizer_path(self) -> Path:
+    """Get the experiment-scoped tokenizer directory path"""
+    return Path(self.results_dir) / self.experiment_name / 'tokenizer'
+
+def get_model_path(self) -> Path:
+    """Get the experiment-scoped model directory path"""
+    return Path(self.results_dir) / self.experiment_name / 'models'
+
+def get_results_path(self) -> Path:
+    """Get the experiment-scoped results directory path"""
+    return Path(self.results_dir) / self.experiment_name
 ```
 
 ## Base Configuration File
 
 **Location**: `configs/base_config.yaml`
 
-```yaml
-project:
-  name: "hindi-babylm"
-  description: "Hindi BabyLM Challenge Implementation"
+This is the comprehensive base configuration that defines all aspects of the pipeline.
 
+### Structure Overview
+
+```yaml
+# Top-level sections
+experiment:          # Experiment metadata
+project:             # Project information
+directories:         # Path configuration
+data:               # Data sources and processing
+tokenization:       # Tokenizer configuration
+model:              # Model architecture
+training:           # Training parameters
+evaluation:         # Evaluation benchmarks
+experiment_tracking: # Wandb/TensorBoard
+resources:          # Hardware configuration
+analysis:           # Statistics and visualization
+reproducibility:    # Seed management
+debugging:          # Debug/profiling options
+```
+
+### Experiment Configuration
+
+```yaml
+experiment:
+  name: "gpt_10M_baseline_finetuned_8K_Vocab"
+  description: "Baseline GPT model on 10M word corpus with fine tuning on IndicGLUE with 8K vocab size"
+  tags: ["baseline", "gpt", "10M", "strict-small", "8K Vocab"]
+```
+
+**Purpose**: Identifies and describes the experiment. The name is used for result directory creation.
+
+### Data Configuration
+
+#### Core Data Settings
+
+```yaml
 data:
-  max_tokens: 10_000_000  # 10M tokens for strict-small track
+  # Word Budget (BabyLM Strict-Small Track)
+  max_words: 10_000_000  # 10M words
+
+  # Separate word limits for each split
+  train_word_limit: 10_000_000  # 10M words for training
+  val_word_limit: 10_000_000    # 10M words for validation
+  test_word_limit: 10_000_000   # 10M words for test
+
+  # Data Splits (proportional sizing if word limits not specified)
   train_ratio: 0.8
   val_ratio: 0.1
   test_ratio: 0.1
-
-tokenization:
-  vocab_size: 32000
-  methods: ["sentencepiece", "wordpiece", "bpe"]
-
-training:
-  batch_size: 32
-  learning_rate: 3e-4
-  max_epochs: 10
-  save_steps: 1000
-  eval_steps: 500
 ```
 
-## Configuration Templates
+**Key Parameters**:
+- `max_words`: Total word budget (use this, not `max_tokens`)
+- `train_word_limit`, `val_word_limit`, `test_word_limit`: Independent limits per split
+- `train_ratio`, `val_ratio`, `test_ratio`: Proportional splits when word limits not used
 
-### 1. Quick Experiment (Small Model)
-
-**File**: `configs/quick_experiment.yaml`
+#### Source Configuration
 
 ```yaml
-experiment_name: "quick_test"
-
-# Data
 data:
-  max_tokens: 1_000_000  # 1M tokens for quick testing
-  train_ratio: 0.8
-  val_ratio: 0.1
-  test_ratio: 0.1
+  # Source Mixing Ratios (for training data only)
+  train_source_ratios:
+    indiccorp: 0.50        # 50% from IndicCorp (formal written Hindi)
+    wikipedia: 0.30        # 30% from Wikipedia (encyclopedic Hindi)
+    indicdialogue: 0.15    # 15% from IndicDialogue (conversational Hindi)
+    childrens_books: 0.05  # 5% from children's books (simple narrative Hindi)
 
-# Tokenization
-tokenization:
-  tokenizer_type: "sentencepiece"
-  vocab_size: 8000  # Smaller vocabulary
+  sources:
+    indiccorp:
+      enabled: true
+      ratio: 0.5
+      max_samples: 150000
 
-# Model
-model:
-  model_type: "gpt"
-  hidden_size: 256      # Smaller model
-  num_layers: 6         # Fewer layers
-  num_heads: 4          # Fewer heads
-  max_length: 256       # Shorter sequences
-  dropout: 0.1
-  intermediate_size: 1024
+    wikipedia:
+      enabled: true
+      ratio: 0.3
+      dataset_version: "20231101.hi"
+      max_articles: 100000
 
-# Training
-training:
-  batch_size: 16        # Smaller batch
-  learning_rate: 1e-3
-  num_epochs: 3         # Fewer epochs
-  weight_decay: 0.01
-  warmup_steps: 100
+    indicdialogue:
+      enabled: true
+      ratio: 0.15
+      max_movies: null  # null = use all 3,542 movies
+      combine_dialogues: false
+      min_dialogue_length: 10
+
+    childrens_books:
+      enabled: true
+      ratio: 0.05
+      max_stories: 8000
 ```
 
-**Use Case**: Quick prototyping, debugging, testing pipeline
+**Available Data Sources**:
+1. **IndicCorp**: Formal written Hindi from news and web
+2. **Wikipedia**: Encyclopedic Hindi articles
+3. **IndicDialogue**: Conversational Hindi from movies
+4. **Children's Books**: Simple narrative Hindi
 
-**Training Time**: ~30 minutes on GPU
+**For Data Source Experiments**: Modify `train_source_ratios` to test different distributions.
 
-### 2. Standard Baseline
-
-**File**: `configs/baseline.yaml`
+#### Quality Filtering
 
 ```yaml
-experiment_name: "hindi_babylm_baseline"
-
-# Data
 data:
-  max_tokens: 10_000_000
-  train_ratio: 0.8
-  val_ratio: 0.1
-  test_ratio: 0.1
-
-# Tokenization
-tokenization:
-  tokenizer_type: "sentencepiece"
-  vocab_size: 32000
-
-# Model
-model:
-  model_type: "gpt"
-  hidden_size: 768
-  num_layers: 12
-  num_heads: 12
-  max_length: 512
-  dropout: 0.1
-  intermediate_size: 3072
-
-# Training
-training:
-  batch_size: 32
-  learning_rate: 3e-4
-  num_epochs: 10
-  weight_decay: 0.01
-  warmup_steps: 1000
-  eval_steps: 500
-  save_steps: 1000
+  filtering:
+    min_length: 30              # Minimum characters
+    max_length: 2000            # Maximum characters
+    min_hindi_ratio: 0.8        # Devanagari character ratio
+    min_word_count: 2           # Minimum words
+    max_word_count: 10000       # Maximum words
 ```
 
-**Use Case**: Standard BabyLM baseline
-
-**Training Time**: ~4 hours on V100 GPU
-
-### 3. BERT-Style Model
-
-**File**: `configs/bert_baseline.yaml`
+#### Deduplication
 
 ```yaml
-experiment_name: "hindi_bert_baseline"
-
-tokenization:
-  tokenizer_type: "wordpiece"  # BERT uses WordPiece
-  vocab_size: 32000
-
-model:
-  model_type: "bert"            # BERT architecture
-  hidden_size: 768
-  num_layers: 12
-  num_heads: 12
-  max_length: 512
-  dropout: 0.1
-
-training:
-  batch_size: 32
-  learning_rate: 1e-4           # Lower LR for BERT
-  num_epochs: 10
-  weight_decay: 0.01
-  warmup_steps: 1000
-```
-
-**Use Case**: Masked language modeling, understanding tasks
-
-### 4. Hybrid Model
-
-**File**: `configs/hybrid.yaml`
-
-```yaml
-experiment_name: "hindi_hybrid"
-
-model:
-  model_type: "hybrid"          # Combined GPT + BERT
-  hidden_size: 768
-  num_layers: 12
-  num_heads: 12
-  max_length: 512
-
-training:
-  batch_size: 16                # Smaller batch (larger model)
-  learning_rate: 3e-4
-  num_epochs: 10
-  weight_decay: 0.01
-```
-
-**Use Case**: Multi-task learning, versatile model
-
-### 5. Curriculum Learning (Enhanced - Phase 1)
-
-**File**: `configs/curriculum.yaml`
-
-```yaml
-experiment_name: "curriculum_learning"
-
 data:
-  max_tokens: 10_000_000
-
-# Enhanced Curriculum Learning (Phase 1)
-curriculum:
-  use_curriculum: true
-
-  # Strategy: morphological, length, frequency, combined, dynamic
-  curriculum_strategy: "morphological"
-
-  # Schedule: linear, root, exponential, step, performance_based
-  curriculum_schedule: "linear"
-
-  # Progression parameters
-  initial_threshold: 0.0     # Start with easiest 0% of data
-  final_threshold: 1.0       # End with all data
-  warmup_epochs: 5           # Epochs to reach full dataset
-
-  # Combined strategy weights (if strategy='combined')
-  morphological_weight: 0.4
-  length_weight: 0.3
-  frequency_weight: 0.3
-
-  # Dynamic strategy parameters (if strategy='dynamic')
-  difficulty_window: 5       # Epochs to track performance
-  adjustment_rate: 0.1       # Rate of difficulty adjustment
-
-training:
-  batch_size: 32
-  learning_rate: 3e-4
-  num_epochs: 12              # More epochs for curriculum
+  deduplication:
+    enabled: true
+    similarity_threshold: 0.8   # MinHash LSH threshold
+    num_permutations: 256
 ```
 
-**Use Case**: Developmental training progression with fine-grained control
-
-**Curriculum Strategies**:
-- **morphological**: Rank by case marker density
-- **length**: Start with shorter sentences
-- **frequency**: Start with common words
-- **combined**: Weighted combination of multiple factors
-- **dynamic**: Adjust difficulty based on performance
-
-**Curriculum Schedules**:
-- **linear**: Uniform increase in difficulty
-- **root**: Fast initial increase, slower later (sqrt progression)
-- **exponential**: Slow initial increase, faster later
-- **step**: Sudden jumps at specific epochs
-- **performance_based**: Adjust based on validation loss
-
-### 6. Large Model
-
-**File**: `configs/large_model.yaml`
+### Tokenization Configuration
 
 ```yaml
-experiment_name: "hindi_large"
-
 tokenization:
-  vocab_size: 50000             # Larger vocabulary
+  type: "bpe"  # Options: sentencepiece, wordpiece, bpe
+  vocab_size: 8192
+  character_coverage: 0.9995  # For SentencePiece
 
-model:
-  model_type: "gpt"
-  hidden_size: 1024             # Larger hidden size
-  num_layers: 24                # More layers
-  num_heads: 16                 # More heads
-  max_length: 1024              # Longer sequences
-  intermediate_size: 4096
+  special_tokens:
+    pad_token: "<pad>"
+    unk_token: "<unk>"
+    bos_token: "<s>"
+    eos_token: "</s>"
+    mask_token: "<mask>"
+    sep_token: "<sep>"
+    cls_token: "<cls>"
 
-training:
-  batch_size: 16                # Smaller batch (memory)
-  learning_rate: 2e-4           # Lower LR
-  num_epochs: 15
+  # SentencePiece Specific
+  sentencepiece:
+    model_type: "bpe"  # Options: unigram, bpe
+    split_by_whitespace: true
+    split_by_unicode_script: true
+    byte_fallback: true
+
+  # WordPiece Specific
+  wordpiece:
+    min_frequency: 2
+    continuing_subword_prefix: "##"
+
+  # BPE Specific
+  bpe:
+    min_frequency: 2
+    dropout: 0.0
 ```
 
-**Use Case**: Maximum performance (if compute available)
+**For Tokenization Experiments**:
+- Change `type` to: `bpe`, `wordpiece`, or `sentencepiece`
+- For SentencePiece, set `model_type` to `unigram` or `bpe`
+- Adjust `vocab_size`: 8192, 16384, 32768 (8K, 16K, 32K)
 
-**Training Time**: ~12+ hours on V100
+**Tokenizer Types**:
+- **BPE**: Byte-Pair Encoding (good for morphologically rich languages)
+- **WordPiece**: BERT-style with `##` prefix
+- **SentencePiece (Unigram)**: Statistical language model approach
+- **SentencePiece (BPE)**: SentencePiece implementation of BPE
 
-### 7. Enhanced GPT with Position Encodings (Phase 1)
-
-**File**: `configs/enhanced_gpt.yaml`
+### Model Configuration
 
 ```yaml
-experiment_name: "enhanced_gpt_rope"
-
-tokenization:
-  tokenizer_type: "sentencepiece"
-  vocab_size: 32000
-
 model:
-  model_type: "enhanced_gpt"    # Enhanced GPT model (Phase 1)
+  type: "gpt"  # Options: gpt, deberta
+  model_size: "small"  # Options: tiny, small, medium/base, large
 
-  # Model size: tiny, small, medium
-  model_size: "small"           # 110M parameters
+  # Core Architecture Hyperparameters
+  architecture:
+    hidden_size: 768
+    num_hidden_layers: 12
+    num_attention_heads: 12
+    intermediate_size: 3072
+    max_position_embeddings: 512
 
-  # Position Encoding Type (Phase 1)
-  # Options: sinusoidal, learned, rope, alibi, relative
-  position_encoding_type: "rope"
+  # Regularization
+  regularization:
+    hidden_dropout_prob: 0.1
+    attention_probs_dropout_prob: 0.1
 
-  # Position encoding parameters
-  max_position_embeddings: 2048
-  rope_base: 10000              # RoPE base (if using rope)
-  alibi_num_heads: 12           # ALiBi heads (if using alibi)
+  # Activation and Normalization
+  activation: "gelu"
+  layer_norm_type: "layernorm"
 
-  # Advanced features
-  use_gradient_checkpointing: true    # Save memory
-  use_flash_attention: false          # Requires flash-attn package
-  norm_type: "rmsnorm"                # rmsnorm or layernorm
-  activation_function: "gelu"         # gelu, relu, swiglu
-
-  # Standard parameters
-  dropout: 0.1
-  attention_dropout: 0.1
-  residual_dropout: 0.1
-
-training:
-  batch_size: 32
-  learning_rate: 3e-4
-  num_epochs: 50
+  # GPT-Specific Configuration
+  gpt:
+    use_cache: true
+    scale_attn_weights: true
+    reorder_and_upcast_attn: false
 ```
-
-**Use Case**: State-of-the-art position encodings for better long-range dependencies
-
-**Position Encoding Options**:
-- **sinusoidal**: Original Transformer (Vaswani et al., 2017)
-- **learned**: Learnable embeddings (GPT-2 style)
-- **rope**: Rotary Position Embedding (Su et al., 2021) - Best for extrapolation
-- **alibi**: Attention with Linear Biases (Press et al., 2021) - No position embeddings
-- **relative**: Relative position bias (T5 style) - Good for variable lengths
 
 **Model Sizes**:
-- **tiny**: 50M parameters (6 layers, 512 hidden, 8 heads)
-- **small**: 110M parameters (12 layers, 768 hidden, 12 heads)
-- **medium**: 350M parameters (24 layers, 1024 hidden, 16 heads)
 
-### 8. Enhanced Training Configuration (Phase 1)
+**GPT Models** (Causal Language Modeling):
+- `tiny`: 50M parameters (6 layers, 512 hidden, 8 heads)
+- `small`: 110M parameters (12 layers, 768 hidden, 12 heads)
+- `medium`: 350M parameters (24 layers, 1024 hidden, 16 heads)
 
-**File**: `configs/enhanced_training.yaml`
+**DeBERTa Models** (Masked Language Modeling):
+- `tiny`: 22M parameters (6 layers, 384 hidden)
+- `small`: 86M parameters (12 layers, 768 hidden)
+- `base`: 86M parameters (12 layers, 768 hidden)
+- `large`: 304M parameters (24 layers, 1024 hidden)
+
+**For Model Architecture Experiments**:
+- Change `type` to `gpt` or `deberta`
+- Adjust `model_size` for different parameter counts
+- For DeBERTa, add `deberta:` section instead of `gpt:` section
+
+### Training Configuration
 
 ```yaml
-experiment_name: "enhanced_training"
-
-model:
-  model_type: "enhanced_gpt"
-  model_size: "small"
-  position_encoding_type: "rope"
-
-# Enhanced Training Configuration (Phase 1)
 training:
-  # Optimizer options
-  optimizer: "adamw"            # adamw, adam, sgd
-  learning_rate: 3e-4
-  weight_decay: 0.01
-
-  # AdamW-specific parameters
-  betas: [0.9, 0.999]
-  epsilon: 1e-8
-
-  # SGD-specific parameters (if optimizer='sgd')
-  momentum: 0.9
-  nesterov: true
-
-  # Learning rate schedule
-  # Options: linear_warmup, cosine_warmup, constant_warmup
-  lr_schedule: "linear_warmup"
-  warmup_steps: 1000
-  warmup_ratio: 0.1             # Alternative to warmup_steps
-
-  # For cosine schedule
-  num_training_steps: 50000     # Total training steps
-  num_cycles: 0.5               # Cosine cycles
-
-  # Mixed precision training (Phase 1)
-  use_amp: true                 # Automatic Mixed Precision
-  amp_dtype: "float16"          # float16 or bfloat16
-  gradient_clipping: 1.0        # Max gradient norm
-
-  # Gradient accumulation
-  gradient_accumulation_steps: 4   # Effective batch = batch_size * this
-
-  # Training parameters
+  # Basic Parameters
   batch_size: 32
-  num_epochs: 50
-  eval_steps: 500
-  save_steps: 1000
+  gradient_accumulation_steps: 4  # Effective batch = 128
+  num_epochs: 10
+  max_steps: -1  # -1 for epoch-based
 
-  # Early stopping
-  early_stopping: true
-  early_stopping_patience: 5    # Epochs without improvement
-  early_stopping_threshold: 0.001  # Minimum improvement
+  # Optimization
+  optimizer:
+    type: "adamw"
+    learning_rate: 0.0005
+    weight_decay: 0.01
+    beta1: 0.9
+    beta2: 0.999
+
+  # Learning Rate Scheduling
+  lr_scheduler:
+    type: "cosine_with_warmup"
+    warmup_steps: 1500
+    warmup_ratio: 0.1
+    min_lr_ratio: 0.05
+
+  # Gradient Management
+  gradient:
+    max_grad_norm: 1.0
+    gradient_checkpointing: true
+
+  # Mixed Precision
+  mixed_precision:
+    enabled: true
+    dtype: "bf16"  # Options: fp16, bf16, float32
 
   # Checkpointing
-  save_total_limit: 3           # Keep only 3 best checkpoints
-  save_best_only: true          # Only save when validation improves
+  checkpointing:
+    save_strategy: "steps"
+    save_steps: 1000
+    save_total_limit: 1
+    load_best_model_at_end: true
 
-  # Logging
-  logging_steps: 100
-  log_level: "info"             # debug, info, warning, error
+  # Evaluation
+  evaluation:
+    eval_strategy: "steps"
+    eval_steps: 500
+    per_device_eval_batch_size: 32
+
+  # Early Stopping
+  early_stopping:
+    enabled: true
+    patience: 3
+    threshold: 0.0005
 ```
 
-**Use Case**: Full control over training dynamics with state-of-the-art techniques
+**Key Training Parameters**:
+- **Effective Batch Size**: `batch_size × gradient_accumulation_steps` = 128
+- **Learning Rate**: 0.0005 for pretraining (lower for fine-tuning: 2e-5)
+- **Mixed Precision**: BF16 for faster training and memory efficiency
+- **Gradient Checkpointing**: Enabled to reduce memory usage
 
-**Optimizer Comparison**:
-- **AdamW**: Best for transformers, includes weight decay fix
-- **Adam**: Standard adaptive optimizer
-- **SGD**: Simple, requires careful LR tuning
-
-**LR Schedule Comparison**:
-- **linear_warmup**: Linear increase then linear decay
-- **cosine_warmup**: Linear warmup then cosine decay (smooth)
-- **constant_warmup**: Linear warmup then constant LR
-
-**Mixed Precision Benefits**:
-- 2x faster training
-- ~50% memory reduction
-- **float16**: Broader hardware support
-- **bfloat16**: Better numeric stability (if available)
-
-### 9. Complete Enhanced Configuration (Phase 1)
-
-**File**: `configs/complete_enhanced.yaml`
-
-Combines all Phase 1 enhancements:
+### Evaluation Configuration
 
 ```yaml
-experiment_name: "complete_enhanced"
+evaluation:
+  benchmarks:
+    indicglue:
+      enabled: true
+      tasks: [
+        "BBCArticlesClassification",
+        "Wikipedia Section Title Prediction",
+        "Cloze-style multiple-choice QA",
+        "WinogradNLI",
+        "Choice of Plausible Alternatives",
+        "MovieReviewSentiment",
+        "ProductReviewSentiment",
+        "DiscourseMode"
+      ]
+      batch_size: 64
 
-data:
-  max_tokens: 10_000_000
+      fine_tuning:
+        enabled: true
+        num_epochs: 10
+        learning_rate: 3e-5
+        batch_size: 16
+        freeze_base_model: false  # End-to-end training
+        use_auto_models: false    # Use custom wrappers
+
+    multiblimp:
+      enabled: true
+      n_examples_per_phenomenon: null
+
+  perplexity:
+    enabled: true
+    split: "test"
+    report_per_source: true
+```
+
+**Evaluation Benchmarks**:
+1. **IndicGLUE**: 8 Hindi NLP tasks (classification, sentiment, QA, NLI)
+   - Zero-shot or fine-tuned evaluation
+   - Fine-tuning uses separate training loop
+2. **MultiBLiMP**: 1,447 minimal pairs for syntactic evaluation
+3. **Perplexity**: Language modeling performance on test set
+
+### Resource Configuration
+
+```yaml
+resources:
+  device: "cuda"
+  gpu_ids: [0,1,2,3,4,5,6,7,8,9,10]
+  num_workers: 4
+  pin_memory: true
+  prefetch_factor: 2
+```
+
+**Important**: `num_workers: 4` is recommended to avoid excessive memory usage.
+
+## Configuration Templates for Conducted Experiments
+
+### 1. Vocabulary Size Experiments (GPT + BPE)
+
+**Purpose**: Test impact of vocabulary size on GPT models
+
+**Experiments**:
+- `configs/base_config.yaml` # Refers to gpt bpe 8K  
+- `configs/ablations/vocab_sizes/gpt_bpe_16k.yaml`
+- `configs/ablations/vocab_sizes/gpt_bpe_32k.yaml`
+
+**Key Changes** from base config:
+```yaml
+experiment:
+  name: "gpt_10M_bpe_8K_vocab"  # Change: 8K, 16K, 32K
+  tags: ["vocab-experiment", "gpt", "bpe"]
 
 tokenization:
-  tokenizer_type: "sentencepiece"
-  vocab_size: 32000
+  type: "bpe"
+  vocab_size: 8192  # Change: 8192, 16384, 32768
 
-# Enhanced Model (Phase 1)
 model:
-  model_type: "enhanced_gpt"
+  type: "gpt"
   model_size: "small"
-  position_encoding_type: "rope"
-  use_gradient_checkpointing: true
-  use_flash_attention: false
-  norm_type: "rmsnorm"
-  activation_function: "gelu"
-
-# Curriculum Learning (Phase 1)
-curriculum:
-  use_curriculum: true
-  curriculum_strategy: "combined"
-  curriculum_schedule: "linear"
-  morphological_weight: 0.4
-  length_weight: 0.3
-  frequency_weight: 0.3
-
-# Enhanced Training (Phase 1)
-training:
-  # Optimization
-  optimizer: "adamw"
-  learning_rate: 3e-4
-  weight_decay: 0.01
-  lr_schedule: "cosine_warmup"
-  warmup_steps: 1000
-
-  # Mixed precision
-  use_amp: true
-  amp_dtype: "float16"
-  gradient_clipping: 1.0
-  gradient_accumulation_steps: 4
-
-  # Training dynamics
-  batch_size: 32
-  num_epochs: 50
-  eval_steps: 500
-  save_steps: 1000
-
-  # Early stopping
-  early_stopping: true
-  early_stopping_patience: 5
-
-  # Checkpointing
-  save_total_limit: 3
-  save_best_only: true
 ```
 
-**Use Case**: Combining all Phase 1 improvements for maximum performance
+### 2. Tokenization Strategy Experiments
 
-**Expected Improvements over Baseline**:
-- Position encodings (RoPE): +2-4% on long sequences
-- Curriculum learning: +1-3% overall, +3-5% on morphology
-- Enhanced training: Faster convergence, better stability
-- Combined: +3-7% overall improvement
+**Purpose**: Compare tokenization methods across model architectures
 
-## Experiment Manager
+**Experiments** (10 total):
+- GPT: bpe, unigram, wordpiece, character-level, bigram (5 experiments)
+- DeBERTa: bpe, unigram, wordpiece, character-level, bigram (5 experiments)
 
-**Location**: `src/utils/experiment_config.py:91`
+**Example**: `configs/tokenization_experiments/gpt_unigram_10M_32K.yaml`
+```yaml
+experiment:
+  name: "gpt_10M_unigram_32K"
+  tags: ["tokenization-experiment", "gpt", "unigram"]
 
-**Purpose**: Generate multiple experiment configurations
+tokenization:
+  type: "sentencepiece"  # For unigram
+  vocab_size: 32768
+  sentencepiece:
+    model_type: "unigram"  # Change: unigram, bpe
+
+model:
+  type: "gpt"  # Change: gpt, deberta
+```
+
+**Tokenizer Options**:
+- `type: "bpe"` → Pure BPE
+- `type: "wordpiece"` → WordPiece
+- `type: "sentencepiece"` + `model_type: "unigram"` → Unigram LM
+- `type: "sentencepiece"` + `model_type: "bpe"` → SentencePiece BPE
+
+### 3. Model Architecture & Data Amount Experiments
+
+**Purpose**: Compare GPT vs DeBERTa on different data scales
+
+**Experiments** (4 total):
+- GPT + 10M words
+- GPT + 100M words
+- DeBERTa + 10M words
+- DeBERTa + 100M words
+
+**Example**: `configs/data_amount/deberta_bpe_100M_32K.yaml`
+```yaml
+experiment:
+  name: "deberta_100M_bpe_16K"
+  tags: ["architecture-experiment", "deberta", "100M"]
+
+data:
+  max_words: 100_000_000  # Change: 10M or 100M
+
+tokenization:
+  type: "bpe"
+  vocab_size: 16384
+
+model:
+  type: "deberta"  # Change: gpt, deberta
+  model_size: "small"
+
+  # Add DeBERTa-specific config, remove GPT config
+  deberta:
+    position_buckets: -1
+    relative_attention: true
+    max_relative_positions: -1
+```
+
+**Note**: Remove `gpt:` section and add `deberta:` section when using DeBERTa models.
+
+### 4. Data Source Distribution Experiments
+
+**Purpose**: Test developmentally plausible data distributions
+
+**Base**: Use best-performing model from above experiments
+
+**Example**: `configs/data_mixing/10M_dev_plausible_config.yaml`
+```yaml
+experiment:
+  name: "best_model_developmental_sources"
+  tags: ["source-experiment", "developmental"]
+
+data:
+  # Modify source ratios
+  train_source_ratios:
+    childrens_books: 0.60    # Increase children's content
+    indicdialogue: 0.25      # Conversational input
+    wikipedia: 0.10          # Formal text
+    indiccorp: 0.05          # News/web content
+
+  sources:
+    childrens_books:
+      enabled: true
+      ratio: 0.60
+      max_stories: null  # Use all available
+
+    indicdialogue:
+      enabled: true
+      ratio: 0.25
+
+    wikipedia:
+      enabled: true
+      ratio: 0.10
+
+    indiccorp:
+      enabled: true
+      ratio: 0.05
+```
+
+**Other Distribution Patterns** to test:
+- **Balanced**: Equal ratios (0.25 each)
+- **Formal-Heavy**: IndicCorp 0.60, Wikipedia 0.30, others 0.10
+- **Conversational-Heavy**: IndicDialogue 0.60, Children's 0.30, others 0.10
+
+## ExperimentManager
+
+**Location**: `src/utils/experiment_config.py:372`
+
+**Purpose**: Generate multiple experiment configurations programmatically
 
 ### Methods
 
-#### `create_tokenization_experiments()` (line 96)
-
-**Purpose**: Generate experiments for tokenizer comparison
+#### `create_tokenization_experiments()` (line 377)
 
 ```python
 def create_tokenization_experiments(self) -> List[ExperimentConfig]:
@@ -608,7 +695,7 @@ def create_tokenization_experiments(self) -> List[ExperimentConfig]:
     experiments = []
 
     for tokenizer in tokenizers:
-        config = copy.deepcopy(self.base_config)
+        config = self.base_config.__class__(**self.base_config.__dict__)
         config.tokenizer_type = tokenizer
         config.experiment_name = f"tokenization_{tokenizer}"
         experiments.append(config)
@@ -616,31 +703,16 @@ def create_tokenization_experiments(self) -> List[ExperimentConfig]:
     return experiments
 ```
 
-**Usage**:
-```python
-base_config = ExperimentConfig.load_config('configs/base_config.yaml')
-manager = ExperimentManager(base_config)
-
-# Generate tokenization experiments
-tokenization_exps = manager.create_tokenization_experiments()
-
-# Run each experiment
-for config in tokenization_exps:
-    run_experiment(config)
-```
-
-#### `create_model_architecture_experiments()` (line 109)
-
-**Purpose**: Generate experiments for architecture comparison
+#### `create_model_architecture_experiments()` (line 390)
 
 ```python
 def create_model_architecture_experiments(self) -> List[ExperimentConfig]:
     """Create experiments for different model architectures"""
-    architectures = ["gpt", "bert", "hybrid"]
+    architectures = ["gpt", "deberta"]
     experiments = []
 
     for arch in architectures:
-        config = copy.deepcopy(self.base_config)
+        config = self.base_config.__class__(**self.base_config.__dict__)
         config.model_type = arch
         config.experiment_name = f"architecture_{arch}"
         experiments.append(config)
@@ -648,24 +720,24 @@ def create_model_architecture_experiments(self) -> List[ExperimentConfig]:
     return experiments
 ```
 
-#### `create_curriculum_experiments()` (line 122)
-
-**Purpose**: Generate experiments for curriculum learning strategies
-
+**Usage Example**:
 ```python
-def create_curriculum_experiments(self) -> List[ExperimentConfig]:
-    """Create experiments for curriculum learning strategies"""
-    strategies = ["morphological", "length", "random", "none"]
-    experiments = []
+from src.utils.experiment_config import ExperimentConfig, ExperimentManager
 
-    for strategy in strategies:
-        config = copy.deepcopy(self.base_config)
-        config.use_curriculum = strategy != "none"
-        config.curriculum_strategy = strategy
-        config.experiment_name = f"curriculum_{strategy}"
-        experiments.append(config)
+# Load base config
+base_config = ExperimentConfig.load_config('configs/base_config.yaml')
 
-    return experiments
+# Create experiment manager
+manager = ExperimentManager(base_config)
+
+# Generate tokenization experiments
+tokenization_exps = manager.create_tokenization_experiments()
+
+# Run each experiment
+for config in tokenization_exps:
+    # Modify vocab_size, model_type, etc.
+    config.vocab_size = 16384
+    config.save_config(f'configs/generated/{config.experiment_name}.yaml')
 ```
 
 ## Configuration Best Practices
@@ -674,32 +746,31 @@ def create_curriculum_experiments(self) -> List[ExperimentConfig]:
 
 **Experiment Names**: Use descriptive, structured names
 ```yaml
-experiment_name: "{task}_{variant}_{date}"
+experiment_name: "{model}_{{tokenizer}_data_size}_{vocab_size}"
 # Examples:
-# - "hindi_babylm_baseline_20250109"
-# - "tokenization_sentencepiece_v1"
-# - "curriculum_morphological_test"
+# - "gpt_bpe_10M_8K"
+# - "deberta_unigram_100M_16K"
 ```
 
-### 2. Directory Structure
+### 2. Directory Organization
 
-**Organize experiments**:
+**Organize experiments by category**:
 ```
-experiments/
-├── baseline/
-│   └── base_config.yaml
-├── tokenization/
-│   ├── sentencepiece.yaml
-│   ├── wordpiece.yaml
-│   └── bpe.yaml
-├── architectures/
-│   ├── gpt.yaml
-│   ├── bert.yaml
-│   └── hybrid.yaml
-└── curriculum/
-    ├── morphological.yaml
-    ├── length.yaml
-    └── random.yaml
+configs/
+├── base_config.yaml
+├── vocab_experiments/
+│   ├── gpt_bpe_8k.yaml
+│   ├── gpt_bpe_16k.yaml
+│   └── gpt_bpe_32k.yaml
+├── tokenization_experiments/
+│   ├── gpt_bpe.yaml
+│   ├── gpt_unigram.yaml
+│   ├── deberta_bpe.yaml
+│   └── deberta_wordpiece.yaml
+└── data_mixing/
+    ├── developmental.yaml
+    ├── balanced.yaml
+    └── formal_heavy.yaml
 ```
 
 ### 3. Version Control
@@ -707,40 +778,26 @@ experiments/
 **Track configurations in git**:
 ```bash
 git add configs/
-git commit -m "Add tokenization experiment configs"
+git commit -m "Add vocabulary size experiment configs"
 ```
 
-### 4. Documentation
+### 4. Configuration Documentation
 
-**Document each experiment**:
+**Document each experiment** with comments:
 ```yaml
-# base_config.yaml
-# Description: Standard baseline for Hindi BabyLM
-# Author: Your Name
-# Date: 2025-01-09
-# Purpose: Establish baseline performance with standard settings
-# Expected training time: 4 hours on V100
-# Expected perplexity: ~20-30
+# gpt_bpe_8k.yaml
+# Experiment: Vocabulary Size Impact
+# Description: Test GPT with 8K BPE vocabulary on 10M word corpus
+# Purpose: Establish baseline for vocab size experiments
+# Related: gpt_bpe_16k.yaml, gpt_bpe_32k.yaml
 
-experiment_name: "hindi_babylm_baseline"
-# ... rest of config
+experiment:
+  name: "gpt_bpe_10M_8K"
+  description: "GPT small with 8K BPE vocabulary"
+  tags: ["vocab-experiment", "baseline", "8K"]
 ```
 
-### 5. Hyperparameter Ranges
-
-**Safe ranges for key hyperparameters**:
-
-| Parameter | Min | Recommended | Max | Notes |
-|-----------|-----|-------------|-----|-------|
-| `learning_rate` | 1e-5 | 3e-4 | 1e-3 | Lower for large models |
-| `batch_size` | 8 | 32 | 128 | Depends on GPU memory |
-| `num_layers` | 6 | 12 | 24 | More layers = slower |
-| `hidden_size` | 256 | 768 | 1024 | Must be divisible by num_heads |
-| `dropout` | 0.0 | 0.1 | 0.3 | Higher for overfitting |
-| `weight_decay` | 0.0 | 0.01 | 0.1 | Regularization strength |
-| `vocab_size` | 8000 | 32000 | 50000 | Larger = more parameters |
-
-## Loading and Using Configurations
+### 5. Loading and Using Configurations
 
 ### From Python
 
@@ -753,30 +810,41 @@ config = ExperimentConfig.load_config('configs/base_config.yaml')
 # Access fields
 print(f"Experiment: {config.experiment_name}")
 print(f"Model: {config.model_type}")
-print(f"Batch size: {config.batch_size}")
+print(f"Vocab size: {config.vocab_size}")
 
 # Modify and save
-config.learning_rate = 1e-4
-config.save_config('configs/modified_config.yaml')
+config.vocab_size = 16384
+config.experiment_name = "gpt_10M_bpe_16K"
+config.save_config('configs/vocab_experiments/gpt_bpe_16k.yaml')
 
-# Create new config programmatically
-custom_config = ExperimentConfig(
-    experiment_name="custom_experiment",
-    model_type="bert",
-    batch_size=16,
-    learning_rate=1e-4
-)
+# Get experiment paths
+tokenizer_path = config.get_tokenizer_path()
+model_path = config.get_model_path()
+results_path = config.get_results_path()
 ```
 
 ### From Command Line
 
 ```bash
 # Run with specific config
-python main.py --config configs/base_config.yaml --stage all --experiment_name my_exp
+python main.py --config configs/base_config.yaml \
+    --stage all \
+    --experiment_name my_experiment
 
 # Override config values
-python main.py --config configs/base_config.yaml --stage train \
-    --learning_rate 1e-4 --batch_size 16
+python main.py --config configs/base_config.yaml \
+    --stage train \
+    --learning_rate 1e-4 \
+    --batch_size 16 \
+    --vocab_size 16384
+
+# Run vocabulary size experiment
+python main.py --config configs/vocab_experiments/gpt_bpe_16k.yaml \
+    --stage all
+
+# Run data source experiment
+python main.py --config configs/source_experiments/developmental.yaml \
+    --stage all
 ```
 
 ## Environment Variables
@@ -791,7 +859,7 @@ export RESULTS_DIR=/path/to/results
 
 # Wandb configuration
 export WANDB_PROJECT=hindi-babylm
-export WANDB_ENTITY=your-team
+export WANDB_ENTITY=your-username
 
 # Hardware
 export CUDA_VISIBLE_DEVICES=0,1  # Use GPUs 0 and 1
@@ -828,9 +896,10 @@ validate_config(config)
 ### Issue: Config file not loading
 
 **Check**:
-1. File path is correct
-2. YAML syntax is valid (use YAML validator)
+1. File path is correct (absolute or relative to current directory)
+2. YAML syntax is valid (use online YAML validator)
 3. Required fields are present
+4. No tabs in YAML file (use spaces only)
 
 ### Issue: Parameter not taking effect
 
@@ -838,18 +907,30 @@ validate_config(config)
 1. Parameter name matches exactly (case-sensitive)
 2. Parameter is in correct section of YAML
 3. Not overridden by command-line argument
+4. Field exists in ExperimentConfig dataclass
 
-### Issue: Out of memory
+### Issue: Out of memory during training
 
 **Solutions**:
-1. Reduce `batch_size`
-2. Reduce `max_length`
+1. Reduce `batch_size` (try 16 or 8)
+2. Reduce `max_length` (try 256 instead of 512)
 3. Reduce model size (`hidden_size`, `num_layers`)
-4. Enable gradient checkpointing
+4. Enable gradient checkpointing: `gradient_checkpointing: true`
+5. Reduce `num_workers` (try 2 or 4)
+6. Use mixed precision: `dtype: "bf16"` or `dtype: "fp16"`
+
+### Issue: Model-specific config not loading
+
+**Check**:
+1. For GPT models, ensure `gpt:` section exists
+2. For DeBERTa models, ensure `deberta:` section exists
+3. Remove configs for other model types (e.g., remove `gpt:` when using DeBERTa)
+4. Check that `model.type` matches the model-specific config section
 
 ## Related Documentation
 
-- [Training Pipeline Documentation](05_TRAINING.md)
+- [Data Processing Documentation](02_DATA_PROCESSING.md)
+- [Tokenization Documentation](03_TOKENIZATION.md)
 - [Model Architecture Documentation](04_MODELS.md)
-- [API Reference](08_API_REFERENCE.md)
-- [Setup and Usage Guide](09_SETUP_AND_USAGE.md)
+- [Training Pipeline Documentation](05_TRAINING.md)
+- [Evaluation Documentation](06_EVALUATION.md)
