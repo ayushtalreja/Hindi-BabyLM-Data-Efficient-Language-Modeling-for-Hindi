@@ -4,6 +4,20 @@
 
 This standalone script evaluates the pre-trained IndicBERT model from HuggingFace on IndicGLUE tasks to verify the correctness of the existing IndicGLUE evaluation implementation by comparing results with reported scores from the IndicBERT paper.
 
+**Note** Our scores from running the `evaluate_indicbert.py` script differ from the official results reported by the IndicBERT team. The obtained scores are summarized in the following table.
+
+## IndicBERT evaluation scores
+
+| Task                                   | Accuracy | F1-Macro | Reason |
+|----------------------------------------|----------|----------|--------|
+| Wikipedia Section Title Prediction     | 62.12%   | 62.11%   | Unknown |
+| Cloze-style multiple-choice QA         | 32.19%   | 32.16%   | Custom splits from test set only |
+| BBCArticlesClassification              | 43.30%   | 8.35%    | Paper: 6 classes; HF: 14 classes |
+| MovieReviewSentiment                   | 38.06%   | 23.48%   | Unknown |
+| ProductReviewSentiment                 | 55.64%   | 39.47%   | Unknown |
+| DiscourseMode                          | 63.69%   | 32.26%   | Paper: 5 classes; HF: 6 classes |
+| Choice of Plausible Alternatives       | 53.41%   | 53.35%   | Swapped val/test due to label 1 missing in test |
+
 ## Key Features
 
 - **Standalone**: No modifications to core codebase required
@@ -125,7 +139,7 @@ Complete results with:
 - Confusion matrices
 - Per-class metrics
 
-### 2. `indicbert_results_summary.csv`
+### 2. `results_summary.csv`
 Summary table for easy comparison:
 
 ```csv
@@ -135,7 +149,7 @@ BBCA,0.8567,0.8423,0.8489,0.8501,0.8423,1200,completed
 ...
 ```
 
-### 3. `indicbert_config.json`
+### 3. `config.json`
 Configuration used for the evaluation (for reproducibility).
 
 ### 4. `indicbert_evaluation.log`
@@ -150,44 +164,38 @@ Detailed execution log with timestamps.
 ### Classification Tasks (Type A)
 These use simple text → [CLS] → Linear classifier:
 
-| Task Code | Task Name | Classes | Examples |
-|-----------|-----------|---------|----------|
-| BBCA | BBC Articles Classification | 14 | ~1200 |
-| iitp-mr | Movie Review Sentiment | 3 | ~800 |
-| iitp-pr | Product Review Sentiment | 3 | ~900 |
-| iitp-md | Discourse Mode | 6 | ~600 |
+| Task Code | Task Name | Classes | 
+|-----------|-----------|---------|
+| BBCA | BBC Articles Classification | 14 | 
+| iitp-mr | Movie Review Sentiment | 3 | 
+| iitp-pr | Product Review Sentiment | 3 | 
+| iitp-md | Discourse Mode | 6 | 
 
 ### Multiple-Choice Tasks (Type B)
 These use text pairs with [SEP] tokens:
 
-| Task Code | Task Name | Choices | Examples |
-|-----------|-----------|---------|----------|
-| WSTP | Wikipedia Section Title Prediction | 4 | ~449 |
-| CSQA | Cloze-style multiple-choice QA | 4 | **Skipped*** |
-
-*CSQA is skipped due to missing train/validation splits in the dataset.
+| Task Code | Task Name | Choices | 
+|-----------|-----------|---------|
+| WSTP | Wikipedia Section Title Prediction | 4 |
+| CSQA | Cloze-style multiple-choice QA | 4 | 
 
 ### Sentence Pair Tasks (Type C)
 These use premise-alternative pairs:
 
-| Task Code | Task Name | Choices | Examples |
-|-----------|-----------|---------|----------|
-| COPA | Choice of Plausible Alternatives | 2 | ~88 |
+| Task Code | Task Name | Choices |
+|-----------|-----------|---------|
+| COPA | Choice of Plausible Alternatives | 2 | 
 
 ## Expected Behavior
 
 ### Successful Tasks
-6 out of 7 tasks should complete successfully:
+7 out of 7 tasks should complete successfully:
 - ✓ WSTP (Wikipedia Section Title Prediction)
 - ✓ BBCA (BBC Articles)
 - ✓ iitp-mr (Movie Reviews)
 - ✓ iitp-pr (Product Reviews)
 - ✓ iitp-md (Discourse Mode)
 - ✓ COPA (Plausible Alternatives)
-
-### Skipped Tasks
-1 task will be skipped (this is expected):
-- ✗ CSQA (Cloze-style multiple-choice QA) - Dataset missing train/val splits
 
 ### Example Output
 
@@ -242,32 +250,23 @@ export HF_HOME=/path/to/cache
 python scripts/evaluate_indicbert.py
 ```
 
-### CSQA Task Skipped
-
-This is expected behavior. The Cloze-style multiple-choice QA dataset in IndicGLUE has only test split, no train/validation splits, so fine-tuning is not possible.
-
 ## Comparing with Paper Results
 
 After running the evaluation:
 
-1. Check the CSV file: `results/indicbert_evaluation/indicbert_results_summary.csv`
-2. Compare accuracy scores with the IndicBERT paper (Table 4 for Hindi)
-3. Scores should be within ~1-2% of reported values (statistical variance is normal)
+1. Check the CSV file: `results/indicbert_evaluation/results_summary.csv`
+2. Compare accuracy scores with the IndicBERT paper.
 
 ### IndicBERT Paper Results (Hindi)
 
-**Note**: User should fill in these values from the paper for comparison.
-
-| Task | Paper Accuracy | Our Accuracy | Difference |
-|------|---------------|--------------|------------|
-| WSTP | TBD | TBD | TBD |
-| COPA | TBD | TBD | TBD |
-| BBCA | TBD | TBD | TBD |
-| iitp-mr | TBD | TBD | TBD |
-| iitp-pr | TBD | TBD | TBD |
-| iitp-md | TBD | TBD | TBD |
-
-If results match (within reasonable variance), the IndicGLUE evaluation implementation is verified as correct!
+| Task  | Paper Accuracy | Our Accuracy | Difference |
+|-------|----------------|--------------|------------|
+| WSTP  | 74.02          | 62.12        | 11.90      |
+| COPA  | 62.50          | 53.41        | 9.09       |
+| BBCA  | 74.60          | 43.30        | 31.30      |
+| iitp-mr | 59.03        | 38.06        | 20.97      |
+| iitp-pr | 71.32        | 55.64        | 15.68      |
+| iitp-md | 78.44        | 63.69        | 14.75      |
 
 ## Implementation Architecture
 
@@ -299,7 +298,7 @@ The script uses 128 tokens (not the typical 512) as specified in the IndicBERT p
 
 ### Fine-Tuning Strategy
 
-- Base model: **Frozen** (parameters not updated)
+- Base model: **Unfrozen** (parameters are updated)
 - Classification head: **Trainable** (task-specific)
 - Early stopping: Patience of 3 epochs on validation accuracy
 
