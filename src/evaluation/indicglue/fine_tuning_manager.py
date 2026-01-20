@@ -6,11 +6,14 @@ Extracted from indicglue_evaluator.py to improve testability and maintainability
 """
 
 import torch
+import gc
 from torch.utils.data import DataLoader
 from typing import Dict, Optional, Any, Callable
 from tqdm import tqdm
 import logging
 from datasets import Dataset
+
+from .memory_utils import cleanup_cuda_memory
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +229,6 @@ class FineTuningManager:
                     # Clear previous checkpoint to avoid accumulation across tasks
                     if best_model_state is not None:
                         del best_model_state
-                        import gc
                         gc.collect()
 
                     best_model_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
@@ -253,6 +255,19 @@ class FineTuningManager:
             logger.info(f"Restored best model from epoch {best_epoch} with val_acc={best_val_acc:.4f}")
         else:
             logger.info(f"Using final model from epoch {epoch+1}")
+
+        # Clean up training state to free memory
+        # Delete best_model_state to free CPU memory
+        if best_model_state is not None:
+            del best_model_state
+
+        # Delete optimizer and scheduler to free GPU memory used by their states
+        del optimizer
+        del scheduler
+
+        # Perform robust CUDA memory cleanup
+        cleanup_cuda_memory(logger)
+        logger.debug("Cleaned up optimizer, scheduler, and GPU memory after fine-tuning")
 
         return {
             'epochs_trained': epoch + 1,
