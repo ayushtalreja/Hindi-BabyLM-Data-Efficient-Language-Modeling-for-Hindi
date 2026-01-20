@@ -385,7 +385,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Ayush Kumar**
 Technical University of Munich
-Email: ayush.kumar@tum.de
+Email: ayush1.kumar@tum.de
 GitHub: [@ayushtalreja](https://github.com/ayushtalreja)
 LinkedIn: [Ayush Kumar](https://www.linkedin.com/in/ayush-kumar-935703231/)
 

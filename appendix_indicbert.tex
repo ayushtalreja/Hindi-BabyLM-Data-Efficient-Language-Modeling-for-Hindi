@@ -1,0 +1,291 @@
+\chapter{IndicBERT Baseline Evaluation}
+\label{app:indicbert-evaluation}
+
+This appendix documents the standalone evaluation of the pre-trained IndicBERT model~\cite{kakwani2020indicnlpsuite} on IndicGLUE tasks, serving as a reference baseline for comparing our data-efficient Hindi language models. We detail the evaluation methodology, implementation specifications, obtained results, and factors contributing to performance variation across different evaluation configurations.
+
+\section{Evaluation Methodology}
+\label{sec:indicbert-methodology}
+
+\subsection{Model Specification}
+
+IndicBERT is an ALBERT-based~\cite{lan2019albert} multilingual model pre-trained on 12 Indian languages using data from IndicCorp. For our evaluation, we utilize the publicly available checkpoint from HuggingFace (\texttt{ai4bharat/indic-bert}) with the following architecture:
+
+\begin{itemize}
+    \item \textbf{Architecture}: ALBERT (A Lite BERT)
+    \item \textbf{Hidden size}: 768 dimensions
+    \item \textbf{Number of layers}: 12 transformer layers
+    \item \textbf{Attention heads}: 12 heads
+    \item \textbf{Vocabulary size}: 200,000 tokens (SentencePiece)
+    \item \textbf{Pre-training languages}: 12 Indian languages including Hindi
+\end{itemize}
+
+\subsection{Evaluation Protocol}
+
+Following the specifications from the original IndicBERT paper, our evaluation adheres to the following protocol:
+
+\paragraph{Sequence Length.} All inputs are truncated or padded to a maximum sequence length of 128 tokens, as specified in the original paper. This is notably shorter than the typical 512-token limit used in standard BERT configurations.
+
+\paragraph{Pooling Strategy.} For classification tasks, we extract the \texttt{[CLS]} token representation from the final hidden layer, following the standard BERT classification approach.
+
+\paragraph{Classification Head.} A linear classification layer with softmax activation is added on top of the pooled \texttt{[CLS]} representation. The loss function is multi-class cross-entropy.
+
+\paragraph{Fine-tuning Configuration.} Task-specific fine-tuning employs the following hyperparameters:
+\begin{itemize}
+    \item Learning rate: $2 \times 10^{-5}$ (ALBERT default)
+    \item Weight decay: 0.01 (L2 regularization)
+    \item Batch size: 32
+    \item Training epochs: 10 (with early stopping, patience of 3)
+    \item Optimizer: AdamW
+\end{itemize}
+
+\paragraph{Task-Specific Training.} Each IndicGLUE task is fine-tuned independently with a dedicated classification head, rather than using multi-task learning. This follows the evaluation protocol described in the original paper.
+
+\section{Task Configurations}
+\label{sec:task-configs}
+
+The IndicGLUE benchmark comprises multiple task types, each requiring specific input formatting and model configurations.
+
+\subsection{Classification Tasks}
+
+Classification tasks process single text inputs through the standard BERT format:
+
+\begin{verbatim}
+[CLS] text [SEP]
+\end{verbatim}
+
+\noindent The following tasks use this format:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llc}
+\toprule
+\textbf{Task Code} & \textbf{Task Name} & \textbf{Classes} \\
+\midrule
+BBCA & BBC News Article Classification & 14 \\
+iitp-mr & Movie Review Sentiment & 3 \\
+iitp-pr & Product Review Sentiment & 3 \\
+iitp-md & Discourse Mode Classification & 6 \\
+\bottomrule
+\end{tabular}
+\caption{Classification tasks in IndicGLUE Hindi evaluation.}
+\label{tab:classification-tasks}
+\end{table}
+
+\subsection{Multiple-Choice Tasks}
+
+Multiple-choice tasks concatenate the context with each candidate answer:
+
+\begin{verbatim}
+[CLS] context [SEP] candidate_answer [SEP]
+\end{verbatim}
+
+\noindent Each candidate is scored independently, and the highest-scoring option is selected as the prediction.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llc}
+\toprule
+\textbf{Task Code} & \textbf{Task Name} & \textbf{Choices} \\
+\midrule
+WSTP & Wikipedia Section Title Prediction & 4 \\
+CSQA & Cloze-style Multiple-choice QA & 4 \\
+COPA & Choice of Plausible Alternatives & 2 \\
+\bottomrule
+\end{tabular}
+\caption{Multiple-choice tasks in IndicGLUE Hindi evaluation.}
+\label{tab:mc-tasks}
+\end{table}
+
+\section{Evaluation Results}
+\label{sec:indicbert-results}
+
+Table~\ref{tab:indicbert-results} presents the evaluation results for IndicBERT on seven IndicGLUE Hindi tasks.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrp{4.5cm}}
+\toprule
+\textbf{Task} & \textbf{Accuracy} & \textbf{F1-Macro} & \textbf{Configuration Notes} \\
+\midrule
+Wikipedia Section Title Prediction & 62.12\% & 62.11\% & Standard 4-choice format \\
+Cloze-style Multiple-choice QA & 32.19\% & 32.16\% & Custom train/val/test splits from test-only dataset \\
+BBC News Classification & 43.30\% & 8.35\% & 14-class configuration (HuggingFace version) \\
+Movie Review Sentiment & 38.06\% & 23.48\% & 3-class sentiment \\
+Product Review Sentiment & 55.64\% & 39.47\% & 3-class sentiment \\
+Discourse Mode & 63.69\% & 32.26\% & 6-class configuration (HuggingFace version) \\
+COPA & 53.41\% & 53.35\% & Validation set used for testing \\
+\bottomrule
+\end{tabular}
+\caption{IndicBERT evaluation results on IndicGLUE Hindi tasks. Accuracy and macro-averaged F1 scores are reported. Configuration notes indicate dataset-specific considerations.}
+\label{tab:indicbert-results}
+\end{table}
+
+\section{Dataset Configuration Considerations}
+\label{sec:dataset-considerations}
+
+Several factors in dataset configuration contribute to variation in evaluation outcomes. Understanding these factors is essential for proper interpretation of baseline results and fair comparison with our data-efficient models.
+
+\subsection{Class Label Discrepancies}
+
+The HuggingFace versions of certain IndicGLUE datasets contain different numbers of class labels compared to the original paper specifications:
+
+\paragraph{BBC News Classification.} The original IndicBERT paper reports evaluation on 6 news categories. However, the HuggingFace dataset (\texttt{ai4bharat/IndicGLUE}) contains 14 distinct category labels. This increased classification complexity naturally affects model performance, as the model must distinguish among a larger set of fine-grained categories.
+
+\paragraph{Discourse Mode Classification.} Similarly, the original paper describes 5 discourse modes, while the HuggingFace version contains 6 classes. The additional class introduces extra complexity for the classifier.
+
+\subsection{Data Split Availability}
+
+\paragraph{Cloze-style Multiple-choice QA.} This task presents a unique challenge: the HuggingFace dataset contains only a test split with 35,140 examples, without predefined training or validation partitions. To enable fine-tuning evaluation, we create custom splits:
+\begin{itemize}
+    \item Training: 80\% ($\approx$28,112 examples)
+    \item Validation: 10\% ($\approx$3,514 examples)
+    \item Test: 10\% ($\approx$3,514 examples)
+\end{itemize}
+This splitting strategy, while necessary for fine-tuning, differs from the original evaluation protocol and may affect comparability.
+
+\paragraph{COPA Label Distribution.} The COPA test split in the HuggingFace dataset exhibits a label distribution issue where one label class is missing entirely. To ensure balanced evaluation across both choice options, we swap the validation and test sets, using the validation split for final evaluation. This ensures that both causal alternatives (cause and effect) are represented in the evaluation data.
+
+\subsection{Preprocessing and Tokenization}
+
+The publicly available IndicBERT checkpoint uses a SentencePiece tokenizer with a 200,000-token vocabulary covering all 12 supported Indian languages. While this multilingual vocabulary enables cross-lingual transfer, it may allocate fewer vocabulary entries specifically to Hindi compared to a Hindi-only tokenizer, potentially affecting subword segmentation quality.
+
+\section{Implementation Details}
+\label{sec:implementation-details}
+
+\subsection{Software Architecture}
+
+The evaluation script (\texttt{scripts/evaluate\_indicbert.py}) implements a modular architecture with the following components:
+
+\begin{enumerate}
+    \item \textbf{IndicBERTModelLoader}: Handles model and tokenizer loading from HuggingFace, extracts configuration parameters, and manages device placement.
+
+    \item \textbf{ALBERTForSequenceClassification}: Custom wrapper implementing \texttt{[CLS]} token pooling with configurable classification heads. Supports both frozen-base and end-to-end fine-tuning modes.
+
+    \item \textbf{IndicBERTEvaluationWrapper}: Adapter class providing compatibility with the existing \texttt{IndicGLUEEvaluator} infrastructure, enabling code reuse while accommodating ALBERT-specific requirements.
+
+    \item \textbf{MultipleChoiceWrapper}: Specialized wrapper for multiple-choice tasks (WSTP, CSQA, COPA) that scores each candidate independently and selects the highest-scoring option.
+\end{enumerate}
+
+\subsection{Evaluation Pipeline}
+
+The evaluation proceeds through the following stages:
+
+\begin{enumerate}
+    \item \textbf{Model Loading}: Load pre-trained IndicBERT from HuggingFace hub
+    \item \textbf{Configuration}: Apply task-specific settings (sequence length, number of classes)
+    \item \textbf{Data Loading}: Fetch IndicGLUE datasets via HuggingFace Datasets
+    \item \textbf{Fine-tuning}: Train task-specific classification heads with early stopping
+    \item \textbf{Evaluation}: Compute accuracy, F1 scores, and confidence intervals
+    \item \textbf{Results Export}: Save detailed JSON, summary CSV, and configuration files
+\end{enumerate}
+
+\subsection{Reproducibility}
+
+To ensure reproducibility, the evaluation script:
+\begin{itemize}
+    \item Sets random seeds for PyTorch, NumPy, and CUDA operations (default seed: 42)
+    \item Logs complete configuration to YAML format
+    \item Records exact model checkpoint identifiers
+    \item Saves detailed execution logs with timestamps
+\end{itemize}
+
+\section{Usage Instructions}
+\label{sec:usage}
+
+\subsection{Basic Evaluation}
+
+To reproduce the baseline evaluation:
+
+\begin{verbatim}
+python scripts/evaluate_indicbert.py
+\end{verbatim}
+
+This evaluates all seven tasks with default fine-tuning configuration.
+
+\subsection{Task-Specific Evaluation}
+
+To evaluate specific tasks:
+
+\begin{verbatim}
+python scripts/evaluate_indicbert.py --tasks WSTP COPA BBCA
+\end{verbatim}
+
+\subsection{Configuration Options}
+
+Key command-line arguments include:
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{llp{5cm}}
+\toprule
+\textbf{Argument} & \textbf{Default} & \textbf{Description} \\
+\midrule
+\texttt{--model-name} & \texttt{ai4bharat/indic-bert} & HuggingFace model identifier \\
+\texttt{--tasks} & All 7 tasks & Space-separated task codes \\
+\texttt{--mode} & \texttt{fine-tune} & \texttt{fine-tune} or \texttt{zero-shot} \\
+\texttt{--epochs} & 10 & Fine-tuning epochs \\
+\texttt{--learning-rate} & $2 \times 10^{-5}$ & Learning rate \\
+\texttt{--batch-size} & 32 & Training/evaluation batch size \\
+\texttt{--device} & Auto-detect & \texttt{cuda} or \texttt{cpu} \\
+\texttt{--output-dir} & \texttt{results/indicbert\_evaluation} & Output directory \\
+\bottomrule
+\end{tabular}
+\caption{Command-line arguments for IndicBERT evaluation script.}
+\label{tab:cli-args}
+\end{table}
+
+\section{Output Files}
+\label{sec:output-files}
+
+The evaluation script generates the following outputs:
+
+\begin{enumerate}
+    \item \textbf{\texttt{evaluation\_results.json}}: Comprehensive results including:
+    \begin{itemize}
+        \item Metadata (model name, timestamp, configuration)
+        \item Per-task metrics (accuracy, F1, precision, recall)
+        \item Confidence intervals (95\% CI with 1000 bootstrap samples)
+        \item Confusion matrices
+    \end{itemize}
+
+    \item \textbf{\texttt{evaluation\_summary.csv}}: Tabular summary for comparison:
+    \begin{itemize}
+        \item Task name, accuracy, F1 scores
+        \item Number of evaluation examples
+        \item Completion status
+    \end{itemize}
+
+    \item \textbf{\texttt{config.yaml}}: Complete configuration for reproducibility
+
+    \item \textbf{\texttt{indicbert\_evaluation.log}}: Detailed execution log
+\end{enumerate}
+
+\section{Comparison with Data-Efficient Models}
+\label{sec:comparison}
+
+The IndicBERT baseline serves as a reference point for evaluating our data-efficient Hindi language models. Key comparison dimensions include:
+
+\begin{enumerate}
+    \item \textbf{Training Data Volume}: IndicBERT is pre-trained on billions of tokens from IndicCorp, while our models use only 10 million tokens following the BabyLM strict-small track.
+
+    \item \textbf{Vocabulary Design}: IndicBERT uses a multilingual 200K vocabulary, whereas our models employ Hindi-specific tokenization strategies optimized for morphological preservation.
+
+    \item \textbf{Architecture}: IndicBERT uses ALBERT (parameter-efficient through cross-layer sharing), while we evaluate both GPT-2 (decoder-only) and DeBERTa (encoder with disentangled attention) architectures.
+
+    \item \textbf{Fine-tuning Protocol}: Both evaluations use identical fine-tuning hyperparameters and early stopping criteria to ensure fair comparison.
+\end{enumerate}
+
+The results presented in this appendix establish the performance envelope for a well-resourced multilingual model, contextualizing the achievements of data-efficient approaches described in Chapter~\ref{ch:results}.
+
+\section{Summary}
+
+This appendix has documented the evaluation of IndicBERT on IndicGLUE Hindi tasks, providing:
+\begin{itemize}
+    \item Detailed methodology following original paper specifications
+    \item Complete evaluation results with configuration notes
+    \item Analysis of dataset configuration factors affecting evaluation
+    \item Reproducible implementation with usage instructions
+\end{itemize}
+
+These baseline results enable meaningful comparison with our data-efficient Hindi language models, demonstrating the trade-offs between training data volume and downstream task performance.

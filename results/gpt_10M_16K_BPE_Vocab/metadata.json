@@ -1,0 +1,12 @@
+{
+  "experiment_name": "gpt_10M_bpe_16k",
+  "timestamp": "2026-01-11T13:36:00.572890",
+  "python_version": "3.9.23 (main, Jun  5 2025, 13:40:20) \n[GCC 11.2.0]",
+  "pytorch_version": "2.8.0+cu128",
+  "cuda_available": true,
+  "cuda_version": "12.8",
+  "gpu_count": 1,
+  "gpu_names": [
+    "NVIDIA A100-SXM4-40GB MIG 3g.20gb"
+  ]
+}

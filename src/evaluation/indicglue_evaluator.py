@@ -41,10 +41,7 @@ from .indicglue import (
     MultipleChoiceStrategy,
     PerplexityStrategy,
     FineTuningManager,
-    ResultVisualizer,
-    cleanup_cuda_memory,
-    move_model_to_cpu,
-    cleanup_dataloader
+    ResultVisualizer
 )
 
 # Import classification models for wrapping language models
@@ -574,10 +571,6 @@ class IndicGLUEEvaluator:
                 logger.error(f"Error evaluating {task_name}: {str(e)}")
                 results[task_name] = {'error': str(e), 'status': 'failed'}
 
-            # CRITICAL: Clean up CUDA memory between tasks to prevent NVML errors
-            # This ensures memory is properly freed before the next task starts
-            cleanup_cuda_memory(logger)
-
         # Compute overall statistics
         results['overall'] = self.result_visualizer.compute_overall_metrics(results, self.task_registry)
 
@@ -715,16 +708,10 @@ class IndicGLUEEvaluator:
         finally:
             # Clean up wrapped models
             if hasattr(self, 'wrapped_models'):
-                # Move models to CPU before deleting to prevent CUDA memory issues
                 for model_key in list(self.wrapped_models.keys()):
-                    model = self.wrapped_models[model_key]
-                    move_model_to_cpu(model, logger)
                     del self.wrapped_models[model_key]
                 self.wrapped_models.clear()
                 logger.debug(f"Cleared wrapped model cache for {task_name}")
-
-            # MEMORY CLEANUP: Use robust cleanup to prevent NVML assertion errors
-            cleanup_cuda_memory(logger)
 
     def _evaluate_with_model(self, model, dataset: Dataset, task_name: str) -> Dict:
         """
@@ -1161,10 +1148,6 @@ class IndicGLUEEvaluator:
 
                 predictions.extend(batch_preds.tolist())
                 labels.extend(batch['labels'].cpu().numpy().tolist())
-
-        # Clean up DataLoader to release memory
-        cleanup_dataloader(dataloader, logger)
-        del dataloader
 
         # Validate predictions and labels have same length
         assert len(predictions) == len(labels), \
