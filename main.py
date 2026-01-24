@@ -500,6 +500,7 @@ Examples:
             import gc
             gc.collect()
             if torch.cuda.is_available():
+                torch.cuda.synchronize()  # Wait for pending CUDA ops before clearing cache
                 torch.cuda.empty_cache()
             logging.info("✓ Memory cleanup after data processing completed")
 
@@ -522,6 +523,7 @@ Examples:
             import gc
             gc.collect()
             if torch.cuda.is_available():
+                torch.cuda.synchronize()  # Wait for pending CUDA ops before clearing cache
                 torch.cuda.empty_cache()
             logging.info("✓ Memory cleanup after training completed")
 
