@@ -301,15 +301,15 @@ evaluation:
         num_epochs: 10  # Sufficient for convergence with improved hyperparams
         early_stopping:
           enabled: true
-          patience: 5  # Increased from 3 for more training stability
-          min_delta: 0.005  # Only stop if improvement < 0.5%
+          patience: 3  
+          min_delta: 0.001  # Only stop if improvement < 0.1%
           metric: "accuracy"  # Metric to monitor
           mode: "max"  # "max" for accuracy, "min" for loss
 
         # Optimization
-        learning_rate: 3e-5  # Increased from 2e-5 for faster convergence
-        batch_size: 16  # Reduced from 32 for better generalization
-        gradient_accumulation_steps: 2  # Effective batch=32 (maintain stability)
+        learning_rate: 1e-4  # increased from 2e-5 since model was not learning and was stuck in the initialisation plateau
+        batch_size: 16  # Reduced from 32 for better memory consumption
+        gradient_accumulation_steps: 4  # Effective batch=64 (maintain stability)
         weight_decay: 0.05  # Increased from 0.01 for stronger regularization
         adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
         warmup_ratio: 0.15  # Increased from 0.1 for more warmup stability
