@@ -43,7 +43,6 @@ from .indicglue import (
     FineTuningManager,
     ResultVisualizer,
     cleanup_cuda_memory,
-    move_model_to_cpu,
     cleanup_dataloader
 )
 
@@ -715,10 +714,7 @@ class IndicGLUEEvaluator:
         finally:
             # Clean up wrapped models
             if hasattr(self, 'wrapped_models'):
-                # Move models to CPU before deleting to prevent CUDA memory issues
                 for model_key in list(self.wrapped_models.keys()):
-                    model = self.wrapped_models[model_key]
-                    move_model_to_cpu(model, logger)
                     del self.wrapped_models[model_key]
                 self.wrapped_models.clear()
                 logger.debug(f"Cleared wrapped model cache for {task_name}")
