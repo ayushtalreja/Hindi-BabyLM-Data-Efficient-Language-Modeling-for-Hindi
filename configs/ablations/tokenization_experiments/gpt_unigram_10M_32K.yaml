@@ -80,7 +80,7 @@ data:
 # ==============================================================================
 tokenization:
   type: "sentencepiece"  # Changed from bpe
-  vocab_size: 32000
+  vocab_size: 32768
   character_coverage: 0.9995
 
   special_tokens:
