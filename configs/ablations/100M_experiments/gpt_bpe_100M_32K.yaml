@@ -1,0 +1,489 @@
+# ==============================================================================
+# Hindi BabyLM - 100M Words Configuration
+# ==============================================================================
+# This configuration is for experiments with 100M word training data.
+# Validation and test data remain at 10M words each as specified in requirements.
+
+# Experiment Configuration
+experiment:
+  name: "gpt_100M_large"  # Default experiment name (can be overridden via CLI)
+  description: "Large GPT model on 100M word training corpus"
+  tags: ["large-scale", "gpt", "100M", "medium-model"]
+
+# Project Metadata
+project:
+  name: "hindi-babylm"
+  description: "Data-efficient language modeling for Hindi - 100M training words"
+  version: "1.0.0"
+  track: "100M-training"  # 100M word training dataset
+
+# Directory Structure
+directories:
+  data_dir: "data"  # Shared data directory - reuses 10M data for training
+  model_dir: "results/experiment_name/models"
+  tokenizer_dir: "tokenizers"  # Temporary directory for tokenizer training files
+  results_dir: "results"
+  checkpoint_dir: "checkpoints"
+  logs_dir: "logs"
+
+# ==============================================================================
+# DATA CONFIGURATION
+# ==============================================================================
+data:
+  # Word Budget - 100M for training, 10M each for val/test
+  max_words: 100_000_000  # 100M words for backward compatibility
+
+  # Separate word limits for each split
+  # Training enlarged to 100M, validation and test remain at 10M
+  train_word_limit: 100_000_000  # 100M words for training
+  val_word_limit: 10_000_000     # 10M words for validation
+  test_word_limit: 10_000_000    # 10M words for test
+
+  # Data Splits (legacy, not used with new split creation)
+
+  # Source Mixing Ratios (for training data only)
+  # Validation and test splits are always balanced across sources
+  # Flexible ratios for 100M experiment as specified in requirements
+  train_source_ratios:
+    indiccorp: 0.65        # 65% from IndicCorp (formal written Hindi)
+    wikipedia: 0.25        # 25% from Wikipedia (encyclopedic Hindi)
+    indicdialogue: 0.05    # 5% from IndicDialogue (conversational Hindi)
+    childrens_books: 0.05  # 5% from children's books (simple narrative Hindi)
+
+  # Data Sources & Mixing Ratios
+  sources:
+    indiccorp:
+      enabled: true
+      ratio: 0.65  # 65% from news/web
+      max_samples: 500000  # Increased for 100M dataset
+
+    wikipedia:
+      enabled: true
+      ratio: 0.25  # 25% from encyclopedia
+      dataset_version: "20231101.hi"  # HuggingFace dataset version
+      max_articles: 50000  # Increased for 100M dataset
+
+    indicdialogue:
+      enabled: true
+      ratio: 0.05  # 5% from conversational Hindi
+      max_movies: null  # null = use all 3,542 movies
+      combine_dialogues: false  # false = keep each dialogue line separate
+      min_dialogue_length: 10  # Minimum characters per dialogue line
+
+    childrens_books:
+      enabled: true
+      ratio: 0.05  # 5% from children's literature
+      max_stories: 5000  # Increased for 100M dataset
+
+  # Quality Filtering
+  filtering:
+    min_length: 30  # Minimum 30 characters
+    max_length: 2000  # Maximum 2000 characters (was 10000)
+    min_hindi_ratio: 0.8  # Devanagari character ratio
+    min_word_count: 2 # (to filter out very short lines)
+    max_word_count: 10000  # (to control extremely long lines) (can create training issues)
+
+  # Deduplication
+  deduplication:
+    enabled: true
+    similarity_threshold: 0.8  # MinHash LSH threshold
+    num_permutations: 256
+
+  # Data Processing
+  processing:
+    unicode_normalization: "NFC"
+    remove_urls: true
+    remove_emails: true
+    normalize_whitespace: true
+    max_workers: 8  # Increased for larger dataset
+
+# ==============================================================================
+# TOKENIZATION CONFIGURATION
+# ==============================================================================
+tokenization:
+  # Tokenizer Type
+  type: "bpe"  # Options: sentencepiece, wordpiece, bpe
+
+  # Vocabulary
+  vocab_size: 32000
+  character_coverage: 0.9995  # For SentencePiece
+
+  # Special Tokens
+  special_tokens:
+    pad_token: "<pad>"
+    unk_token: "<unk>"
+    bos_token: "<s>"
+    eos_token: "</s>"
+    mask_token: "<mask>"
+    sep_token: "<sep>"
+    cls_token: "<cls>"
+
+  # SentencePiece Specific
+  sentencepiece:
+    model_type: "bpe"  # Options: unigram, bpe
+    split_by_whitespace: true
+    split_by_unicode_script: true
+    byte_fallback: true
+    normalization_rule_name: "nfkc"
+    treat_whitespace_as_suffix: false
+    split_digits: true
+
+  # WordPiece Specific
+  wordpiece:
+    min_frequency: 2
+    limit_alphabet: 10000
+    continuing_subword_prefix: "##"
+
+  # BPE Specific
+  bpe:
+    min_frequency: 2
+    dropout: 0.0  # BPE dropout for regularization
+
+# ==============================================================================
+# MODEL ARCHITECTURE CONFIGURATION
+# ==============================================================================
+model:
+  # Model Type
+  type: "gpt"  # Options: gpt, deberta
+
+  # Model Size - Using same 'large' architecture as base_config for fair comparison
+  model_size: "small"  # Options: tiny, small, medium/base, large
+
+  # Core Architecture Hyperparameters (matching base_config's 'large' model)
+  architecture:
+    hidden_size: 768
+    num_hidden_layers: 12
+    num_attention_heads: 12
+    intermediate_size: 3072  # FFN hidden size (typically 4 * hidden_size)
+    max_position_embeddings: 512
+
+  # Regularization
+  regularization:
+    hidden_dropout_prob: 0.1
+    attention_probs_dropout_prob: 0.1
+    layer_norm_eps: 1.0e-12
+    initializer_range: 0.02
+
+  # Activation Functions
+  activation: "gelu"  # Options: gelu, relu, swiglu, gelu_new
+
+  # Layer Normalization
+  layer_norm_type: "layernorm"  # Options: layernorm, rmsnorm
+
+  # Model-Specific Configurations
+  gpt:
+    use_cache: true
+    scale_attn_weights: true
+    reorder_and_upcast_attn: false
+
+  # Note: deberta section removed - only include model-specific config for the active model type
+  # For DeBERTa models, add a deberta section here instead of gpt
+
+# ==============================================================================
+# TRAINING CONFIGURATION
+# ==============================================================================
+training:
+  # Basic Training Parameters
+  batch_size: 64  # BabyLM optimization: increased for better GPU utilization
+  gradient_accumulation_steps: 8  # Effective batch = 512 (was 64 * 8 = 512)
+  num_epochs: 10  
+  max_steps: -1
+
+  # Optimization
+  optimizer:
+    type: "adamw"
+    learning_rate: 0.0003  # Fixed from 0.007 (23x too high!) - standard LM learning rate
+    weight_decay: 0.01
+    beta1: 0.9
+    beta2: 0.999
+    epsilon: 1.0e-8
+    amsgrad: false
+
+  # Learning Rate Scheduling
+  lr_scheduler:
+    type: "cosine_with_warmup"
+    warmup_steps: 5000  # Increased warmup for larger dataset
+    warmup_ratio: 0.1
+    num_cycles: 0.5
+    min_lr_ratio: 0.0
+
+  # Gradient Management
+  gradient:
+    max_grad_norm: 1.0
+    gradient_checkpointing: true  # Enable for larger model
+
+  # Mixed Precision Training
+  mixed_precision:
+    enabled: true
+    dtype: "bf16"  # Options: fp16, bf16, float32 (bf16 is more stable)
+    opt_level: "O1"
+
+  # Checkpointing
+  checkpointing:
+    save_strategy: "steps"
+    save_steps: 2000  # Less frequent for larger dataset
+    save_total_limit: 3
+    load_best_model_at_end: true
+    metric_for_best_model: "eval_loss"
+    greater_is_better: false
+
+  # Evaluation
+  evaluation:
+    eval_strategy: "steps"
+    eval_steps: 1000  # Less frequent for larger dataset
+    per_device_eval_batch_size: 64
+    eval_accumulation_steps: null
+
+  # Logging
+  logging:
+    log_level: "info"
+    log_steps: 100
+    report_to: ["wandb", "tensorboard"]
+
+  # Early Stopping
+  early_stopping:
+    enabled: true
+    patience: 5  # More patience for larger dataset
+    threshold: 0.001
+
+  # Reproducibility
+  seed: 42
+  deterministic: true
+  cuda_deterministic_algorithms: false
+
+  # Evaluation Callbacks
+  enable_eval_callback: false # Disabled to reduce overhead during training
+  eval_frequency: 1
+  eval_on_steps: []
+  log_eval_to_wandb: true
+
+  # Evaluation-Based Early Stopping
+  eval_early_stopping: true
+  eval_early_stopping_metric: "overall.average_accuracy"
+  eval_early_stopping_patience: 5
+  eval_early_stopping_mode: "max"
+  eval_early_stopping_min_delta: 0.001
+
+  # Checkpoint Selection Based on Evaluation
+  checkpoint_metric: "overall.average_accuracy"
+  checkpoint_metric_mode: "max"
+  load_best_checkpoint_at_end: true
+
+# ==============================================================================
+# EVALUATION CONFIGURATION
+# ==============================================================================
+evaluation:
+  # Evaluation Benchmarks
+  benchmarks:
+    indicglue:
+      enabled: true
+      # Updated task names (descriptive)
+      tasks: ["BBCArticlesClassification", "Wikipedia Section Title Prediction", "Cloze-style multiple-choice QA", "WinogradNLI", "Choice of Plausible Alternatives", "MovieReviewSentiment", "ProductReviewSentiment", "DiscourseMode"]
+
+      # Evaluation settings
+      batch_size: 64
+      max_samples_per_task: null  # null = use all data, or set a number for quick testing
+
+      # Fine-tuning configuration
+      fine_tuning:
+        enabled: true  # Toggle: true for fine-tuning, false for zero-shot
+
+        # NOTE: Always uses original HuggingFace splits by default
+        # For tasks with missing/inadequate splits, use task_specific_splits below
+
+        # Training hyperparameters
+        num_epochs: 10  # Reverted to working config for better convergence
+        early_stopping:
+          enabled: true
+          patience: 3
+          metric: "accuracy"  # Metric to monitor
+          mode: "max"  # "max" for accuracy, "min" for loss
+
+        # Optimization
+        learning_rate: 2e-5
+        batch_size: 32
+        weight_decay: 0.01  # Reverted: L2 regularization to prevent overfitting
+        adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
+        warmup_ratio: 0.1  # Reverted: 10% warmup for training stability
+        scheduler_type: "linear"  # Linear LR decay with warmup
+
+        # Model settings
+        # Training Strategy:
+        # - freeze_base_model: true  → Frozen base, train only classification heads (FASTER, less overfitting)
+        # - freeze_base_model: false → End-to-end training (SLOWER, matches IndicBERT paper scores)
+        freeze_base_model: false  # Default to unfrozen base (proven approach)
+
+        # Model Architecture:
+        # - use_auto_models: true  → HuggingFace AutoModelForSequenceClassification/MultipleChoice (used by indicbert team)
+        # - use_auto_models: false → Custom wrappers
+        use_auto_models: false  # Use our implementation which performs better than AutoModel
+
+        dropout: 0.1  # Reverted: Prevent overfitting during fine-tuning
+
+        # To replicate IndicBERT paper exactly, use these settings:
+        # freeze_base_model: false
+        # num_epochs: 3
+        # weight_decay: 0.0
+        # warmup_ratio: 0.0
+        # dropout: 0.0
+
+        # Task-specific split configurations
+        # For tasks where original splits are missing/inadequate
+        task_specific_splits:
+          "Cloze-style multiple-choice QA":
+            train_ratio: 0.8          # 80% training (~28,112 examples)
+            val_ratio: 0.1           # 10% validation (~3,514 examples)
+            test_ratio: 0.1           # 10% test (~3,514 examples)
+            split_seed: 42            # Reproducible splits
+            reason: "Dataset only has test split (35,140 examples); custom splits required for fine-tuning"
+
+        # Checkpointing (optional)
+        save_finetuned_models: true
+        finetuned_models_dir: "finetuned_heads"
+
+    multiblimp:
+      enabled: true
+      n_examples_per_phenomenon: null  # null = use all, or set a number for quick testing
+
+    # morphological_probes:  # REMOVED - No longer available
+    #   enabled: true
+    #   probes: ["case", "number", "gender", "tense", "person", "honorific"]
+    #   layers_to_probe: [8, 16]  # Adjusted for 16-layer model
+
+  # Perplexity Evaluation
+  perplexity:
+    enabled: true
+    split: "test"
+    report_per_source: true
+
+  # Advanced Evaluation Features
+  use_eval_cache: true
+  cache_dir: ".eval_cache"
+  max_cache_age_days: 30
+
+  # Metrics Standardization
+  bootstrap_samples: 1000
+  confidence_level: 0.95
+  aggregation_method: "macro"
+
+  # Visualization Settings
+  save_visualizations: true
+  visualization_format: ["png", "html"]
+
+  # Label Validation (CRITICAL for data quality)
+  # - strict (true): Raise ValueError on invalid labels (RECOMMENDED for development)
+  #   → Immediately detects data quality issues
+  #   → Prevents silent corruption
+  #   → Ensures evaluation accuracy
+  # - permissive (false): Log warnings and default to class 0 (for production with known noisy data)
+  #   → Allows evaluation to continue with corrupted labels
+  #   → May bias results toward class 0
+  strict_label_validation: true
+
+  # Comparative Analysis
+  enable_comparative_reports: true
+  report_formats: ["html", "pdf"]
+  comparative_analysis_dir: "comparative_analysis"
+
+# ==============================================================================
+# EXPERIMENT TRACKING
+# ==============================================================================
+experiment_tracking:
+  # Weights & Biases
+  wandb:
+    enabled: true
+    project: "hindi-babylm"
+    # entity: ayushtalreja1  # Commented out - W&B will use your authenticated username
+    tags: ["babylm", "hindi", "100m-words", "large-scale"]
+    notes: "100M word training experiment"
+    mode: "online"
+    log_model: "checkpoint"
+
+  # TensorBoard
+  tensorboard:
+    enabled: true
+    log_dir: "logs/tensorboard"
+
+  # MLflow
+  mlflow:
+    enabled: false
+    tracking_uri: null
+    experiment_name: "hindi-babylm"
+
+# ==============================================================================
+# RESOURCE MANAGEMENT
+# ==============================================================================
+resources:
+  # Device Configuration
+  device: "cuda"
+  num_workers: 4  # BabyLM optimization: increased from 8 for faster data loading
+
+  # Memory Management
+  pin_memory: true
+  prefetch_factor: 2
+
+  # Limits
+  max_memory_per_gpu: null
+  cpu_memory_limit: null
+
+# ==============================================================================
+# ANALYSIS & VISUALIZATION
+# ==============================================================================
+analysis:
+  # Corpus Analysis
+  corpus_statistics:
+    enabled: true
+    compute_vocab_stats: true
+    compute_length_distribution: true
+    compute_morphological_stats: true
+
+  # Training Analysis
+  training_analysis:
+    plot_learning_curves: true
+    plot_gradient_norms: true
+    plot_attention_weights: false
+
+  # Tokenization Analysis
+  tokenization_analysis:
+    compare_tokenizers: true
+    analyze_morphological_boundaries: true
+    coverage_analysis: true
+
+  # Evaluation Analysis
+  evaluation_analysis:
+    generate_confusion_matrices: true
+    error_analysis: true
+    statistical_significance_tests: true
+
+# ==============================================================================
+# REPRODUCIBILITY & DEBUGGING
+# ==============================================================================
+reproducibility:
+  # Seed Management
+  seed: 42
+  set_deterministic: true
+
+  # Git Tracking
+  track_git_commit: true
+  save_git_diff: true
+
+  # Environment
+  save_environment: true
+  save_system_info: true
+
+debugging:
+  # Debug Mode
+  debug_mode: false
+
+  # Profiling
+  profile_training: false
+  profile_evaluation: false
+
+  # Validation
+  validate_data_loader: true
+  check_data_distribution: true
+  detect_anomalies: false
+
+  # Testing
+  overfit_small_batch: false
+  fast_dev_run: false
