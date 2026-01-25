@@ -5,7 +5,7 @@ This module provides caching functionality for evaluation predictions to avoid
 redundant inference runs and speed up iterative evaluation workflows.
 
 Key Features:
-- Hash-based cache key generation from model checkpoint + dataset + config
+- Hash-based cache key generation from model checkpoint + dataset + config + model type + tokenizer
 - Efficient file hashing for large checkpoints
 - Age-based cache validation (configurable expiration)
 - Metadata tracking (timestamps, model info, dataset info)
@@ -74,7 +74,10 @@ class EvaluationCache:
         model_hash: Optional[str] = None,
         dataset_name: str = "",
         dataset_split: str = "",
-        config: Optional[Dict] = None
+        config: Optional[Dict] = None,
+        model_type: Optional[str] = None,
+        vocab_size: Optional[int] = None,
+        tokenizer_type: Optional[str] = None
     ) -> str:
         """
         Compute cache key from model, dataset, and configuration
@@ -85,12 +88,30 @@ class EvaluationCache:
             dataset_name: Name of the dataset
             dataset_split: Dataset split (train/val/test)
             config: Evaluation configuration dictionary
+            model_type: Type of model (e.g., 'gpt', 'deberta') - CRITICAL for cache isolation
+            vocab_size: Vocabulary size - ensures different tokenizers get different caches
+            tokenizer_type: Type of tokenizer (e.g., 'bpe', 'sentencepiece', 'wordpiece')
 
         Returns:
             Cache key (hex digest)
         """
         # Initialize hash
         hasher = hashlib.sha256()
+
+        # Hash model type FIRST - this ensures GPT and DeBERTa never share cache
+        if model_type:
+            hasher.update(f"model_type:{model_type}".encode('utf-8'))
+            logger.debug(f"Cache key includes model_type: {model_type}")
+
+        # Hash vocab size - different vocab sizes should have different caches
+        if vocab_size:
+            hasher.update(f"vocab_size:{vocab_size}".encode('utf-8'))
+            logger.debug(f"Cache key includes vocab_size: {vocab_size}")
+
+        # Hash tokenizer type - different tokenizers may produce different tokenizations
+        if tokenizer_type:
+            hasher.update(f"tokenizer_type:{tokenizer_type}".encode('utf-8'))
+            logger.debug(f"Cache key includes tokenizer_type: {tokenizer_type}")
 
         # Hash model
         if model_hash:

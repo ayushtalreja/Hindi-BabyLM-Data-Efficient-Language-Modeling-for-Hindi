@@ -27,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..utils.seed_manager import SeedManager
+from .data_loader import create_data_collator
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,24 @@ class HindiLanguageModelTrainer:
         # Store vocab_size and model_type for checkpoint saving
         self.vocab_size = tokenizer.vocab_size if hasattr(tokenizer, 'vocab_size') else None
         self.model_type = config.get('model_type', 'gpt')
+
+        # Determine if this is an MLM model (DeBERTa, BERT) vs CLM model (GPT)
+        self.is_mlm = self.model_type.lower() in ['deberta', 'bert', 'albert', 'roberta']
+        logger.info(f"Model type: {self.model_type} ({'MLM' if self.is_mlm else 'CLM'})")
+
+        # Create appropriate data collator for MLM/CLM training
+        # MLM models need 15% token masking with proper labels
+        # CLM models use labels=input_ids (next token prediction)
+        mlm_probability = config.get('training', {}).get('mlm_probability', 0.15)
+        self.data_collator = create_data_collator(
+            tokenizer=tokenizer,
+            model_type=self.model_type,
+            mlm_probability=mlm_probability
+        )
+        if self.is_mlm:
+            logger.info(f"Using MLM data collator with {mlm_probability*100:.0f}% masking probability")
+        else:
+            logger.info("Using CLM data collator (no masking, labels=input_ids)")
 
         # Setup seed for reproducibility
         self.seed_manager = SeedManager(
@@ -320,9 +339,24 @@ class HindiLanguageModelTrainer:
         progress_bar = tqdm(dataloader, desc=f"Epoch {self.current_epoch + 1}")
 
         for batch_idx, batch in enumerate(progress_bar):
-            # Move batch to device
-            input_ids = batch['input_ids'].to(self.device)
-            attention_mask = batch['attention_mask'].to(self.device)
+            # Apply data collator to handle MLM masking (for DeBERTa) or CLM (for GPT)
+            # The collator converts batch samples to proper format with labels
+            if self.is_mlm and self.data_collator is not None:
+                # For MLM: collator creates masked input_ids and proper labels
+                # Convert batch to list of samples for collator
+                batch_samples = [
+                    {'input_ids': batch['input_ids'][i], 'attention_mask': batch['attention_mask'][i]}
+                    for i in range(batch['input_ids'].size(0))
+                ]
+                collated = self.data_collator(batch_samples)
+                input_ids = collated['input_ids'].to(self.device)
+                attention_mask = collated['attention_mask'].to(self.device)
+                labels = collated['labels'].to(self.device)  # MLM labels from collator
+            else:
+                # For CLM (GPT): use input_ids as labels (next token prediction)
+                input_ids = batch['input_ids'].to(self.device)
+                attention_mask = batch['attention_mask'].to(self.device)
+                labels = input_ids  # CLM: labels = input_ids
 
             # Forward pass with mixed precision
             if self.use_amp:
@@ -330,14 +364,14 @@ class HindiLanguageModelTrainer:
                     outputs = self.model(
                         input_ids=input_ids,
                         attention_mask=attention_mask,
-                        labels=input_ids  # For language modeling
+                        labels=labels
                     )
                     loss = outputs.loss / self.gradient_accumulation_steps
             else:
                 outputs = self.model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
-                    labels=input_ids
+                    labels=labels
                 )
                 loss = outputs.loss / self.gradient_accumulation_steps
 
@@ -423,21 +457,35 @@ class HindiLanguageModelTrainer:
 
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Evaluating"):
-                input_ids = batch['input_ids'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
+                # Apply data collator for MLM models (creates masked input and labels)
+                if self.is_mlm and self.data_collator is not None:
+                    # Convert batch to list of samples for collator
+                    batch_samples = [
+                        {'input_ids': batch['input_ids'][i], 'attention_mask': batch['attention_mask'][i]}
+                        for i in range(batch['input_ids'].size(0))
+                    ]
+                    collated = self.data_collator(batch_samples)
+                    input_ids = collated['input_ids'].to(self.device)
+                    attention_mask = collated['attention_mask'].to(self.device)
+                    labels = collated['labels'].to(self.device)
+                else:
+                    # For CLM: labels = input_ids
+                    input_ids = batch['input_ids'].to(self.device)
+                    attention_mask = batch['attention_mask'].to(self.device)
+                    labels = input_ids
 
                 if self.use_amp:
                     with autocast():
                         outputs = self.model(
                             input_ids=input_ids,
                             attention_mask=attention_mask,
-                            labels=input_ids
+                            labels=labels
                         )
                 else:
                     outputs = self.model(
                         input_ids=input_ids,
                         attention_mask=attention_mask,
-                        labels=input_ids
+                        labels=labels
                     )
 
                 loss = outputs.loss

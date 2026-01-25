@@ -102,7 +102,8 @@ class HindiDeBERTaModel(nn.Module):
 
     def forward(self, input_ids: torch.Tensor,
                 attention_mask: Optional[torch.Tensor] = None,
-                labels: Optional[torch.Tensor] = None):
+                labels: Optional[torch.Tensor] = None,
+                **kwargs):
         """
         Forward pass
 
@@ -110,6 +111,8 @@ class HindiDeBERTaModel(nn.Module):
             input_ids: Input token IDs [batch, seq_len]
             attention_mask: Attention mask [batch, seq_len]
             labels: Target labels for masked language modeling [batch, seq_len]
+            **kwargs: Additional arguments passed to underlying model
+                      (e.g., output_hidden_states, output_attentions)
 
         Returns:
             Model outputs with logits and optional loss
@@ -117,7 +120,8 @@ class HindiDeBERTaModel(nn.Module):
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            labels=labels
+            labels=labels,
+            **kwargs
         )
 
     def num_parameters(self, only_trainable: bool = False) -> int:

@@ -357,6 +357,61 @@ class IndicGLUEEvaluator:
         logger.warning(f"Could not definitively determine model type for {model_class_name}, assuming language model")
         return True
 
+    def _detect_model_type(self, model) -> str:
+        """
+        Detect the model type from the model class name.
+
+        Used for cache key generation to ensure different model types
+        (e.g., GPT vs DeBERTa) never share cached predictions.
+
+        Returns:
+            String identifier for model type ('gpt', 'deberta', 'bert', 'unknown')
+        """
+        model_class_name = model.__class__.__name__.lower()
+
+        if 'gpt' in model_class_name:
+            return 'gpt'
+        elif 'deberta' in model_class_name:
+            return 'deberta'
+        elif 'albert' in model_class_name:
+            return 'albert'
+        elif 'bert' in model_class_name:
+            return 'bert'
+        else:
+            return 'unknown'
+
+    def _detect_tokenizer_type(self, tokenizer) -> str:
+        """
+        Detect the tokenizer type from the tokenizer class name.
+
+        Used for cache key generation to ensure different tokenizer types
+        (e.g., BPE vs SentencePiece vs WordPiece) produce different cache keys.
+
+        Returns:
+            String identifier for tokenizer type
+        """
+        tokenizer_class_name = tokenizer.__class__.__name__.lower()
+
+        if 'sentencepiece' in tokenizer_class_name or 'spm' in tokenizer_class_name:
+            return 'sentencepiece'
+        elif 'bpe' in tokenizer_class_name or 'bytepair' in tokenizer_class_name:
+            return 'bpe'
+        elif 'wordpiece' in tokenizer_class_name:
+            return 'wordpiece'
+        elif 'character' in tokenizer_class_name:
+            return 'charcter'
+        elif 'character_bigram' in tokenizer_class_name:
+            return 'character_bigram'
+        elif 'tiktoken' in tokenizer_class_name:
+            return 'tiktoken'
+        else:
+            # Try to detect from tokenizer attributes
+            if hasattr(tokenizer, 'sp_model'):
+                return 'sentencepiece'
+            elif hasattr(tokenizer, 'byte_encoder'):
+                return 'bpe'
+            return 'unknown'
+
     def _get_model_config(self) -> Dict:
         """Extract model configuration for wrapping."""
         # Try to get hidden size from model config
@@ -1085,7 +1140,17 @@ class IndicGLUEEvaluator:
 
         # Try to load from cache
         if self.cache_manager and self.cache_manager.enable_cache:
-            # Generate cache key from task name, dataset size, and config
+            # Extract model type, vocab size, and tokenizer type for cache isolation
+            # This ensures different model types (GPT vs DeBERTa) never share cache
+            model_type = self.config.get('model', {}).get('type',
+                         self.config.get('model_type',
+                         self._detect_model_type(self.base_model)))
+            vocab_size = getattr(self.tokenizer, 'vocab_size', None)
+            tokenizer_type = self.config.get('tokenization', {}).get('type',
+                            self.config.get('tokenizer_type',
+                            self._detect_tokenizer_type(self.tokenizer)))
+
+            # Generate cache key from task name, dataset size, model info, and config
             cache_key = self.cache_manager._compute_cache_key(
                 model_hash=getattr(self.base_model, 'name_or_path', 'unknown_model'),
                 dataset_name=task_name,
@@ -1094,7 +1159,10 @@ class IndicGLUEEvaluator:
                     'batch_size': self.batch_size,
                     'max_samples': self.max_samples,
                     'num_examples': len(dataset)
-                }
+                },
+                model_type=model_type,
+                vocab_size=vocab_size,
+                tokenizer_type=tokenizer_type
             )
 
             # Try to retrieve cached predictions

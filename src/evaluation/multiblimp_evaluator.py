@@ -86,6 +86,14 @@ class MultiBLiMPEvaluator:
         self.device = next(model.parameters()).device
         logger.info(f"MultiBLiMP evaluator initialized on device: {self.device}")
 
+        # Detect model type (MLM vs CLM)
+        # MLM models (DeBERTa, BERT) need pseudo-log-likelihood evaluation
+        # CLM models (GPT) use standard next-token prediction
+        self.is_mlm = self._detect_is_mlm_model()
+        logger.info(f"Model type: {'MLM (bidirectional)' if self.is_mlm else 'CLM (autoregressive)'}")
+        if self.is_mlm:
+            logger.info("Will use pseudo-log-likelihood for perplexity computation")
+
         # Get config parameters
         multiblimp_config = self.config.get('evaluation', {}).get('benchmarks', {}).get('multiblimp', {})
         self.max_examples_per_phenomenon = multiblimp_config.get('n_examples_per_phenomenon', None)
@@ -222,6 +230,142 @@ class MultiBLiMPEvaluator:
             f"Available attributes: {list(model.__dict__.keys())}"
         )
 
+    def _detect_is_mlm_model(self) -> bool:
+        """
+        Detect if the model is an MLM (Masked Language Model) like DeBERTa/BERT
+        or a CLM (Causal Language Model) like GPT.
+
+        MLM models require pseudo-log-likelihood evaluation since they can't
+        do next-token prediction (they're bidirectional).
+
+        Returns:
+            True if MLM model, False if CLM model
+        """
+        model_class_name = self.model.__class__.__name__.lower()
+
+        # Check for MLM indicators
+        mlm_indicators = ['deberta', 'bert', 'albert', 'roberta', 'xlm', 'electra', 'maskedlm']
+        if any(indicator in model_class_name for indicator in mlm_indicators):
+            return True
+
+        # Check for CLM indicators
+        clm_indicators = ['gpt', 'causal', 'lmhead']
+        if any(indicator in model_class_name for indicator in clm_indicators):
+            return False
+
+        # Check config model_type if available
+        config_model_type = self.config.get('model', {}).get('type',
+                           self.config.get('model_type', '')).lower()
+        if config_model_type in ['deberta', 'bert', 'albert', 'roberta']:
+            return True
+        if config_model_type in ['gpt', 'gpt2', 'gpt-2']:
+            return False
+
+        # Default: assume CLM for safety (standard BLiMP behavior)
+        logger.warning(f"Could not determine model type from {model_class_name}, assuming CLM")
+        return False
+
+    def _compute_pseudo_log_likelihood(self, sentence: str) -> float:
+        """
+        Compute pseudo-log-likelihood (PLL) for a sentence using MLM.
+
+        For bidirectional models (BERT, DeBERTa), we can't use standard perplexity.
+        Instead, we mask each token one at a time and sum the log probabilities.
+
+        PLL(s) = sum over all tokens t: log P(t | context_without_t)
+
+        Args:
+            sentence: Input sentence
+
+        Returns:
+            Pseudo-log-likelihood (negative, lower = more probable)
+        """
+        # Tokenize sentence
+        inputs = self._tokenize_sentence(sentence)
+        input_ids = inputs['input_ids']  # [1, seq_len]
+        attention_mask = inputs['attention_mask']  # [1, seq_len]
+
+        seq_len = input_ids.size(1)
+
+        # Get mask token id
+        if self.tokenizer.mask_token_id is None:
+            # Fallback: use a common mask token id
+            logger.warning("Tokenizer has no mask_token_id, attempting to find [MASK] token")
+            mask_token_id = self.tokenizer.convert_tokens_to_ids('[MASK]')
+            if mask_token_id == self.tokenizer.unk_token_id:
+                raise ValueError("Cannot compute PLL: tokenizer has no [MASK] token")
+        else:
+            mask_token_id = self.tokenizer.mask_token_id
+
+        total_log_prob = 0.0
+        num_tokens = 0
+
+        # Mask each token one at a time and compute log probability
+        for pos in range(seq_len):
+            # Skip special tokens (padding, etc.)
+            token_id = input_ids[0, pos].item()
+            if token_id == self.tokenizer.pad_token_id:
+                continue
+            if token_id == self.tokenizer.cls_token_id:
+                continue
+            if token_id == self.tokenizer.sep_token_id:
+                continue
+            if token_id == self.tokenizer.bos_token_id:
+                continue
+            if token_id == self.tokenizer.eos_token_id:
+                continue
+
+            # Create masked input
+            masked_input_ids = input_ids.clone()
+            masked_input_ids[0, pos] = mask_token_id
+
+            # Forward pass
+            outputs = self.model(
+                input_ids=masked_input_ids,
+                attention_mask=attention_mask
+            )
+
+            # Extract logits
+            logits = self._extract_logits(outputs, "pll")  # [1, seq_len, vocab_size]
+
+            # Get log probabilities for the masked position
+            log_probs = torch.log_softmax(logits[0, pos, :], dim=-1)
+
+            # Get log probability of the original token
+            log_prob = log_probs[token_id].item()
+            total_log_prob += log_prob
+            num_tokens += 1
+
+        # Return negative log likelihood (lower = more probable)
+        # We negate because we want lower loss = better
+        return -total_log_prob if num_tokens > 0 else float('inf')
+
+    def _evaluate_with_pseudo_likelihood(self, good_sentence: str, bad_sentence: str) -> Tuple[bool, float, float, float]:
+        """
+        Evaluate a minimal pair using pseudo-log-likelihood for MLM models.
+
+        Args:
+            good_sentence: Grammatical sentence
+            bad_sentence: Ungrammatical sentence
+
+        Returns:
+            Tuple of (is_correct, good_pll, bad_pll, pll_difference)
+        """
+        try:
+            # Compute PLL for both sentences
+            good_pll = self._compute_pseudo_log_likelihood(good_sentence)
+            bad_pll = self._compute_pseudo_log_likelihood(bad_sentence)
+
+            # Model should assign lower PLL (higher probability) to grammatical sentence
+            is_correct = good_pll < bad_pll
+            pll_difference = bad_pll - good_pll
+
+            return is_correct, good_pll, bad_pll, pll_difference
+
+        except Exception as e:
+            logger.warning(f"Error in PLL computation: {e}")
+            return False, float('inf'), float('inf'), 0.0
+
     def evaluate_all_phenomena(self) -> Dict[str, Dict]:
         """
         Evaluate model on all syntactic phenomena
@@ -340,6 +484,9 @@ class MultiBLiMPEvaluator:
         """
         Evaluate a single minimal pair with detailed metrics
 
+        For MLM models (DeBERTa, BERT), uses pseudo-log-likelihood.
+        For CLM models (GPT), uses standard next-token prediction.
+
         Args:
             good_sentence: Grammatical sentence
             bad_sentence: Ungrammatical sentence
@@ -347,6 +494,11 @@ class MultiBLiMPEvaluator:
         Returns:
             Tuple of (is_correct, good_loss, bad_loss, loss_difference)
         """
+        # Route to appropriate evaluation method based on model type
+        if self.is_mlm:
+            return self._evaluate_with_pseudo_likelihood(good_sentence, bad_sentence)
+
+        # CLM evaluation (standard next-token prediction) follows below
         try:
             # Tokenize both sentences
             good_inputs = self._tokenize_sentence(good_sentence)
