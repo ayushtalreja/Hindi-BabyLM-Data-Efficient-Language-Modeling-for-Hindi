@@ -67,7 +67,7 @@ checkpoints/
 
 # Logs
 logs/
-*.log
+# *.log
 *.out
 *.err
 
