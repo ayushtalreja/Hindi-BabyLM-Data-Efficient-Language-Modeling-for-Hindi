@@ -5,7 +5,7 @@
 
 # Experiment Configuration
 experiment:
-  name: "deberta_10M_baseline_32K_Vocab"
+  name: "deberta_10M_bpe_32K_Vocab"
   description: "DeBERTa model on 10M word corpus - architecture comparison"
   tags: ["baseline", "deberta", "10M", "strict-small", "mlm"]
 
