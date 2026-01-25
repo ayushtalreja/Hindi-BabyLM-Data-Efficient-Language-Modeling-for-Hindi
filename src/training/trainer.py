@@ -322,7 +322,7 @@ class HindiLanguageModelTrainer:
                 num_training_steps=num_training_steps
             )
 
-    def train_epoch(self, dataloader: DataLoader) -> float:
+    def train_epoch(self, dataloader: DataLoader) -> Tuple[float, float]:
         """
         Train for one epoch
 
@@ -330,11 +330,12 @@ class HindiLanguageModelTrainer:
             dataloader: Training data loader
 
         Returns:
-            Average training loss for the epoch
+            Tuple of (average training loss, average gradient norm) for the epoch
         """
         self.model.train()
         total_loss = 0.0
         num_batches = 0
+        epoch_grad_norms = []  # Track gradient norms for this epoch
 
         progress_bar = tqdm(dataloader, desc=f"Epoch {self.current_epoch + 1}")
 
@@ -414,12 +415,16 @@ class HindiLanguageModelTrainer:
                 self.global_step += 1
                 current_lr = self.optimizer.param_groups[0]['lr']
 
+                # Track gradient norm for epoch-level aggregation
+                grad_norm_value = grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm
+                epoch_grad_norms.append(grad_norm_value)
+
                 # Log to W&B based on config log_steps
                 if self.wandb_initialized and self.global_step % self.log_steps == 0:
                     wandb.log({
                         'train/batch_loss': loss.item() * self.gradient_accumulation_steps,
                         'train/learning_rate': current_lr,
-                        'train/gradient_norm': grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm,
+                        'train/gradient_norm': grad_norm_value,
                         'train/global_step': self.global_step,
                         'train/epoch': self.current_epoch
                     })
@@ -439,7 +444,8 @@ class HindiLanguageModelTrainer:
                 break
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0.0
-        return avg_loss
+        avg_grad_norm = sum(epoch_grad_norms) / len(epoch_grad_norms) if epoch_grad_norms else 0.0
+        return avg_loss, avg_grad_norm
 
     def evaluate(self, dataloader: DataLoader) -> Dict[str, float]:
         """
@@ -542,8 +548,13 @@ class HindiLanguageModelTrainer:
             logger.info(f"{'='*60}")
 
             # Training
-            train_loss = self.train_epoch(train_dataloader)
+            train_loss, avg_grad_norm = self.train_epoch(train_dataloader)
             self.metrics_history['train_loss'].append(train_loss)
+
+            # Track learning rate and gradient norm per epoch
+            current_lr = self.optimizer.param_groups[0]['lr']
+            self.metrics_history['learning_rate'].append(current_lr)
+            self.metrics_history['gradient_norm'].append(avg_grad_norm)
 
             # Validation
             val_metrics = self.evaluate(val_dataloader)
@@ -554,12 +565,16 @@ class HindiLanguageModelTrainer:
             logger.info(f"Train Loss: {train_loss:.4f}")
             logger.info(f"Val Loss: {val_metrics['val_loss']:.4f}")
             logger.info(f"Perplexity: {val_metrics['perplexity']:.2f}")
+            logger.info(f"Learning Rate: {current_lr:.2e}")
+            logger.info(f"Avg Gradient Norm: {avg_grad_norm:.4f}")
 
             if self.wandb_initialized:
                 wandb.log({
                     'epoch/train_loss': train_loss,
                     'epoch/val_loss': val_metrics['val_loss'],
                     'epoch/perplexity': val_metrics['perplexity'],
+                    'epoch/learning_rate': current_lr,
+                    'epoch/gradient_norm': avg_grad_norm,
                     'epoch/number': epoch
                 })
 

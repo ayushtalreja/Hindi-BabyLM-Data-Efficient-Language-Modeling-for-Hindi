@@ -101,8 +101,7 @@ tokenization:
   # Tokenizer Type
   type: "character_bigram"  # Hybrid character + bigram tokenization
 
-  # Vocabulary (~200 chars + ~600 bigrams for 10M corpus)
-  vocab_size: 800
+  vocab_size: 2000
   character_coverage: 1.0
 
   # Special Tokens
@@ -166,7 +165,7 @@ training:
   # Optimization
   optimizer:
     type: "adamw"
-    learning_rate: 0.0003
+    learning_rate: 0.0005  
     weight_decay: 0.01
     beta1: 0.9
     beta2: 0.999
@@ -271,12 +270,14 @@ evaluation:
           mode: "max"  # "max" for accuracy, "min" for loss
 
         # Optimization
-        learning_rate: 2e-5
-        batch_size: 32
-        weight_decay: 0.01  # Reverted: L2 regularization to prevent overfitting
+        learning_rate: 1e-4  # increased from 2e-5 since model was not learning and was stuck in the initialisation plateau
+        batch_size: 16  # Reduced from 32 for better memory consumption
+        gradient_accumulation_steps: 4  # Effective batch=64 (maintain stability)
+        weight_decay: 0.05  # Increased from 0.01 for stronger regularization
         adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
-        warmup_ratio: 0.1  # Reverted: 10% warmup for training stability
-        scheduler_type: "linear"  # Linear LR decay with warmup
+        warmup_ratio: 0.15  # Increased from 0.1 for more warmup stability
+        scheduler_type: "cosine"  # Changed from linear - cosine decay works better
+        max_grad_norm: 0.5  # Tighter gradient clipping for stability
 
         # Model settings
         # Training Strategy:

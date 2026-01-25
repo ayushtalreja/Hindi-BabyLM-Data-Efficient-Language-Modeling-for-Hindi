@@ -187,9 +187,10 @@ class DevanagariCharacterTokenizer:
 
     def __call__(self,
                  text: Union[str, List[str]],
+                 text_pair: Union[str, List[str], None] = None,
                  return_tensors: Optional[str] = None,
                  padding: Union[bool, str] = False,
-                 truncation: bool = False,
+                 truncation: Union[bool, str] = False,
                  max_length: Optional[int] = None,
                  add_special_tokens: bool = False,
                  **kwargs) -> Dict[str, Union[List, torch.Tensor]]:
@@ -198,9 +199,10 @@ class DevanagariCharacterTokenizer:
 
         Args:
             text: Input text or list of texts
+            text_pair: Optional second text or list of texts (for sequence pairs)
             return_tensors: 'pt' for PyTorch tensors, None for lists
             padding: Whether to pad sequences
-            truncation: Whether to truncate sequences
+            truncation: Whether/how to truncate sequences ('longest_first' supported)
             max_length: Maximum sequence length
             add_special_tokens: Whether to add BOS/EOS tokens
 
@@ -211,14 +213,57 @@ class DevanagariCharacterTokenizer:
         is_single = isinstance(text, str)
         texts = [text] if is_single else text
 
+        # Handle text_pair if provided
+        text_pairs = None
+        if text_pair is not None:
+            if isinstance(text_pair, str):
+                text_pairs = [text_pair]
+            else:
+                text_pairs = text_pair
+            # Ensure text and text_pair have same length
+            if len(text_pairs) != len(texts):
+                raise ValueError(
+                    f"text and text_pair must have same length, "
+                    f"got {len(texts)} and {len(text_pairs)}"
+                )
+
         # Encode all texts
         encoded_batch = []
-        for t in texts:
+        for i, t in enumerate(texts):
+            # Encode first text
             ids = self.encode(t, add_special_tokens=add_special_tokens)
+
+            # If text_pair provided, concatenate with separator
+            if text_pairs is not None:
+                # Get separator token ID (use <sep> if available, else space)
+                sep_id = self.char_to_id.get("<sep>", self.char_to_id.get(" ", self.unk_token_id))
+                pair_ids = self.encode(text_pairs[i], add_special_tokens=False)
+                ids = ids + [sep_id] + pair_ids
 
             # Truncate if needed
             if truncation and max_length and len(ids) > max_length:
-                ids = ids[:max_length]
+                if truncation == 'longest_first' and text_pairs is not None:
+                    # Truncate from the first sequence (context) to preserve choices
+                    # Re-encode to get individual lengths
+                    first_ids = self.encode(t, add_special_tokens=add_special_tokens)
+                    sep_id = self.char_to_id.get("<sep>", self.char_to_id.get(" ", self.unk_token_id))
+                    pair_ids = self.encode(text_pairs[i], add_special_tokens=False)
+
+                    # Calculate how much to truncate from first sequence
+                    total_len = len(first_ids) + 1 + len(pair_ids)  # +1 for separator
+                    overflow = total_len - max_length
+                    if overflow > 0:
+                        # Truncate from the longer sequence first
+                        if len(first_ids) >= len(pair_ids):
+                            first_ids = first_ids[:max(1, len(first_ids) - overflow)]
+                        else:
+                            pair_ids = pair_ids[:max(1, len(pair_ids) - overflow)]
+                    ids = first_ids + [sep_id] + pair_ids
+                    # Final check to ensure we're within max_length
+                    if len(ids) > max_length:
+                        ids = ids[:max_length]
+                else:
+                    ids = ids[:max_length]
 
             encoded_batch.append(ids)
 
