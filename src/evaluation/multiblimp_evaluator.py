@@ -426,6 +426,9 @@ class MultiBLiMPEvaluator:
         # Track detailed results
         pair_results = []
         loss_differences = []
+        good_losses = []
+        bad_losses = []
+        length_diffs = []  # Track character length differences (good - bad)
 
         self.model.eval()
 
@@ -442,6 +445,10 @@ class MultiBLiMPEvaluator:
                         correct_predictions += 1
 
                     loss_differences.append(loss_diff)
+                    good_losses.append(good_loss)
+                    bad_losses.append(bad_loss)
+                    length_diffs.append(len(pair['good']) - len(pair['bad']))
+
                     pair_results.append({
                         'good': pair['good'],
                         'bad': pair['bad'],
@@ -468,6 +475,10 @@ class MultiBLiMPEvaluator:
         # Compute metrics
         accuracy = correct_predictions / total_pairs if total_pairs > 0 else 0
 
+        # Compute diagnostic metrics
+        below_chance = accuracy < 0.5
+        prefers_ungrammatical = np.mean(loss_differences) < 0 if loss_differences else False
+
         results = {
             'phenomenon': phenomenon,
             'accuracy': accuracy,
@@ -475,8 +486,27 @@ class MultiBLiMPEvaluator:
             'total': total_pairs,
             'mean_loss_difference': np.mean(loss_differences) if loss_differences else 0,
             'std_loss_difference': np.std(loss_differences) if loss_differences else 0,
+            # Diagnostic metrics for understanding below-chance performance
+            'diagnostics': {
+                'below_chance': below_chance,
+                'prefers_ungrammatical': prefers_ungrammatical,
+                'mean_good_loss': np.mean(good_losses) if good_losses else 0,
+                'mean_bad_loss': np.mean(bad_losses) if bad_losses else 0,
+                'mean_length_diff': np.mean(length_diffs) if length_diffs else 0,
+                'pairs_good_longer': sum(1 for d in length_diffs if d > 0),
+                'pairs_same_length': sum(1 for d in length_diffs if d == 0),
+                'pairs_bad_longer': sum(1 for d in length_diffs if d < 0),
+            },
             'pair_results': pair_results if self.config.get('save_pair_results', False) else None
         }
+
+        # Log warning for below-chance performance
+        if below_chance:
+            logger.warning(
+                f"{phenomenon}: Below-chance accuracy ({accuracy:.1%}). "
+                f"Model {'prefers ungrammatical' if prefers_ungrammatical else 'shows no clear preference'}. "
+                f"Mean loss diff: {results['mean_loss_difference']:.4f}"
+            )
 
         return results
 
@@ -554,8 +584,10 @@ class MultiBLiMPEvaluator:
             good_shift_logits = good_logits[:, :-1, :].contiguous()
             good_shift_labels = good_inputs['input_ids'][:, 1:].contiguous()
 
-            # Compute cross-entropy loss
-            loss_fct = torch.nn.CrossEntropyLoss(reduction='sum')
+            # Compute cross-entropy loss with per-token averaging
+            # Using 'mean' reduction normalizes by sequence length, ensuring fair comparison
+            # for tokenizers with different granularity (character-level vs subword)
+            loss_fct = torch.nn.CrossEntropyLoss(reduction='mean')
             good_loss = loss_fct(
                 good_shift_logits.view(-1, good_shift_logits.size(-1)),
                 good_shift_labels.view(-1)
@@ -692,6 +724,14 @@ class MultiBLiMPEvaluator:
                 if 'mean_loss_difference' in phenomenon_results:
                     loss_diffs.append(phenomenon_results['mean_loss_difference'])
 
+        # Count below-chance phenomena
+        below_chance_phenomena = [
+            phenomenon for phenomenon in self.phenomena
+            if phenomenon in results
+            and 'diagnostics' in results[phenomenon]
+            and results[phenomenon]['diagnostics'].get('below_chance', False)
+        ]
+
         overall = {
             'average_accuracy': np.mean(accuracies) if accuracies else 0.0,
             'std_accuracy': np.std(accuracies) if accuracies else 0.0,
@@ -706,8 +746,22 @@ class MultiBLiMPEvaluator:
                 phenomenon: results[phenomenon].get('accuracy', 0)
                 for phenomenon in self.phenomena
                 if phenomenon in results and 'accuracy' in results[phenomenon]
-            }
+            },
+            # Overall diagnostics
+            'below_chance_count': len(below_chance_phenomena),
+            'below_chance_phenomena': below_chance_phenomena,
+            'overall_below_chance': (total_correct / total_pairs if total_pairs > 0 else 0.0) < 0.5,
         }
+
+        # Log warning if overall performance is below chance
+        if overall['overall_below_chance']:
+            logger.warning(
+                f"CRITICAL: Overall MultiBLiMP accuracy ({overall['overall_accuracy']:.1%}) is below chance (50%). "
+                f"{len(below_chance_phenomena)}/{len(accuracies)} phenomena show below-chance performance. "
+                f"This may indicate: (1) tokenization issues affecting morphological patterns, "
+                f"(2) insufficient training data for learning agreement, or "
+                f"(3) model architecture limitations for capturing syntactic dependencies."
+            )
 
         return overall
 
