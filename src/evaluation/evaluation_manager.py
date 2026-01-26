@@ -1,5 +1,6 @@
 import json
 import pandas as pd
+import numpy as np
 from datetime import datetime
 import os
 from typing import Dict, Any
@@ -19,6 +20,16 @@ class DataclassJSONEncoder(json.JSONEncoder):
         # Handle datetime objects
         if isinstance(obj, datetime):
             return obj.isoformat()
+
+        # Handle numpy types
+        if isinstance(obj, (np.bool_, np.bool)):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
 
         # Handle other common non-serializable types
         if hasattr(obj, '__dict__'):
@@ -44,15 +55,25 @@ class EvaluationManager:
     def _make_serializable(obj: Any) -> Any:
         """
         Recursively convert objects to JSON-serializable format.
-        Handles dataclasses, datetime objects, and nested structures.
+        Handles dataclasses, datetime objects, numpy types, and nested structures.
         """
         # Handle None
         if obj is None:
             return None
 
+        # Handle numpy types first (before checking for primitive types)
+        if isinstance(obj, (np.bool_, np.bool)):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return [EvaluationManager._make_serializable(item) for item in obj.tolist()]
+
         # Handle dataclass objects
         if is_dataclass(obj):
-            return asdict(obj)
+            return EvaluationManager._make_serializable(asdict(obj))
 
         # Handle datetime objects
         if isinstance(obj, datetime):
