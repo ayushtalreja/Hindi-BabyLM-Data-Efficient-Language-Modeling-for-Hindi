@@ -91,9 +91,18 @@ class MultipleChoiceWrapper(nn.Module):
         # Create in correct dtype from start to avoid precision loss
         self.classifier = nn.Linear(hidden_size, 1, dtype=base_dtype)
 
-        # Initialize classifier weights (match transformers initialization)
-        nn.init.normal_(self.classifier.weight, std=0.02)
-        nn.init.zeros_(self.classifier.bias)
+        # Initialize classifier weights with Xavier uniform for better gradient flow
+        # CRITICAL FIX: Standard normal with std=0.02 causes gradient saturation for 4+ choices
+        # Xavier initialization scales weights based on fan_in/fan_out, providing stronger initial gradients
+        # This prevents the softmax over similar small values from producing vanishing gradients
+        nn.init.xavier_uniform_(self.classifier.weight)
+        # Small positive bias helps break symmetry and improves initial gradient flow
+        nn.init.constant_(self.classifier.bias, 0.1)
+
+        # Log initialization statistics for debugging
+        weight_std = self.classifier.weight.std().item()
+        logger.info(f"MultipleChoiceWrapper initialized: num_choices={num_choices}, "
+                   f"hidden_size={hidden_size}, weight_std={weight_std:.4f}, bias={self.classifier.bias.item():.2f}")
 
     def forward(self, input_ids, attention_mask, labels=None, **kwargs):
         """
