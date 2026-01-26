@@ -355,9 +355,12 @@ class HindiLanguageModelTrainer:
                 labels = collated['labels'].to(self.device)  # MLM labels from collator
             else:
                 # For CLM (GPT): use input_ids as labels (next token prediction)
+                # IMPORTANT: Mask padding tokens with -100 so they're ignored in loss calculation
+                # This ensures perplexity reflects actual token prediction, not padding prediction
                 input_ids = batch['input_ids'].to(self.device)
                 attention_mask = batch['attention_mask'].to(self.device)
-                labels = input_ids  # CLM: labels = input_ids
+                labels = input_ids.clone()
+                labels[attention_mask == 0] = -100  # Ignore padding tokens in loss
 
             # Forward pass with mixed precision
             if self.use_amp:
@@ -476,9 +479,11 @@ class HindiLanguageModelTrainer:
                     labels = collated['labels'].to(self.device)
                 else:
                     # For CLM: labels = input_ids
+                    # IMPORTANT: Mask padding tokens with -100 so they're ignored in loss calculation
                     input_ids = batch['input_ids'].to(self.device)
                     attention_mask = batch['attention_mask'].to(self.device)
-                    labels = input_ids
+                    labels = input_ids.clone()
+                    labels[attention_mask == 0] = -100  # Ignore padding tokens in loss
 
                 if self.use_amp:
                     with autocast():
