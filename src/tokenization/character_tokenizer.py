@@ -305,6 +305,86 @@ class DevanagariCharacterTokenizer:
 
         return result
 
+    def pad(
+        self,
+        encoded_inputs,
+        padding: Union[bool, str] = True,
+        max_length: Optional[int] = None,
+        pad_to_multiple_of: Optional[int] = None,
+        return_attention_mask: Optional[bool] = True,
+        return_tensors: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Union[List, torch.Tensor]]:
+        """
+        Pad a batch of encoded inputs (for DataCollator compatibility).
+
+        Args:
+            encoded_inputs: List of dicts with 'input_ids' (and optionally 'attention_mask')
+            padding: Padding strategy
+            max_length: Maximum length to pad to
+            pad_to_multiple_of: Pad to a multiple of this value
+            return_attention_mask: Whether to return attention masks
+            return_tensors: 'pt' for PyTorch tensors
+
+        Returns:
+            Dictionary with padded 'input_ids' and 'attention_mask'
+        """
+        # Extract input_ids from the batch
+        if isinstance(encoded_inputs, dict):
+            # Single encoding
+            batch_input_ids = [encoded_inputs['input_ids']]
+        else:
+            # List of encodings
+            batch_input_ids = []
+            for item in encoded_inputs:
+                if isinstance(item, dict):
+                    ids = item.get('input_ids', item)
+                else:
+                    ids = item
+                # Convert tensor to list if needed
+                if hasattr(ids, 'tolist'):
+                    ids = ids.tolist()
+                batch_input_ids.append(ids)
+
+        # Calculate target length
+        if max_length is not None:
+            target_length = max_length
+        else:
+            target_length = max(len(ids) for ids in batch_input_ids)
+
+        # Apply pad_to_multiple_of
+        if pad_to_multiple_of is not None and target_length % pad_to_multiple_of != 0:
+            target_length = ((target_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
+
+        # Pad all sequences
+        padded_input_ids = []
+        attention_masks = []
+        for input_ids in batch_input_ids:
+            # Create attention mask
+            attention_mask = [1] * len(input_ids)
+
+            # Pad to target length
+            padding_length = target_length - len(input_ids)
+            if padding_length > 0:
+                input_ids = list(input_ids) + [self.pad_token_id] * padding_length
+                attention_mask = attention_mask + [0] * padding_length
+
+            padded_input_ids.append(input_ids)
+            attention_masks.append(attention_mask)
+
+        # Build result
+        result = {'input_ids': padded_input_ids}
+        if return_attention_mask:
+            result['attention_mask'] = attention_masks
+
+        # Convert to tensors if requested
+        if return_tensors == 'pt':
+            result['input_ids'] = torch.tensor(result['input_ids'], dtype=torch.long)
+            if return_attention_mask:
+                result['attention_mask'] = torch.tensor(result['attention_mask'], dtype=torch.long)
+
+        return result
+
     def save(self, path: str):
         """
         Save tokenizer vocabulary and configuration.
