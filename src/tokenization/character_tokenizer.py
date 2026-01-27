@@ -7,13 +7,15 @@ treating each character as a token while preserving visual grapheme clusters
 """
 
 import unicodedata
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Set
 import pickle
 import os
 import torch
 
+from .base_tokenizer import BaseTokenizer
 
-class DevanagariCharacterTokenizer:
+
+class DevanagariCharacterTokenizer(BaseTokenizer):
     """Pure character-level tokenizer with Devanagari grapheme awareness"""
 
     def __init__(self, preserve_grapheme_clusters: bool = True):
@@ -35,6 +37,7 @@ class DevanagariCharacterTokenizer:
         self.unk_token_id = self.char_to_id.get("<unk>", 1)
         self.bos_token_id = self.char_to_id.get("<s>", 2)
         self.eos_token_id = self.char_to_id.get("</s>", 3)
+        self.mask_token_id = self.char_to_id.get("<mask>", 4)
 
         # Special token strings (for HuggingFace compatibility)
         self.pad_token = "<pad>"
@@ -42,6 +45,9 @@ class DevanagariCharacterTokenizer:
         self.bos_token = "<s>"
         self.eos_token = "</s>"
         self.mask_token = "<mask>"
+
+        # Ensure BERT compatibility (cls/sep tokens)
+        self._ensure_bert_compatibility()
 
     def _build_vocabulary(self) -> List[str]:
         """Build character vocabulary for Devanagari + common characters"""
@@ -185,6 +191,31 @@ class DevanagariCharacterTokenizer:
 
         return ''.join(chars)
 
+    def _get_special_token_ids(self) -> Set[int]:
+        """Return the set of all special token IDs."""
+        return {
+            self.pad_token_id,
+            self.unk_token_id,
+            self.bos_token_id,
+            self.eos_token_id,
+            self.mask_token_id
+        }
+
+    def _convert_token_to_id(self, token: str) -> int:
+        """Convert a single token to its ID."""
+        if token in self.char_to_id:
+            return self.char_to_id[token]
+        return self.unk_token_id
+
+    def get_vocab(self) -> Dict[str, int]:
+        """
+        Get vocabulary as dictionary.
+
+        Returns:
+            Dictionary mapping tokens to IDs
+        """
+        return self.char_to_id.copy()
+
     def __call__(self,
                  text: Union[str, List[str]],
                  text_pair: Union[str, List[str], None] = None,
@@ -305,86 +336,6 @@ class DevanagariCharacterTokenizer:
 
         return result
 
-    def pad(
-        self,
-        encoded_inputs,
-        padding: Union[bool, str] = True,
-        max_length: Optional[int] = None,
-        pad_to_multiple_of: Optional[int] = None,
-        return_attention_mask: Optional[bool] = True,
-        return_tensors: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, Union[List, torch.Tensor]]:
-        """
-        Pad a batch of encoded inputs (for DataCollator compatibility).
-
-        Args:
-            encoded_inputs: List of dicts with 'input_ids' (and optionally 'attention_mask')
-            padding: Padding strategy
-            max_length: Maximum length to pad to
-            pad_to_multiple_of: Pad to a multiple of this value
-            return_attention_mask: Whether to return attention masks
-            return_tensors: 'pt' for PyTorch tensors
-
-        Returns:
-            Dictionary with padded 'input_ids' and 'attention_mask'
-        """
-        # Extract input_ids from the batch
-        if isinstance(encoded_inputs, dict):
-            # Single encoding
-            batch_input_ids = [encoded_inputs['input_ids']]
-        else:
-            # List of encodings
-            batch_input_ids = []
-            for item in encoded_inputs:
-                if isinstance(item, dict):
-                    ids = item.get('input_ids', item)
-                else:
-                    ids = item
-                # Convert tensor to list if needed
-                if hasattr(ids, 'tolist'):
-                    ids = ids.tolist()
-                batch_input_ids.append(ids)
-
-        # Calculate target length
-        if max_length is not None:
-            target_length = max_length
-        else:
-            target_length = max(len(ids) for ids in batch_input_ids)
-
-        # Apply pad_to_multiple_of
-        if pad_to_multiple_of is not None and target_length % pad_to_multiple_of != 0:
-            target_length = ((target_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
-
-        # Pad all sequences
-        padded_input_ids = []
-        attention_masks = []
-        for input_ids in batch_input_ids:
-            # Create attention mask
-            attention_mask = [1] * len(input_ids)
-
-            # Pad to target length
-            padding_length = target_length - len(input_ids)
-            if padding_length > 0:
-                input_ids = list(input_ids) + [self.pad_token_id] * padding_length
-                attention_mask = attention_mask + [0] * padding_length
-
-            padded_input_ids.append(input_ids)
-            attention_masks.append(attention_mask)
-
-        # Build result
-        result = {'input_ids': padded_input_ids}
-        if return_attention_mask:
-            result['attention_mask'] = attention_masks
-
-        # Convert to tensors if requested
-        if return_tensors == 'pt':
-            result['input_ids'] = torch.tensor(result['input_ids'], dtype=torch.long)
-            if return_attention_mask:
-                result['attention_mask'] = torch.tensor(result['attention_mask'], dtype=torch.long)
-
-        return result
-
     def save(self, path: str):
         """
         Save tokenizer vocabulary and configuration.
@@ -435,23 +386,18 @@ class DevanagariCharacterTokenizer:
         tokenizer.id_to_char = data['id_to_char']
         tokenizer.vocab_size = data['vocab_size']
 
-        # Update special token IDs
+        # Update special token IDs (including mask_token_id fix)
         tokenizer.pad_token_id = tokenizer.char_to_id.get("<pad>", 0)
         tokenizer.unk_token_id = tokenizer.char_to_id.get("<unk>", 1)
         tokenizer.bos_token_id = tokenizer.char_to_id.get("<s>", 2)
         tokenizer.eos_token_id = tokenizer.char_to_id.get("</s>", 3)
+        tokenizer.mask_token_id = tokenizer.char_to_id.get("<mask>", 4)
+
+        # Ensure BERT compatibility after loading
+        tokenizer._ensure_bert_compatibility()
 
         print(f"Character tokenizer loaded from {vocab_path}")
         return tokenizer
-
-    def get_vocab(self) -> Dict[str, int]:
-        """
-        Get vocabulary as dictionary.
-
-        Returns:
-            Dictionary mapping tokens to IDs
-        """
-        return self.char_to_id.copy()
 
     def __len__(self) -> int:
         """Return vocabulary size"""

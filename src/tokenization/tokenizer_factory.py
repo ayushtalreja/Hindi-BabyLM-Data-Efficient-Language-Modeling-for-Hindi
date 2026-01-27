@@ -1,10 +1,11 @@
 import os
 import pickle
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Set, Dict
 from transformers import AutoTokenizer
 import sentencepiece as spm
 import torch
 
+from .base_tokenizer import BaseTokenizer
 from .sentencepiece_tokenizer import HindiSentencePieceTokenizer
 from .character_tokenizer import DevanagariCharacterTokenizer
 from .character_bigram_tokenizer import CharacterBigramTokenizer
@@ -275,7 +276,7 @@ class TokenizerFactory:
         print(f"Tokenizer metadata saved to {metadata_path}")
 
 
-class WordPieceTokenizerWrapper:
+class WordPieceTokenizerWrapper(BaseTokenizer):
     """Wrapper for WordPiece tokenizer to provide consistent interface"""
 
     def __init__(self, tokenizer, vocab_size: int):
@@ -303,12 +304,12 @@ class WordPieceTokenizerWrapper:
         self.bos_token = "[CLS]"
         self.bos_token_id = self.cls_token_id
 
-    def encode(self, text: str) -> List[int]:
+    def encode(self, text: str, add_special_tokens: bool = False) -> List[int]:
         """Encode text to token ids"""
         encoding = self.tokenizer.encode(text)
         return encoding.ids
 
-    def decode(self, ids: List[int]) -> str:
+    def decode(self, ids: List[int], skip_special_tokens: bool = True) -> str:
         """Decode token ids to text"""
         return self.tokenizer.decode(ids)
 
@@ -316,6 +317,27 @@ class WordPieceTokenizerWrapper:
         """Tokenize text to tokens"""
         encoding = self.tokenizer.encode(text)
         return encoding.tokens
+
+    def _get_special_token_ids(self) -> Set[int]:
+        """Return the set of all special token IDs."""
+        return {
+            self.pad_token_id,
+            self.unk_token_id,
+            self.cls_token_id,
+            self.sep_token_id,
+            self.mask_token_id
+        }
+
+    def _convert_token_to_id(self, token: str) -> int:
+        """Convert a single token to its ID."""
+        token_id = self.tokenizer.token_to_id(token)
+        if token_id is not None:
+            return token_id
+        return self.unk_token_id
+
+    def get_vocab(self) -> Dict[str, int]:
+        """Get vocabulary as dictionary."""
+        return self.tokenizer.get_vocab()
 
     def __call__(
         self,
@@ -409,88 +431,8 @@ class WordPieceTokenizerWrapper:
             'attention_mask': attention_masks
         }
 
-    def pad(
-        self,
-        encoded_inputs,
-        padding: Union[bool, str] = True,
-        max_length: Optional[int] = None,
-        pad_to_multiple_of: Optional[int] = None,
-        return_attention_mask: Optional[bool] = True,
-        return_tensors: Optional[str] = None,
-        **kwargs
-    ):
-        """
-        Pad a batch of encoded inputs (for DataCollator compatibility).
 
-        Args:
-            encoded_inputs: List of dicts with 'input_ids' (and optionally 'attention_mask')
-            padding: Padding strategy
-            max_length: Maximum length to pad to
-            pad_to_multiple_of: Pad to a multiple of this value
-            return_attention_mask: Whether to return attention masks
-            return_tensors: 'pt' for PyTorch tensors
-
-        Returns:
-            Dictionary with padded 'input_ids' and 'attention_mask'
-        """
-        # Extract input_ids from the batch
-        if isinstance(encoded_inputs, dict):
-            # Single encoding
-            batch_input_ids = [encoded_inputs['input_ids']]
-        else:
-            # List of encodings
-            batch_input_ids = []
-            for item in encoded_inputs:
-                if isinstance(item, dict):
-                    ids = item.get('input_ids', item)
-                else:
-                    ids = item
-                # Convert tensor to list if needed
-                if hasattr(ids, 'tolist'):
-                    ids = ids.tolist()
-                batch_input_ids.append(ids)
-
-        # Calculate target length
-        if max_length is not None:
-            target_length = max_length
-        else:
-            target_length = max(len(ids) for ids in batch_input_ids)
-
-        # Apply pad_to_multiple_of
-        if pad_to_multiple_of is not None and target_length % pad_to_multiple_of != 0:
-            target_length = ((target_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
-
-        # Pad all sequences
-        padded_input_ids = []
-        attention_masks = []
-        for input_ids in batch_input_ids:
-            # Create attention mask
-            attention_mask = [1] * len(input_ids)
-
-            # Pad to target length
-            padding_length = target_length - len(input_ids)
-            if padding_length > 0:
-                input_ids = list(input_ids) + [self.pad_token_id] * padding_length
-                attention_mask = attention_mask + [0] * padding_length
-
-            padded_input_ids.append(input_ids)
-            attention_masks.append(attention_mask)
-
-        # Build result
-        result = {'input_ids': padded_input_ids}
-        if return_attention_mask:
-            result['attention_mask'] = attention_masks
-
-        # Convert to tensors if requested
-        if return_tensors == 'pt':
-            result['input_ids'] = torch.tensor(result['input_ids'], dtype=torch.long)
-            if return_attention_mask:
-                result['attention_mask'] = torch.tensor(result['attention_mask'], dtype=torch.long)
-
-        return result
-
-
-class BPETokenizerWrapper:
+class BPETokenizerWrapper(BaseTokenizer):
     """Wrapper for BPE tokenizer to provide consistent interface"""
 
     def __init__(self, tokenizer, vocab_size: int):
@@ -512,12 +454,15 @@ class BPETokenizerWrapper:
         self.eos_token_id = self.tokenizer.token_to_id("</s>")
         self.mask_token_id = self.tokenizer.token_to_id("<mask>")
 
-    def encode(self, text: str) -> List[int]:
+        # Ensure BERT compatibility (cls/sep tokens)
+        self._ensure_bert_compatibility()
+
+    def encode(self, text: str, add_special_tokens: bool = False) -> List[int]:
         """Encode text to token ids"""
         encoding = self.tokenizer.encode(text)
         return encoding.ids
 
-    def decode(self, ids: List[int]) -> str:
+    def decode(self, ids: List[int], skip_special_tokens: bool = True) -> str:
         """Decode token ids to text"""
         return self.tokenizer.decode(ids)
 
@@ -525,6 +470,27 @@ class BPETokenizerWrapper:
         """Tokenize text to tokens"""
         encoding = self.tokenizer.encode(text)
         return encoding.tokens
+
+    def _get_special_token_ids(self) -> Set[int]:
+        """Return the set of all special token IDs."""
+        return {
+            self.pad_token_id,
+            self.unk_token_id,
+            self.bos_token_id,
+            self.eos_token_id,
+            self.mask_token_id
+        }
+
+    def _convert_token_to_id(self, token: str) -> int:
+        """Convert a single token to its ID."""
+        token_id = self.tokenizer.token_to_id(token)
+        if token_id is not None:
+            return token_id
+        return self.unk_token_id
+
+    def get_vocab(self) -> Dict[str, int]:
+        """Get vocabulary as dictionary."""
+        return self.tokenizer.get_vocab()
 
     def __call__(
         self,
@@ -617,83 +583,3 @@ class BPETokenizerWrapper:
             'input_ids': all_input_ids,
             'attention_mask': attention_masks
         }
-
-    def pad(
-        self,
-        encoded_inputs,
-        padding: Union[bool, str] = True,
-        max_length: Optional[int] = None,
-        pad_to_multiple_of: Optional[int] = None,
-        return_attention_mask: Optional[bool] = True,
-        return_tensors: Optional[str] = None,
-        **kwargs
-    ):
-        """
-        Pad a batch of encoded inputs (for DataCollator compatibility).
-
-        Args:
-            encoded_inputs: List of dicts with 'input_ids' (and optionally 'attention_mask')
-            padding: Padding strategy
-            max_length: Maximum length to pad to
-            pad_to_multiple_of: Pad to a multiple of this value
-            return_attention_mask: Whether to return attention masks
-            return_tensors: 'pt' for PyTorch tensors
-
-        Returns:
-            Dictionary with padded 'input_ids' and 'attention_mask'
-        """
-        # Extract input_ids from the batch
-        if isinstance(encoded_inputs, dict):
-            # Single encoding
-            batch_input_ids = [encoded_inputs['input_ids']]
-        else:
-            # List of encodings
-            batch_input_ids = []
-            for item in encoded_inputs:
-                if isinstance(item, dict):
-                    ids = item.get('input_ids', item)
-                else:
-                    ids = item
-                # Convert tensor to list if needed
-                if hasattr(ids, 'tolist'):
-                    ids = ids.tolist()
-                batch_input_ids.append(ids)
-
-        # Calculate target length
-        if max_length is not None:
-            target_length = max_length
-        else:
-            target_length = max(len(ids) for ids in batch_input_ids)
-
-        # Apply pad_to_multiple_of
-        if pad_to_multiple_of is not None and target_length % pad_to_multiple_of != 0:
-            target_length = ((target_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
-
-        # Pad all sequences
-        padded_input_ids = []
-        attention_masks = []
-        for input_ids in batch_input_ids:
-            # Create attention mask
-            attention_mask = [1] * len(input_ids)
-
-            # Pad to target length
-            padding_length = target_length - len(input_ids)
-            if padding_length > 0:
-                input_ids = list(input_ids) + [self.pad_token_id] * padding_length
-                attention_mask = attention_mask + [0] * padding_length
-
-            padded_input_ids.append(input_ids)
-            attention_masks.append(attention_mask)
-
-        # Build result
-        result = {'input_ids': padded_input_ids}
-        if return_attention_mask:
-            result['attention_mask'] = attention_masks
-
-        # Convert to tensors if requested
-        if return_tensors == 'pt':
-            result['input_ids'] = torch.tensor(result['input_ids'], dtype=torch.long)
-            if return_attention_mask:
-                result['attention_mask'] = torch.tensor(result['attention_mask'], dtype=torch.long)
-
-        return result

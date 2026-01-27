@@ -1,8 +1,11 @@
 import sentencepiece as spm
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union, Optional, Set
 import torch
 
-class HindiSentencePieceTokenizer:
+from .base_tokenizer import BaseTokenizer
+
+
+class HindiSentencePieceTokenizer(BaseTokenizer):
     def __init__(self, vocab_size: int = 32000):
         self.vocab_size = vocab_size
         self.model = None
@@ -12,6 +15,7 @@ class HindiSentencePieceTokenizer:
         self.unk_token_id = 1
         self.bos_token_id = 2
         self.eos_token_id = 3
+        self.mask_token_id = 4  # Added for MLM compatibility
 
         # Special token strings (for HuggingFace compatibility)
         self.pad_token = "<pad>"
@@ -19,6 +23,9 @@ class HindiSentencePieceTokenizer:
         self.bos_token = "<s>"
         self.eos_token = "</s>"
         self.mask_token = "<mask>"
+
+        # Ensure BERT compatibility (cls/sep tokens)
+        self._ensure_bert_compatibility()
 
     def train_tokenizer(self, corpus: List[str], model_prefix: str):
         """Train SentencePiece tokenizer on Hindi corpus"""
@@ -131,90 +138,56 @@ class HindiSentencePieceTokenizer:
         """Tokenize text using trained model"""
         return self.model.encode(text, out_type=str)
 
-    def encode(self, text: str) -> List[int]:
+    def encode(self, text: str, add_special_tokens: bool = False) -> List[int]:
         """Encode text to token ids"""
         return self.model.encode(text, out_type=int)
 
-    def decode(self, ids: List[int]) -> str:
+    def decode(self, ids: List[int], skip_special_tokens: bool = True) -> str:
         """Decode token ids to text"""
         return self.model.decode(ids)
 
-    def pad(
-        self,
-        encoded_inputs,
-        padding: Union[bool, str] = True,
-        max_length: Optional[int] = None,
-        pad_to_multiple_of: Optional[int] = None,
-        return_attention_mask: Optional[bool] = True,
-        return_tensors: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, Union[List, torch.Tensor]]:
-        """
-        Pad a batch of encoded inputs (for DataCollator compatibility).
+    def _get_special_token_ids(self) -> Set[int]:
+        """Return the set of all special token IDs."""
+        return {
+            self.pad_token_id,
+            self.unk_token_id,
+            self.bos_token_id,
+            self.eos_token_id,
+            self.mask_token_id
+        }
 
-        Args:
-            encoded_inputs: List of dicts with 'input_ids' (and optionally 'attention_mask')
-            padding: Padding strategy
-            max_length: Maximum length to pad to
-            pad_to_multiple_of: Pad to a multiple of this value
-            return_attention_mask: Whether to return attention masks
-            return_tensors: 'pt' for PyTorch tensors
+    def _convert_token_to_id(self, token: str) -> int:
+        """Convert a single token to its ID."""
+        # Check special tokens first via parent class
+        special_token_map = {
+            self.pad_token: self.pad_token_id,
+            self.unk_token: self.unk_token_id,
+            self.bos_token: self.bos_token_id,
+            self.eos_token: self.eos_token_id,
+            self.mask_token: self.mask_token_id,
+        }
+        if self.cls_token is not None:
+            special_token_map[self.cls_token] = self.cls_token_id
+        if self.sep_token is not None:
+            special_token_map[self.sep_token] = self.sep_token_id
 
-        Returns:
-            Dictionary with padded 'input_ids' and 'attention_mask'
-        """
-        # Extract input_ids from the batch
-        if isinstance(encoded_inputs, dict):
-            # Single encoding
-            batch_input_ids = [encoded_inputs['input_ids']]
-        else:
-            # List of encodings
-            batch_input_ids = []
-            for item in encoded_inputs:
-                if isinstance(item, dict):
-                    ids = item.get('input_ids', item)
-                else:
-                    ids = item
-                # Convert tensor to list if needed
-                if hasattr(ids, 'tolist'):
-                    ids = ids.tolist()
-                batch_input_ids.append(ids)
+        if token in special_token_map:
+            return special_token_map[token]
 
-        # Calculate target length
-        if max_length is not None:
-            target_length = max_length
-        else:
-            target_length = max(len(ids) for ids in batch_input_ids)
+        # Use SentencePiece model for lookup
+        if self.model is not None:
+            token_id = self.model.piece_to_id(token)
+            if token_id != self.model.unk_id():
+                return token_id
 
-        # Apply pad_to_multiple_of
-        if pad_to_multiple_of is not None and target_length % pad_to_multiple_of != 0:
-            target_length = ((target_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
+        return self.unk_token_id
 
-        # Pad all sequences
-        padded_input_ids = []
-        attention_masks = []
-        for input_ids in batch_input_ids:
-            # Create attention mask
-            attention_mask = [1] * len(input_ids)
+    def get_vocab(self) -> Dict[str, int]:
+        """Get vocabulary as dictionary."""
+        if self.model is None:
+            return super().get_vocab()
 
-            # Pad to target length
-            padding_length = target_length - len(input_ids)
-            if padding_length > 0:
-                input_ids = list(input_ids) + [self.pad_token_id] * padding_length
-                attention_mask = attention_mask + [0] * padding_length
-
-            padded_input_ids.append(input_ids)
-            attention_masks.append(attention_mask)
-
-        # Build result
-        result = {'input_ids': padded_input_ids}
-        if return_attention_mask:
-            result['attention_mask'] = attention_masks
-
-        # Convert to tensors if requested
-        if return_tensors == 'pt':
-            result['input_ids'] = torch.tensor(result['input_ids'], dtype=torch.long)
-            if return_attention_mask:
-                result['attention_mask'] = torch.tensor(result['attention_mask'], dtype=torch.long)
-
-        return result
+        vocab = {}
+        for i in range(self.model.get_piece_size()):
+            vocab[self.model.id_to_piece(i)] = i
+        return vocab

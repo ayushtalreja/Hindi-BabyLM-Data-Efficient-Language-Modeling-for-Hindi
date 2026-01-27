@@ -212,6 +212,7 @@ class CharacterBigramTokenizer(DevanagariCharacterTokenizer):
         self.unk_token_id = self.char_to_id.get("<unk>", 1)
         self.bos_token_id = self.char_to_id.get("<s>", 2)
         self.eos_token_id = self.char_to_id.get("</s>", 3)
+        self.mask_token_id = self.char_to_id.get("<mask>", 4)
 
     def tokenize(self, text: str) -> List[str]:
         """
@@ -324,11 +325,15 @@ class CharacterBigramTokenizer(DevanagariCharacterTokenizer):
         if 'morphological_patterns' in data:
             tokenizer.morphological_patterns = data['morphological_patterns']
 
-        # Update special token IDs
+        # Update special token IDs (including mask_token_id fix)
         tokenizer.pad_token_id = tokenizer.char_to_id.get("<pad>", 0)
         tokenizer.unk_token_id = tokenizer.char_to_id.get("<unk>", 1)
         tokenizer.bos_token_id = tokenizer.char_to_id.get("<s>", 2)
         tokenizer.eos_token_id = tokenizer.char_to_id.get("</s>", 3)
+        tokenizer.mask_token_id = tokenizer.char_to_id.get("<mask>", 4)
+
+        # Ensure BERT compatibility after loading
+        tokenizer._ensure_bert_compatibility()
 
         print(f"Character-bigram tokenizer loaded from {vocab_path}")
         print(f"  Vocabulary size: {tokenizer.vocab_size}")
