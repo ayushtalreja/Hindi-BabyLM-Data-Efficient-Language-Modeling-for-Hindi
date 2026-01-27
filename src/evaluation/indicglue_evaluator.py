@@ -67,24 +67,35 @@ class MultipleChoiceWrapper(nn.Module):
     This matches the official IndicBERT implementation for multiple-choice tasks.
     """
 
-    def __init__(self, base_model, hidden_size, num_choices, pooling_strategy='first', label_smoothing=0.0):
+    def __init__(self, base_model, hidden_size, num_choices, pooling_strategy='auto', label_smoothing=0.0, dropout=0.1):
         """
         Args:
-            base_model: Pre-trained language model (ALBERT/IndicBERT)
+            base_model: Pre-trained language model (ALBERT/IndicBERT/GPT)
             hidden_size: Hidden dimension of base model
             num_choices: Number of choices per example (e.g., 4 for WSTP, 2 for COPA)
-            pooling_strategy: 'first' (CLS token) or 'mean' (mean pooling)
+            pooling_strategy: 'auto' (detect from model type), 'first' (CLS token),
+                              'last' (last token for GPT), or 'mean' (mean pooling)
             label_smoothing: Label smoothing factor (0.0 = no smoothing)
+            dropout: Dropout probability before classifier (default 0.1)
         """
         super().__init__()
         self.base_model = base_model
         self.num_choices = num_choices
         self.hidden_size = hidden_size
-        self.pooling_strategy = pooling_strategy
         self.label_smoothing = label_smoothing
+
+        # Auto-detect model type for pooling strategy
+        # GPT models use last token (causal LM), BERT/DeBERTa use first token (CLS)
+        if pooling_strategy == 'auto':
+            self.pooling_strategy = self._detect_pooling_strategy(base_model)
+        else:
+            self.pooling_strategy = pooling_strategy
 
         # Match base model dtype first
         base_dtype = next(base_model.parameters()).dtype
+
+        # Add dropout for regularization (matches GPTForSequenceClassification)
+        self.dropout = nn.Dropout(dropout)
 
         # Classifier: maps pooled representation to single score per choice
         # Official implementation uses a single linear layer
@@ -102,7 +113,64 @@ class MultipleChoiceWrapper(nn.Module):
         # Log initialization statistics for debugging
         weight_std = self.classifier.weight.std().item()
         logger.info(f"MultipleChoiceWrapper initialized: num_choices={num_choices}, "
-                   f"hidden_size={hidden_size}, weight_std={weight_std:.4f}, bias={self.classifier.bias.item():.2f}")
+                   f"hidden_size={hidden_size}, pooling={self.pooling_strategy}, "
+                   f"dropout={dropout}, weight_std={weight_std:.4f}, bias={self.classifier.bias.item():.2f}")
+
+    def _detect_pooling_strategy(self, base_model) -> str:
+        """
+        Detect the appropriate pooling strategy based on model architecture.
+
+        GPT-like models (causal LM): Use 'last' token pooling
+            - Last token has seen the full context due to causal attention
+            - First token (BOS) only attends to itself, no semantic meaning
+
+        BERT/DeBERTa-like models (masked LM): Use 'first' token pooling
+            - [CLS] token is specifically designed for classification
+            - Bidirectional attention allows first token to see full context
+
+        Returns:
+            'last' for GPT-like models, 'first' for BERT/DeBERTa-like models
+        """
+        model_class_name = base_model.__class__.__name__.lower()
+
+        # Check for GPT-like models (causal language models)
+        # These use last-token pooling because causal attention means only
+        # the last token has seen the entire input sequence
+        gpt_indicators = ['gpt', 'causal', 'decoder']
+        is_gpt_like = (
+            any(indicator in model_class_name for indicator in gpt_indicators) or
+            # HindiGPTModel structure: has .model.transformer
+            (hasattr(base_model, 'model') and hasattr(base_model.model, 'transformer')) or
+            # Check for GPT2-style config
+            (hasattr(base_model, 'config') and hasattr(base_model.config, 'n_layer'))
+        )
+
+        if is_gpt_like:
+            logger.info(f"Auto-detected GPT-like model ({base_model.__class__.__name__}), "
+                       f"using 'last' token pooling")
+            return 'last'
+
+        # Check for BERT/DeBERTa-like models (masked language models)
+        # These use first-token (CLS) pooling because bidirectional attention
+        # allows the CLS token to aggregate information from the entire sequence
+        bert_indicators = ['bert', 'deberta', 'albert', 'roberta', 'electra', 'encoder']
+        is_bert_like = (
+            any(indicator in model_class_name for indicator in bert_indicators) or
+            # Check for BERT-style config
+            (hasattr(base_model, 'config') and hasattr(base_model.config, 'num_hidden_layers')) or
+            # Has embeddings and encoder structure
+            (hasattr(base_model, 'embeddings') and hasattr(base_model, 'encoder'))
+        )
+
+        if is_bert_like:
+            logger.info(f"Auto-detected BERT/DeBERTa-like model ({base_model.__class__.__name__}), "
+                       f"using 'first' token (CLS) pooling")
+            return 'first'
+
+        # Default fallback: use 'first' (CLS) pooling with warning
+        logger.warning(f"Could not determine model type for {base_model.__class__.__name__}, "
+                      f"defaulting to 'first' token pooling. Consider explicitly setting pooling_strategy.")
+        return 'first'
 
     def forward(self, input_ids, attention_mask, labels=None, **kwargs):
         """
@@ -157,6 +225,15 @@ class MultipleChoiceWrapper(nn.Module):
         if self.pooling_strategy == 'first':
             # Use [CLS] token (position 0) - standard for BERT/ALBERT
             pooled = hidden_states[:, 0, :]  # [batch*num_choices, hidden_size]
+        elif self.pooling_strategy == 'last':
+            # Use last non-padding token - for GPT (causal LM)
+            # The last token has seen the full context due to causal attention
+            # Find actual sequence lengths from attention mask
+            sequence_lengths = attention_mask_flat.sum(dim=1).long() - 1
+            # Clamp to valid range to handle edge cases
+            sequence_lengths = sequence_lengths.clamp(min=0, max=hidden_states.shape[1] - 1)
+            batch_indices = torch.arange(hidden_states.shape[0], device=hidden_states.device)
+            pooled = hidden_states[batch_indices, sequence_lengths]  # [batch*num_choices, hidden_size]
         elif self.pooling_strategy == 'mean':
             # Mean pooling over non-padding tokens
             mask_expanded = attention_mask_flat.unsqueeze(-1).to(hidden_states.dtype)
@@ -165,6 +242,9 @@ class MultipleChoiceWrapper(nn.Module):
             pooled = sum_hidden / sum_mask
         else:
             raise ValueError(f"Unknown pooling strategy: {self.pooling_strategy}")
+
+        # Apply dropout before classification (matches GPTForSequenceClassification)
+        pooled = self.dropout(pooled)
 
         # Classify each choice to get single score
         logits = self.classifier(pooled)  # [batch*num_choices, 1]
@@ -568,8 +648,9 @@ class IndicGLUEEvaluator:
                     base_model=self.base_model,
                     hidden_size=model_config['hidden_size'],
                     num_choices=num_choices,
-                    pooling_strategy='first',
-                    label_smoothing=label_smoothing  # Pass label smoothing from config
+                    pooling_strategy='auto',  # Auto-detect: 'last' for GPT, 'first' for BERT
+                    label_smoothing=label_smoothing,  # Pass label smoothing from config
+                    dropout=dropout  # Pass dropout from config for regularization
                 )
 
                 wrapped_model = wrapped_model.to(self.device)
