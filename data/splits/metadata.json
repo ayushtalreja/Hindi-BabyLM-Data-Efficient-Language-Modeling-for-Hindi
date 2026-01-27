@@ -1,7 +1,7 @@
 {
-  "num_train": 128916,
-  "num_val": 130099,
-  "num_test": 128739,
+  "num_train": 113266,
+  "num_val": 180259,
+  "num_test": 180399,
   "train_ratio": 0.8,
   "val_ratio": 0.1,
   "test_ratio": 0.1,

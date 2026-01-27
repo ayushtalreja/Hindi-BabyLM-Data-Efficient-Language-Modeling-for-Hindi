@@ -46,7 +46,7 @@ echo "Starting Evaluation"
 echo "=========================================="
 
 # Parse arguments
-CONFIG=${1:-configs/deberta_10M_config.yaml}
+CONFIG=${1:-configs/ablations/tokenization_experiments/gpt_wordpiece_10M_32k.yaml}
 EXPERIMENT_NAME=${2:-}  # Optional experiment name override
 
 echo "Using config: $CONFIG"
