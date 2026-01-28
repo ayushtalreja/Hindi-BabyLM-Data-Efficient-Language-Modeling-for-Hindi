@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 import logging
 import numpy as np
+from ..utils.json_encoder import DataclassJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +272,7 @@ class EvaluationCache:
 
             # Save metadata
             with open(metadata_file, 'w') as f:
-                json.dump(full_metadata, f, indent=2)
+                json.dump(full_metadata, f, indent=2, cls=DataclassJSONEncoder)
 
             logger.info(f"Predictions cached: {cache_key}")
             logger.debug(f"  Samples: {full_metadata.get('n_samples', 'unknown')}")

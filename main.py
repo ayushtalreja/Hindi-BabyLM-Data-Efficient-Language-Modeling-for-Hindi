@@ -39,6 +39,7 @@ from src.tokenization.tokenizer_factory import TokenizerFactory
 from src.models.model_factory import ModelFactory
 from src.training.trainer import HindiLanguageModelTrainer
 from src.evaluation.evaluation_manager import EvaluationManager
+from src.utils.json_encoder import DataclassJSONEncoder
 from src.utils.experiment_config import ExperimentConfig
 from src.utils.seed_manager import set_global_seed
 
@@ -108,7 +109,7 @@ def save_experiment_metadata(
     # Save metadata
     metadata_path = experiment_dir / 'metadata.json'
     with open(metadata_path, 'w') as f:
-        json.dump(metadata, f, indent=2)
+        json.dump(metadata, f, indent=2, cls=DataclassJSONEncoder)
 
     # Also save config
     config_path = experiment_dir / 'config.yaml'
@@ -266,7 +267,7 @@ def stage_training(
     summary = trainer.get_training_summary()
     summary_path = experiment_dir / 'training_summary.json'
     with open(summary_path, 'w') as f:
-        json.dump(summary, f, indent=2)
+        json.dump(summary, f, indent=2, cls=DataclassJSONEncoder)
     logging.info(f"   Summary saved to: {summary_path}")
 
     logging.info("\n✅ Model training completed successfully!")
@@ -328,7 +329,7 @@ def stage_evaluation(
     logging.info("\n💾 Saving evaluation results...")
     results_path = experiment_dir / 'evaluation_results.json'
     with open(results_path, 'w') as f:
-        json.dump(results, f, indent=2)
+        json.dump(results, f, indent=2, cls=DataclassJSONEncoder)
     logging.info(f"   Results saved to: {results_path}")
 
     # Print summary

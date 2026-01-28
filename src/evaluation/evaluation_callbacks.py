@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 import json
+from ..utils.json_encoder import DataclassJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +261,7 @@ class EvaluationCallback:
 
             # Save as JSON
             with open(filepath, 'w') as f:
-                json.dump(eval_results, f, indent=2, default=str)
+                json.dump(eval_results, f, indent=2, cls=DataclassJSONEncoder)
 
             logger.info(f"Saved evaluation results: {filepath}")
 

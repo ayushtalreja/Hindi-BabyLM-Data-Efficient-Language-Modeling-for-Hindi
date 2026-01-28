@@ -4,39 +4,9 @@ import numpy as np
 from datetime import datetime
 import os
 from typing import Dict, Any
-from dataclasses import is_dataclass, asdict
+from ..utils.json_encoder import DataclassJSONEncoder
 from .indicglue_evaluator import IndicGLUEEvaluator
 from .multiblimp_evaluator import MultiBLiMPEvaluator
-
-
-class DataclassJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder that handles dataclass objects and other non-serializable types"""
-
-    def default(self, obj):
-        # Handle dataclass objects
-        if is_dataclass(obj):
-            return asdict(obj)
-
-        # Handle datetime objects
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-
-        # Handle numpy types
-        if isinstance(obj, (np.bool_, np.bool)):
-            return bool(obj)
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-
-        # Handle other common non-serializable types
-        if hasattr(obj, '__dict__'):
-            return obj.__dict__
-
-        # Let the base class handle other types or raise TypeError
-        return super().default(obj)
 
 class EvaluationManager:
     def __init__(self, model, tokenizer, config):
