@@ -26954,4 +26954,8 @@
       "std_loss_difference": 0.10661828191556834,
       "diagnostics": {
         "below_chance": false,
-        "prefers_ungrammatical": 
+        "prefers_ungrammatical": false
+      }
+    }
+  }
+}
