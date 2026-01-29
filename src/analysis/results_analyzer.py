@@ -104,8 +104,14 @@ class ResultsAnalyzer:
         config_file = exp_dir / "config.yaml"
         if config_file.exists():
             import yaml
-            with open(config_file, 'r') as f:
-                results['config'] = yaml.safe_load(f)
+            try:
+                with open(config_file, 'r') as f:
+                    results['config'] = yaml.safe_load(f)
+            except yaml.constructor.ConstructorError as e:
+                # Handle custom YAML tags (e.g., dataclass objects)
+                # Skip config loading if custom constructors are not registered
+                logger.warning(f"Skipping config for {experiment_name}: {str(e)[:100]}")
+                results['config'] = None
 
         self.experiments[experiment_name] = results
         self.loaded_experiments.add(experiment_name)
