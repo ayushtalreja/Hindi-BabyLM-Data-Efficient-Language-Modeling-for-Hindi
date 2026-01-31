@@ -11,10 +11,13 @@ Architecture:
 - Classification Head: [batch, hidden_size] -> [batch, num_classes]
 """
 
+import logging
 import torch
 import torch.nn as nn
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -66,12 +69,21 @@ class GPTForSequenceClassification(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(hidden_size, num_classes)
 
-        # Initialize classification head
-        nn.init.normal_(self.classifier.weight, std=0.02)
-        nn.init.zeros_(self.classifier.bias)
+        # Initialize classification head with Xavier uniform for better gradient flow
+        # CRITICAL FIX: Standard normal with std=0.02 causes gradient saturation
+        # Xavier initialization scales weights based on fan_in/fan_out, providing stronger initial gradients
+        # This prevents the softmax over similar small values from producing vanishing gradients
+        nn.init.xavier_uniform_(self.classifier.weight)
+        # Small positive bias helps break symmetry and improves initial gradient flow
+        nn.init.constant_(self.classifier.bias, 0.1)
 
         # Match dtype of base model to avoid dtype mismatch errors
         self._match_base_model_dtype()
+
+        # Log initialization statistics for debugging
+        weight_std = self.classifier.weight.std().item()
+        logger.info(f"GPTForSequenceClassification initialized: num_classes={num_classes}, "
+                   f"hidden_size={hidden_size}, weight_std={weight_std:.4f}, bias={self.classifier.bias[0].item():.2f}")
 
     def _match_base_model_dtype(self):
         """Match the dtype of the classification head to the base model"""
@@ -196,12 +208,21 @@ class DeBERTaForSequenceClassification(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(hidden_size, num_classes)
 
-        # Initialize classification head
-        nn.init.normal_(self.classifier.weight, std=0.02)
-        nn.init.zeros_(self.classifier.bias)
+        # Initialize classification head with Xavier uniform for better gradient flow
+        # CRITICAL FIX: Standard normal with std=0.02 causes gradient saturation
+        # Xavier initialization scales weights based on fan_in/fan_out, providing stronger initial gradients
+        nn.init.xavier_uniform_(self.classifier.weight)
+        # Small positive bias helps break symmetry and improves initial gradient flow
+        nn.init.constant_(self.classifier.bias, 0.1)
 
         # Match dtype of base model to avoid dtype mismatch errors
         self._match_base_model_dtype()
+
+        # Log initialization statistics for debugging
+        weight_std = self.classifier.weight.std().item()
+        logger.info(f"DeBERTaForSequenceClassification initialized: num_classes={num_classes}, "
+                   f"hidden_size={hidden_size}, pooling={pooling_strategy}, "
+                   f"weight_std={weight_std:.4f}, bias={self.classifier.bias[0].item():.2f}")
 
     def _match_base_model_dtype(self):
         """Match the dtype of the classification head to the base model"""
