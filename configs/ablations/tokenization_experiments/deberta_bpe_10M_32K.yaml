@@ -276,19 +276,21 @@ evaluation:
         # For tasks with missing/inadequate splits, use task_specific_splits below
 
         # Training hyperparameters
-        num_epochs: 10  # Reverted to working config for better convergence
+        num_epochs: 15  # Increased from 10 - more time to learn with higher LR
         early_stopping:
           enabled: true
-          patience: 3
+          patience: 5  # Increased from 3 - give model more time to improve
           metric: "accuracy"  # Metric to monitor
           mode: "max"  # "max" for accuracy, "min" for loss
 
-        # Optimization
-        learning_rate: 2e-5
+        # Optimization - TUNED FOR BETTER CONVERGENCE
+        # Previous: lr=2e-5 showed <1% loss decrease, val_acc plateau at epoch 1
+        learning_rate: 1e-4  # Increased 5x from 2e-5 - addresses severe underfitting
         batch_size: 32
-        weight_decay: 0.01  # Reverted: L2 regularization to prevent overfitting
+        gradient_accumulation_steps: 2  # Effective batch size = 64 for stability
+        weight_decay: 0.001  # Reduced from 0.01 - less regularization with higher LR
         adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
-        warmup_ratio: 0.1  # Reverted: 10% warmup for training stability
+        warmup_ratio: 0.05  # Reduced from 0.1 - reach effective LR faster
         scheduler_type: "linear"  # Linear LR decay with warmup
 
         # Model settings
