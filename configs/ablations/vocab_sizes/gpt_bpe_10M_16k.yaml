@@ -302,25 +302,25 @@ evaluation:
         num_epochs: 10  # Sufficient for convergence with improved hyperparams
         early_stopping:
           enabled: true
-          patience: 3  
+          patience: 5  # Increased from 3 - allow more epochs for convergence
           min_delta: 0.001  # Only stop if improvement < 0.1%
           metric: "accuracy"  # Metric to monitor
           mode: "max"  # "max" for accuracy, "min" for loss
 
-        # Optimization
-        learning_rate: 1e-4  # increased from 2e-5 since model was not learning and was stuck in the initialisation plateau
+        # Optimization (OPTIMIZED for fine-tuning - see plan for rationale)
+        learning_rate: 5e-4  # Increased from 1e-4 (5x) - enable faster learning
         batch_size: 16  # Reduced from 32 for better memory consumption
         gradient_accumulation_steps: 4  # Effective batch=64 (maintain stability)
-        weight_decay: 0.05  # Increased from 0.01 for stronger regularization
+        weight_decay: 0.01  # Reduced from 0.05 (5x) - less regularization pressure
         adam_epsilon: 1e-8  # Epsilon for AdamW optimizer
-        warmup_ratio: 0.15  # Increased from 0.1 for more warmup stability
-        scheduler_type: "cosine"  # Changed from linear - cosine decay works better
-        max_grad_norm: 0.5  # Tighter gradient clipping for stability
+        warmup_ratio: 0.05  # Reduced from 0.15 (3x) - spend more time at peak LR
+        scheduler_type: "linear"  # Changed from cosine - more gradual decay
+        max_grad_norm: 1.0  # Increased from 0.5 (2x) - allow larger gradient updates
 
         # Regularization
-        dropout: 0.15  # Increased from 0.1 to prevent overfitting
-        label_smoothing: 0.05  # Add label smoothing for multi-class tasks
-
+        dropout: 0.15  # Keep same - can reduce to 0.1 if needed
+        label_smoothing: 0.01  # Reduced from 0.05 (5x) - less optimization difficulty
+        
         # Model settings
         # Training Strategy:
         # - freeze_base_model: true  → Frozen base, train only classification heads (FASTER, less overfitting)
