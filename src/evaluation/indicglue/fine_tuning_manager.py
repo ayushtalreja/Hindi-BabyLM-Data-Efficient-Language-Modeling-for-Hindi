@@ -177,6 +177,11 @@ class FineTuningManager:
                 - best_epoch: Epoch with best validation accuracy
                 - best_val_accuracy: Best validation accuracy achieved
                 - early_stopped: Whether early stopping was triggered
+                - final_train_loss: Training loss from last epoch
+                - final_val_loss: Validation loss from last epoch (None if no validation)
+                - final_val_accuracy: Validation accuracy from last epoch (None if no validation)
+                - metrics_history: Dict with per-epoch lists of train_loss, val_loss,
+                                   val_accuracy, and learning_rate
         """
         logger.info(f"Starting training loop for {task_name}")
 
@@ -201,9 +206,22 @@ class FineTuningManager:
 
         has_validation = val_loader is not None
 
+        # Metrics history for training summary
+        metrics_history = {
+            'train_loss': [],
+            'val_loss': [],
+            'val_accuracy': [],
+            'learning_rate': []
+        }
+
         for epoch in range(self.num_epochs):
             # Training phase
             train_loss = self._train_epoch(model, train_loader, optimizer, scheduler, epoch)
+
+            # Track metrics
+            current_lr = optimizer.param_groups[0]['lr']
+            metrics_history['train_loss'].append(train_loss)
+            metrics_history['learning_rate'].append(current_lr)
 
             # Update learning rate scheduler (once per epoch, not per batch)
             scheduler.step()
@@ -213,6 +231,10 @@ class FineTuningManager:
                 val_metrics = self._validate(model, val_loader)
                 val_acc = val_metrics['accuracy']
                 val_loss = val_metrics['loss']
+
+                # Store validation metrics
+                metrics_history['val_loss'].append(val_loss)
+                metrics_history['val_accuracy'].append(val_acc)
 
                 logger.info(
                     f"Epoch {epoch+1}/{self.num_epochs}: "
@@ -248,6 +270,9 @@ class FineTuningManager:
             else:
                 # No validation - just log training loss
                 logger.info(f"Epoch {epoch+1}/{self.num_epochs}: train_loss={train_loss:.4f}")
+                # No validation metrics available
+                metrics_history['val_loss'].append(None)
+                metrics_history['val_accuracy'].append(None)
 
         # Restore best model if validation was used
         if has_validation and best_model_state is not None:
@@ -273,7 +298,12 @@ class FineTuningManager:
             'epochs_trained': epoch + 1,
             'best_epoch': best_epoch if has_validation else epoch + 1,
             'best_val_accuracy': best_val_acc if has_validation else None,
-            'early_stopped': has_validation and patience_counter >= self.patience
+            'early_stopped': has_validation and patience_counter >= self.patience,
+            # Training summary metrics
+            'final_train_loss': metrics_history['train_loss'][-1] if metrics_history['train_loss'] else None,
+            'final_val_loss': metrics_history['val_loss'][-1] if has_validation else None,
+            'final_val_accuracy': metrics_history['val_accuracy'][-1] if has_validation else None,
+            'metrics_history': metrics_history
         }
 
     def _create_optimizer(self, model: torch.nn.Module) -> torch.optim.Optimizer:
