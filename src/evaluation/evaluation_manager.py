@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime
 import os
 from typing import Dict, Any
+from dataclasses import is_dataclass, asdict
 from ..utils.json_encoder import DataclassJSONEncoder
 from .indicglue_evaluator import IndicGLUEEvaluator
 from .multiblimp_evaluator import MultiBLiMPEvaluator
