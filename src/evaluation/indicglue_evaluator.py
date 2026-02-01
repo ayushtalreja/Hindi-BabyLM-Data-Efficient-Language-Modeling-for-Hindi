@@ -772,6 +772,62 @@ class IndicGLUEEvaluator:
                             .get('indicglue', {}).get('fine_tuning', {})
             fine_tune_enabled = ft_config.get('enabled', False)
 
+            # ========== EARLY CACHE CHECK (BEFORE FINE-TUNING) ==========
+            # This is critical for performance: check cache BEFORE expensive fine-tuning
+            if self.cache_manager and self.cache_manager.enable_cache:
+                # Extract model metadata for cache key
+                model_type = self.config.get('model', {}).get('type',
+                            self.config.get('model_type',
+                            self._detect_model_type(self.base_model)))
+                vocab_size = getattr(self.tokenizer, 'vocab_size', None)
+                tokenizer_type = self.config.get('tokenization', {}).get('type',
+                                self.config.get('tokenizer_type',
+                                self._detect_tokenizer_type(self.tokenizer)))
+
+                # Build config for cache key (cache will extract relevant parameters)
+                cache_config = {
+                    'batch_size': self.batch_size,
+                    'max_samples': self.max_samples,
+                    'fine_tuning': ft_config  # Pass entire fine-tuning config to cache
+                }
+
+                # Generate cache key
+                cache_key = self.cache_manager._compute_cache_key(
+                    model_hash=getattr(self.base_model, 'name_or_path', 'unknown_model'),
+                    dataset_name=task_name,
+                    dataset_split='test',
+                    config=cache_config,
+                    model_type=model_type,
+                    vocab_size=vocab_size,
+                    tokenizer_type=tokenizer_type
+                )
+
+                # Try to retrieve cached results
+                cached_result = self.cache_manager.get_cached_predictions(cache_key)
+                if cached_result is not None:
+                    mode_str = 'fine-tuned' if fine_tune_enabled else 'zero-shot'
+                    logger.info(f"✓ Cache hit for {task_name} ({mode_str} mode)")
+                    logger.info(f"  Skipping {'fine-tuning and ' if fine_tune_enabled else ''}inference")
+
+                    # Return cached metrics
+                    metrics = cached_result['metadata'].get('metrics', {})
+                    metrics['fine_tuned'] = fine_tune_enabled
+                    metrics['from_cache'] = True
+                    return metrics
+                else:
+                    mode_str = 'fine-tuned' if fine_tune_enabled else 'zero-shot'
+                    logger.info(f"✗ Cache miss for {task_name} ({mode_str} mode)")
+                    logger.info(f"  Proceeding with {'fine-tuning and ' if fine_tune_enabled else ''}inference")
+
+                # Store cache key for later use when saving results
+                self._current_cache_key = cache_key
+                self._current_task_name = task_name
+            else:
+                # Caching disabled
+                self._current_cache_key = None
+                self._current_task_name = None
+            # ========== END EARLY CACHE CHECK ==========
+
             # Fine-tuning applies to all task types now (classification, sentiment, and multiple-choice)
             if fine_tune_enabled:
                 logger.info(f"Fine-tuning mode enabled for {task_name}")
@@ -857,6 +913,12 @@ class IndicGLUEEvaluator:
                 return results
 
         finally:
+            # Clean up cache key state
+            if hasattr(self, '_current_cache_key'):
+                self._current_cache_key = None
+            if hasattr(self, '_current_task_name'):
+                self._current_task_name = None
+
             # Clean up wrapped models
             if hasattr(self, 'wrapped_models'):
                 for model_key in list(self.wrapped_models.keys()):
@@ -1228,39 +1290,8 @@ class IndicGLUEEvaluator:
         # Get task configuration to determine task type
         task_config = self.task_registry.get_task_config(task_name)
 
-        # Try to load from cache
-        if self.cache_manager and self.cache_manager.enable_cache:
-            # Extract model type, vocab size, and tokenizer type for cache isolation
-            # This ensures different model types (GPT vs DeBERTa) never share cache
-            model_type = self.config.get('model', {}).get('type',
-                         self.config.get('model_type',
-                         self._detect_model_type(self.base_model)))
-            vocab_size = getattr(self.tokenizer, 'vocab_size', None)
-            tokenizer_type = self.config.get('tokenization', {}).get('type',
-                            self.config.get('tokenizer_type',
-                            self._detect_tokenizer_type(self.tokenizer)))
-
-            # Generate cache key from task name, dataset size, model info, and config
-            cache_key = self.cache_manager._compute_cache_key(
-                model_hash=getattr(self.base_model, 'name_or_path', 'unknown_model'),
-                dataset_name=task_name,
-                dataset_split='test',  # IndicGLUE evaluation uses test split
-                config={
-                    'batch_size': self.batch_size,
-                    'max_samples': self.max_samples,
-                    'num_examples': len(dataset)
-                },
-                model_type=model_type,
-                vocab_size=vocab_size,
-                tokenizer_type=tokenizer_type
-            )
-
-            # Try to retrieve cached predictions
-            cached_result = self.cache_manager.get_cached_predictions(cache_key)
-            if cached_result is not None:
-                logger.info(f"Using cached predictions for {task_name}")
-                # Return cached metrics directly
-                return cached_result['metadata'].get('metrics', {})
+        # NOTE: Cache checking is now done early in evaluate_task() before fine-tuning
+        # This method only handles inference and cache saving
 
         # Log appropriate message based on task type
         if task_config.use_multiple_choice_wrapper:
@@ -1331,18 +1362,21 @@ class IndicGLUEEvaluator:
             self.metrics_aggregator, self.task_registry, fine_tuning_info
         )
 
-        # Save predictions and metrics to cache
-        if self.cache_manager and self.cache_manager.enable_cache:
-            cache_metadata = {
-                'task_name': task_name,
-                'model_name': getattr(self.base_model, 'name_or_path', 'unknown_model'),
-                'num_examples': len(dataset),
-                'metrics': metrics
-            }
-            self.cache_manager.save_predictions(
-                cache_key,
-                predictions={'predictions': predictions, 'labels': labels},
-                metadata=cache_metadata
-            )
+        # Save predictions and metrics to cache (using cache key from evaluate_task)
+        if self.cache_manager and self.cache_manager.enable_cache and hasattr(self, '_current_cache_key'):
+            if self._current_cache_key is not None:
+                cache_metadata = {
+                    'task_name': task_name,
+                    'model_name': getattr(self.base_model, 'name_or_path', 'unknown_model'),
+                    'num_examples': len(dataset),
+                    'metrics': metrics,
+                    'fine_tuned': metrics.get('fine_tuned', False)
+                }
+                self.cache_manager.save_predictions(
+                    self._current_cache_key,
+                    predictions={'predictions': predictions, 'labels': labels},
+                    metadata=cache_metadata
+                )
+                logger.info(f"Saved predictions to cache for {task_name}")
 
         return metrics

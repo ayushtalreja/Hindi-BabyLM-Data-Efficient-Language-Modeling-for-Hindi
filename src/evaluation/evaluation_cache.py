@@ -19,9 +19,8 @@ import pickle
 import hashlib
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, Optional, Any
 import logging
-import numpy as np
 from ..utils.json_encoder import DataclassJSONEncoder
 
 logger = logging.getLogger(__name__)
@@ -139,6 +138,25 @@ class EvaluationCache:
                 'max_samples': config.get('max_samples_per_task'),
                 'task_config': config.get('task_config', {}),
             }
+
+            # CRITICAL: Include fine-tuning parameters in cache key
+            # Different fine-tuning hyperparameters should produce different caches
+            # This prevents cache collisions between zero-shot and fine-tuned evaluations
+            ft_config = config.get('fine_tuning', {})
+            if ft_config:
+                relevant_config['fine_tuning'] = {
+                    'enabled': ft_config.get('enabled', False),
+                    'num_epochs': ft_config.get('num_epochs'),
+                    'learning_rate': ft_config.get('learning_rate'),
+                    'batch_size': ft_config.get('batch_size'),
+                    'weight_decay': ft_config.get('weight_decay'),
+                    'warmup_ratio': ft_config.get('warmup_ratio'),
+                    'freeze_base_model': ft_config.get('freeze_base_model'),
+                    'use_auto_models': ft_config.get('use_auto_models'),
+                    'dropout': ft_config.get('dropout'),
+                    'label_smoothing': ft_config.get('label_smoothing'),
+                }
+
             config_str = json.dumps(relevant_config, sort_keys=True)
             hasher.update(config_str.encode('utf-8'))
 
