@@ -204,21 +204,38 @@ class MultipleChoiceWrapper(nn.Module):
             )
             hidden_states = transformer_outputs.last_hidden_state
         else:
-            # For other models (BERT, DeBERTa, etc.), regular forward pass
-            outputs = self.base_model(
-                input_ids=input_ids_flat,
-                attention_mask=attention_mask_flat,
-                output_hidden_states=True  # Ensure hidden states are returned
-            )
-
-            # Extract hidden states
-            if hasattr(outputs, 'last_hidden_state'):
-                hidden_states = outputs.last_hidden_state
-            elif hasattr(outputs, 'hidden_states') and outputs.hidden_states is not None:
-                hidden_states = outputs.hidden_states[-1]  # Last layer
+            # For DeBERTa MLM models, access encoder directly to avoid computing vocab logits
+            # CRITICAL FIX: This saves ~671MB per batch for 32K vocab models (prevents CUDA OOM)
+            if hasattr(self.base_model, 'model') and hasattr(self.base_model.model, 'deberta'):
+                # HindiDeBERTaModel wraps DebertaV2ForMaskedLM
+                base_outputs = self.base_model.model.deberta(
+                    input_ids=input_ids_flat,
+                    attention_mask=attention_mask_flat
+                )
+                hidden_states = base_outputs.last_hidden_state
+            elif hasattr(self.base_model, 'deberta'):
+                # Direct DebertaV2ForMaskedLM
+                base_outputs = self.base_model.deberta(
+                    input_ids=input_ids_flat,
+                    attention_mask=attention_mask_flat
+                )
+                hidden_states = base_outputs.last_hidden_state
             else:
-                # Fallback for unexpected model types
-                hidden_states = outputs[0]
+                # Other models - normal forward pass
+                outputs = self.base_model(
+                    input_ids=input_ids_flat,
+                    attention_mask=attention_mask_flat,
+                    output_hidden_states=True  # Ensure hidden states are returned
+                )
+
+                # Extract hidden states
+                if hasattr(outputs, 'last_hidden_state'):
+                    hidden_states = outputs.last_hidden_state
+                elif hasattr(outputs, 'hidden_states') and outputs.hidden_states is not None:
+                    hidden_states = outputs.hidden_states[-1]  # Last layer
+                else:
+                    # Fallback for unexpected model types
+                    hidden_states = outputs[0]
         # Shape: [batch*num_choices, seq_len, hidden_size]
 
         # Pool to sequence representation

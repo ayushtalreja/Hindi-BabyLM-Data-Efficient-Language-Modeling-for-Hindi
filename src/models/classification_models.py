@@ -309,25 +309,37 @@ class DeBERTaForSequenceClassification(nn.Module):
         Returns:
             ClassificationOutput with logits [batch, num_classes]
         """
-        # Get language model outputs
-        lm_outputs = self.lm_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask
-        )
-
-        # Extract hidden states: [batch, seq_len, hidden_size]
-        if hasattr(lm_outputs, 'hidden_states') and lm_outputs.hidden_states is not None:
-            # If model outputs hidden states, use the last layer
-            hidden_states = lm_outputs.hidden_states[-1]
-        elif hasattr(lm_outputs, 'last_hidden_state'):
-            hidden_states = lm_outputs.last_hidden_state
-        else:
-            # For DebertaV2ForMaskedLM, access the base model
+        # Get hidden states from base model
+        # CRITICAL FIX: For DeBERTa MLM models, access encoder directly to avoid computing vocab logits
+        # This saves ~671MB per batch for 32K vocab models (prevents CUDA OOM on large datasets)
+        if hasattr(self.lm_model, 'model') and hasattr(self.lm_model.model, 'deberta'):
+            # HindiDeBERTaModel wraps DebertaV2ForMaskedLM which has .model.deberta
             base_outputs = self.lm_model.model.deberta(
                 input_ids=input_ids,
                 attention_mask=attention_mask
             )
             hidden_states = base_outputs.last_hidden_state
+        elif hasattr(self.lm_model, 'deberta'):
+            # Direct DebertaV2ForMaskedLM
+            base_outputs = self.lm_model.deberta(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            hidden_states = base_outputs.last_hidden_state
+        else:
+            # Other models (GPT, etc.) - use normal forward
+            lm_outputs = self.lm_model(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            # Extract hidden states: [batch, seq_len, hidden_size]
+            if hasattr(lm_outputs, 'hidden_states') and lm_outputs.hidden_states is not None:
+                # If model outputs hidden states, use the last layer
+                hidden_states = lm_outputs.hidden_states[-1]
+            elif hasattr(lm_outputs, 'last_hidden_state'):
+                hidden_states = lm_outputs.last_hidden_state
+            else:
+                raise ValueError("Cannot extract hidden states from model output")
 
         # Pool to get sequence representation: [batch, hidden_size]
         pooled_output = self.pool_hidden_states(hidden_states, attention_mask)
