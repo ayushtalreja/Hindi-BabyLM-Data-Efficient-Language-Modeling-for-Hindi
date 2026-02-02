@@ -1,2 +1,2 @@
-Error: Object of type bool is not JSON serializable
-Timestamp: 2026-01-28T16:59:27.028679
+Error: name 'is_dataclass' is not defined
+Timestamp: 2026-02-01T03:07:59.473695

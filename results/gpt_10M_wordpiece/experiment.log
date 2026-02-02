@@ -1003,3 +1003,890 @@ Traceback (most recent call last):
   File "/dss/dsshome1/00/ge95xod2/miniconda3/envs/hindi_babylm/lib/python3.9/json/encoder.py", line 179, in default
     raise TypeError(f'Object of type {o.__class__.__name__} '
 TypeError: Object of type bool is not JSON serializable
+2026-02-02 07:58:03,716 - root - INFO - Experiment: gpt_10M_wordpiece
+2026-02-02 07:58:03,732 - root - INFO - Stage: eval
+2026-02-02 07:58:03,732 - root - INFO - Results directory: results/gpt_10M_wordpiece
+2026-02-02 07:58:03,732 - root - INFO - Configuration: configs/ablations/tokenization_experiments/gpt_wordpiece_10M_32k.yaml
+2026-02-02 07:58:03,732 - root - INFO - 
+🎲 Setting up reproducibility...
+2026-02-02 07:58:03,732 - root - INFO -    Seed: 42
+2026-02-02 07:58:03,732 - root - INFO -    Deterministic: True
+2026-02-02 07:58:03,732 - src.utils.seed_manager - INFO - Setting all seeds to 42
+2026-02-02 07:58:03,732 - src.utils.seed_manager - DEBUG - ✓ Python random seed set
+2026-02-02 07:58:03,732 - src.utils.seed_manager - DEBUG - ✓ NumPy seed set
+2026-02-02 07:58:03,828 - src.utils.seed_manager - DEBUG - ✓ PyTorch CPU seed set
+2026-02-02 07:58:04,719 - src.utils.seed_manager - DEBUG - ✓ PyTorch CUDA seeds set
+2026-02-02 07:58:04,719 - src.utils.seed_manager - INFO - Enabling deterministic mode for PyTorch
+2026-02-02 07:58:04,720 - src.utils.seed_manager - DEBUG - ✓ PyTorch deterministic algorithms enabled
+2026-02-02 07:58:04,720 - src.utils.seed_manager - DEBUG - ✓ CuDNN deterministic mode enabled
+2026-02-02 07:58:04,720 - src.utils.seed_manager - WARNING - CuDNN benchmark disabled - may reduce training speed
+2026-02-02 07:58:04,720 - src.utils.seed_manager - DEBUG - ✓ Set PYTHONHASHSEED=42
+2026-02-02 07:58:04,720 - src.utils.seed_manager - DEBUG - ✓ Set CUBLAS_WORKSPACE_CONFIG=:4096:8
+2026-02-02 07:58:04,720 - root - INFO - 
+💻 Device configuration:
+2026-02-02 07:58:04,720 - root - INFO -    Device: cuda
+2026-02-02 07:58:04,765 - root - INFO -    GPU: NVIDIA H100
+2026-02-02 07:58:04,765 - root - INFO -    CUDA Version: 12.8
+2026-02-02 07:58:04,776 - root - INFO - Metadata saved to results/gpt_10M_wordpiece/metadata.json
+2026-02-02 07:58:04,776 - root - INFO - Config saved to results/gpt_10M_wordpiece/config.yaml
+2026-02-02 07:58:04,776 - root - INFO - 
+Loading trained model and tokenizer...
+2026-02-02 07:58:08,628 - root - INFO - Starting evaluation stage...
+2026-02-02 07:58:08,629 - root - INFO - 
+📋 Initializing evaluation manager...
+2026-02-02 07:58:08,630 - root - INFO -    Added evaluation config to evaluator
+2026-02-02 07:58:08,630 - src.evaluation.indicglue_evaluator - INFO - IndicGLUE evaluator initialized on device: cuda:0
+2026-02-02 07:58:08,630 - src.evaluation.indicglue_evaluator - INFO - Max sequence length: 512 tokens (IndicBERT paper uses 128)
+2026-02-02 07:58:08,630 - src.evaluation.indicglue_evaluator - INFO - Tokenizer pad_token: [PAD] (id: 0)
+2026-02-02 07:58:08,630 - src.evaluation.indicglue_evaluator - INFO - Model type detected: Language Model
+2026-02-02 07:58:08,630 - src.evaluation.indicglue_evaluator - INFO - Initialized TaskRegistry with 8 tasks
+2026-02-02 07:58:08,631 - src.evaluation.metrics_utils - DEBUG - MetricsAggregator initialized: bootstrap_samples=1000, confidence_level=0.95
+2026-02-02 07:58:08,631 - src.evaluation.indicglue_evaluator - INFO - Label validation mode: STRICT (invalid labels will raise errors)
+2026-02-02 07:58:08,632 - src.evaluation.evaluation_cache - INFO - Evaluation cache initialized at: .eval_cache
+2026-02-02 07:58:08,632 - src.evaluation.evaluation_cache - INFO - Cache expiration: 30 days
+2026-02-02 07:58:08,632 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode initialized: zero-shot (will switch to fine-tuned after training)
+2026-02-02 07:58:08,632 - src.evaluation.indicglue_evaluator - INFO - Initialized TaskDataExtractor
+2026-02-02 07:58:08,633 - src.evaluation.indicglue_evaluator - INFO - Initialized DataLoaderFactory
+2026-02-02 07:58:08,633 - src.evaluation.indicglue_evaluator - INFO - Initialized evaluation strategies (Classification, MC, Perplexity)
+2026-02-02 07:58:08,633 - src.evaluation.indicglue_evaluator - INFO - Using internal _get_model_for_task for fine-tuning
+2026-02-02 07:58:08,634 - src.evaluation.indicglue.fine_tuning_manager - INFO - FineTuningManager initialized: freeze_base=False, use_auto_models=False, lr=0.0005, epochs=10, batch_size=16, grad_accum=4, warmup_ratio=0.05, scheduler_type=linear, weight_decay=0.01, dropout=0.1, max_grad_norm=1.0, label_smoothing=0.01, patience=5, min_delta=0.001
+2026-02-02 07:58:08,634 - src.evaluation.indicglue_evaluator - INFO - Initialized FineTuningManager (refactored with config, dataloader_factory, model_provider)
+2026-02-02 07:58:08,634 - src.evaluation.indicglue_evaluator - INFO - Initialized ResultVisualizer
+2026-02-02 07:58:08,634 - src.evaluation.multiblimp_evaluator - INFO - Final model type for MultiBLiMP: HindiGPTModel
+2026-02-02 07:58:08,634 - src.evaluation.multiblimp_evaluator - INFO - Model module: src.models.gpt_model
+2026-02-02 07:58:08,634 - src.evaluation.multiblimp_evaluator - INFO - Model has 60 public attributes
+2026-02-02 07:58:08,634 - src.evaluation.multiblimp_evaluator - DEBUG - Model attributes: ['MODEL_SIZES', 'T_destination', 'add_module', 'apply', 'bfloat16', 'buffers', 'call_super_init', 'children', 'compile', 'config', 'cpu', 'cuda', 'double', 'dump_patches', 'eval', 'extra_repr', 'float', 'forward', 'generate', 'get_buffer', 'get_extra_state', 'get_parameter', 'get_submodule', 'half', 'ipu', 'load_state_dict', 'model', 'modules', 'mtia', 'named_buffers', 'named_children', 'named_modules', 'named_parameters', 'num_parameters', 'parameters', 'register_backward_hook', 'register_buffer', 'register_forward_hook', 'register_forward_pre_hook', 'register_full_backward_hook', 'register_full_backward_pre_hook', 'register_load_state_dict_post_hook', 'register_load_state_dict_pre_hook', 'register_module', 'register_parameter', 'register_state_dict_post_hook', 'register_state_dict_pre_hook', 'requires_grad_', 'set_extra_state', 'set_submodule', 'share_memory', 'smart_apply', 'state_dict', 'to', 'to_empty', 'train', 'training', 'type', 'xpu', 'zero_grad']
+2026-02-02 07:58:08,634 - src.evaluation.multiblimp_evaluator - INFO - MultiBLiMP evaluator initialized on device: cuda:0
+2026-02-02 07:58:08,634 - src.evaluation.multiblimp_evaluator - INFO - Model type: CLM (autoregressive)
+2026-02-02 07:58:08,634 - src.evaluation.multiblimp_evaluator - INFO - Attempting to load MultiBLiMP dataset from HuggingFace (jumelet/multiblimp)...
+2026-02-02 07:58:10,563 - filelock - DEBUG - Attempting to acquire lock 139859919750576 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_jumelet___multiblimp_hin_0.0.0_de923efa8d2483d6b13364ee68e65308e990a991.lock
+2026-02-02 07:58:10,570 - filelock - DEBUG - Lock 139859919750576 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_jumelet___multiblimp_hin_0.0.0_de923efa8d2483d6b13364ee68e65308e990a991.lock
+2026-02-02 07:58:10,572 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/jumelet___multiblimp/hin/0.0.0/de923efa8d2483d6b13364ee68e65308e990a991/dataset_info.json
+2026-02-02 07:58:10,574 - filelock - DEBUG - Attempting to release lock 139859919750576 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_jumelet___multiblimp_hin_0.0.0_de923efa8d2483d6b13364ee68e65308e990a991.lock
+2026-02-02 07:58:10,575 - filelock - DEBUG - Lock 139859919750576 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_jumelet___multiblimp_hin_0.0.0_de923efa8d2483d6b13364ee68e65308e990a991.lock
+2026-02-02 07:58:10,744 - filelock - DEBUG - Attempting to acquire lock 139859919158288 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/jumelet___multiblimp/hin/0.0.0/de923efa8d2483d6b13364ee68e65308e990a991_builder.lock
+2026-02-02 07:58:10,752 - filelock - DEBUG - Lock 139859919158288 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/jumelet___multiblimp/hin/0.0.0/de923efa8d2483d6b13364ee68e65308e990a991_builder.lock
+2026-02-02 07:58:10,752 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/jumelet___multiblimp/hin/0.0.0/de923efa8d2483d6b13364ee68e65308e990a991/dataset_info.json
+2026-02-02 07:58:10,753 - filelock - DEBUG - Attempting to release lock 139859919158288 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/jumelet___multiblimp/hin/0.0.0/de923efa8d2483d6b13364ee68e65308e990a991_builder.lock
+2026-02-02 07:58:10,754 - filelock - DEBUG - Lock 139859919158288 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/jumelet___multiblimp/hin/0.0.0/de923efa8d2483d6b13364ee68e65308e990a991_builder.lock
+2026-02-02 07:58:10,804 - src.evaluation.multiblimp_evaluator - INFO - Successfully loaded external dataset with 1447 examples
+2026-02-02 07:58:11,082 - src.evaluation.multiblimp_evaluator - INFO - Converted to 1447 minimal pairs across 5 phenomena
+2026-02-02 07:58:11,082 - src.evaluation.multiblimp_evaluator - DEBUG -   SP-#: 100 pairs
+2026-02-02 07:58:11,082 - src.evaluation.multiblimp_evaluator - DEBUG -   SP-G: 109 pairs
+2026-02-02 07:58:11,082 - src.evaluation.multiblimp_evaluator - DEBUG -   SV-#: 407 pairs
+2026-02-02 07:58:11,082 - src.evaluation.multiblimp_evaluator - DEBUG -   SV-G: 419 pairs
+2026-02-02 07:58:11,082 - src.evaluation.multiblimp_evaluator - DEBUG -   SV-P: 412 pairs
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO - MultiBLiMP test coverage: 1447 minimal pairs across 5 phenomena
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO - Per-phenomenon test coverage:
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO -   SP-#: 100 pairs
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO -   SP-G: 109 pairs
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO -   SV-#: 407 pairs
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO -   SV-G: 419 pairs
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO -   SV-P: 412 pairs
+2026-02-02 07:58:11,083 - src.evaluation.multiblimp_evaluator - INFO - Validating model output structure...
+2026-02-02 07:58:12,044 - src.evaluation.multiblimp_evaluator - INFO - ✓ Model validation passed!
+2026-02-02 07:58:12,045 - src.evaluation.multiblimp_evaluator - INFO -   Output shape: torch.Size([1, 5, 32768])
+2026-02-02 07:58:12,045 - src.evaluation.multiblimp_evaluator - INFO -   Vocabulary size: 32768
+2026-02-02 07:58:12,045 - root - INFO - 
+🔍 Running comprehensive evaluation...
+2026-02-02 07:58:12,045 - root - INFO -    This may take several minutes...
+2026-02-02 07:58:12,045 - root - INFO -    Enabled benchmarks: indicglue, multiblimp
+2026-02-02 07:58:12,045 - src.evaluation.indicglue_evaluator - INFO - Starting IndicGLUE evaluation on all tasks...
+2026-02-02 07:58:12,046 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating BBCArticlesClassification...
+2026-02-02 07:58:12,046 - src.evaluation.evaluation_cache - DEBUG - Cache key includes model_type: gpt
+2026-02-02 07:58:12,046 - src.evaluation.evaluation_cache - DEBUG - Cache key includes vocab_size: 32768
+2026-02-02 07:58:12,046 - src.evaluation.evaluation_cache - DEBUG - Cache key includes tokenizer_type: wordpiece
+2026-02-02 07:58:12,046 - src.evaluation.evaluation_cache - DEBUG - Generated cache key: 80750abec05f4a15b717b5dec08f88dbccdc16369cafe986c910f21eb26cbbc2
+2026-02-02 07:58:12,048 - src.evaluation.evaluation_cache - DEBUG - Cache miss: 80750abec05f4a15b717b5dec08f88dbccdc16369cafe986c910f21eb26cbbc2
+2026-02-02 07:58:12,048 - src.evaluation.indicglue_evaluator - INFO - ✗ Cache miss for BBCArticlesClassification (fine-tuned mode)
+2026-02-02 07:58:12,048 - src.evaluation.indicglue_evaluator - INFO -   Proceeding with fine-tuning and inference
+2026-02-02 07:58:12,048 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning mode enabled for BBCArticlesClassification
+2026-02-02 07:58:12,049 - src.evaluation.indicglue_evaluator - INFO - Using original HuggingFace splits for BBCArticlesClassification
+2026-02-02 07:58:12,049 - src.evaluation.indicglue_evaluator - INFO - Attempting to load BBCArticlesClassification from ai4bharat/indic_glue with config 'bbca.hi' (split=train)
+2026-02-02 07:58:13,861 - filelock - DEBUG - Attempting to acquire lock 139860290175136 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:13,865 - filelock - DEBUG - Lock 139860290175136 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:13,868 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 07:58:13,868 - filelock - DEBUG - Attempting to release lock 139860290175136 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:13,869 - filelock - DEBUG - Lock 139860290175136 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:13,872 - filelock - DEBUG - Attempting to acquire lock 139859919352640 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:13,875 - filelock - DEBUG - Lock 139859919352640 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:13,876 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 07:58:13,876 - filelock - DEBUG - Attempting to release lock 139859919352640 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:13,876 - filelock - DEBUG - Lock 139859919352640 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:14,038 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded BBCArticlesClassification train split with 3467 examples
+2026-02-02 07:58:14,038 - src.evaluation.indicglue_evaluator - INFO -   Loaded train: 3467 examples
+2026-02-02 07:58:14,038 - src.evaluation.indicglue_evaluator - INFO - Attempting to load BBCArticlesClassification from ai4bharat/indic_glue with config 'bbca.hi' (split=validation)
+2026-02-02 07:58:14,999 - filelock - DEBUG - Attempting to acquire lock 139860290104144 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:15,000 - filelock - DEBUG - Lock 139860290104144 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:15,000 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 07:58:15,001 - filelock - DEBUG - Attempting to release lock 139860290104144 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:15,002 - filelock - DEBUG - Lock 139860290104144 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:15,003 - filelock - DEBUG - Attempting to acquire lock 139859920151504 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:15,004 - filelock - DEBUG - Lock 139859920151504 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:15,004 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 07:58:15,005 - filelock - DEBUG - Attempting to release lock 139859920151504 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:15,005 - filelock - DEBUG - Lock 139859920151504 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:15,005 - src.evaluation.indicglue_evaluator - DEBUG - Failed to load BBCArticlesClassification validation split from HuggingFace: Unknown split "validation". Should be one of ['train', 'test'].
+2026-02-02 07:58:15,005 - src.evaluation.indicglue_evaluator - INFO - Attempting to load BBCArticlesClassification from ai4bharat/indic_glue with config 'bbca.hi' (split=test)
+2026-02-02 07:58:16,196 - filelock - DEBUG - Attempting to acquire lock 139859909246304 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:16,196 - filelock - DEBUG - Lock 139859909246304 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:16,197 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 07:58:16,197 - filelock - DEBUG - Attempting to release lock 139859909246304 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:16,198 - filelock - DEBUG - Lock 139859909246304 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_bbca.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 07:58:16,199 - filelock - DEBUG - Attempting to acquire lock 139860290178304 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:16,200 - filelock - DEBUG - Lock 139860290178304 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:16,200 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 07:58:16,214 - filelock - DEBUG - Attempting to release lock 139860290178304 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:16,214 - filelock - DEBUG - Lock 139860290178304 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/bbca.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 07:58:16,250 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded BBCArticlesClassification test split with 866 examples
+2026-02-02 07:58:16,250 - src.evaluation.indicglue_evaluator - INFO -   Loaded test: 866 examples
+2026-02-02 07:58:16,250 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning BBCArticlesClassification without validation set
+2026-02-02 07:58:16,250 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning on BBCArticlesClassification...
+2026-02-02 07:58:16,251 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting fine-tuning for BBCArticlesClassification
+2026-02-02 07:58:16,251 - src.evaluation.indicglue.fine_tuning_manager - INFO - Train samples: 3467, No validation set
+2026-02-02 07:58:16,251 - src.evaluation.indicglue_evaluator - INFO - Wrapping model for task 'BBCArticlesClassification' with 14 classes
+2026-02-02 07:58:16,253 - src.models.classification_models - INFO - GPTForSequenceClassification initialized: num_classes=14, hidden_size=768, weight_std=0.0506, bias=0.10
+2026-02-02 07:58:16,256 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting training loop for BBCArticlesClassification
+2026-02-02 07:58:16,257 - src.evaluation.indicglue.fine_tuning_manager - INFO - Model parameters: 110,625,806 total, 110,625,806 trainable (100.0%)
+2026-02-02 07:58:16,257 - src.evaluation.indicglue.fine_tuning_manager - INFO - ✓ End-to-end training mode (all parameters trainable)
+2026-02-02 07:58:16,259 - src.evaluation.indicglue.fine_tuning_manager - INFO - Optimizer: AdamW with 76 params with decay, 74 without decay
+2026-02-02 07:58:16,259 - src.evaluation.indicglue.fine_tuning_manager - INFO - Scheduler created: Linear schedule with 108 warmup steps (total 2170 steps)
+2026-02-02 07:58:16,260 - src.evaluation.indicglue.fine_tuning_manager - INFO - Training config: total_steps=2170, warmup_steps=108 (5.0%)
+2026-02-02 07:59:03,633 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 1/10: train_loss=3.6196
+2026-02-02 07:59:48,263 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 2/10: train_loss=2.1076
+2026-02-02 08:00:32,896 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 3/10: train_loss=1.2962
+2026-02-02 08:01:17,550 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 4/10: train_loss=0.9299
+2026-02-02 08:02:02,199 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 5/10: train_loss=0.7471
+2026-02-02 08:02:46,852 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 6/10: train_loss=0.6263
+2026-02-02 08:03:31,501 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 7/10: train_loss=0.4929
+2026-02-02 08:04:16,125 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 8/10: train_loss=0.3812
+2026-02-02 08:05:00,751 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 9/10: train_loss=0.2971
+2026-02-02 08:05:45,373 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 10/10: train_loss=0.2330
+2026-02-02 08:05:45,373 - src.evaluation.indicglue.fine_tuning_manager - INFO - Using final model from epoch 10
+2026-02-02 08:05:45,933 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 08:05:45,934 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - Cleaned up optimizer, scheduler, and GPU memory after fine-tuning
+2026-02-02 08:05:45,934 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)
+2026-02-02 08:05:45,934 - src.evaluation.indicglue_evaluator - INFO - Evaluating fine-tuned model on test set...
+2026-02-02 08:05:45,964 - src.evaluation.indicglue_evaluator - INFO - Evaluating on 866 examples
+2026-02-02 08:05:45,964 - src.evaluation.indicglue_evaluator - INFO - [ROUTING] BBCArticlesClassification: Classification/NLI task → Using classification head
+2026-02-02 08:05:45,964 - src.evaluation.indicglue_evaluator - INFO - Evaluating BBCArticlesClassification on 866 examples
+2026-02-02 08:05:51,961 - src.evaluation.indicglue_evaluator - DEBUG - DataLoader cleanup completed
+2026-02-02 08:06:47,739 - src.evaluation.evaluation_cache - INFO - Predictions cached: 80750abec05f4a15b717b5dec08f88dbccdc16369cafe986c910f21eb26cbbc2
+2026-02-02 08:06:47,739 - src.evaluation.evaluation_cache - DEBUG -   Samples: 2
+2026-02-02 08:06:47,740 - src.evaluation.indicglue_evaluator - INFO - Saved predictions to cache for BBCArticlesClassification
+2026-02-02 08:06:47,740 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for BBCArticlesClassification
+2026-02-02 08:06:48,257 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 08:06:48,261 - src.evaluation.indicglue_evaluator - INFO - BBCArticlesClassification Results:
+2026-02-02 08:06:48,261 - src.evaluation.indicglue_evaluator - INFO -   num_examples: 866.0000
+2026-02-02 08:06:48,261 - src.evaluation.indicglue_evaluator - INFO -   accuracy: 0.7552
+2026-02-02 08:06:48,261 - src.evaluation.indicglue_evaluator - INFO -   f1_macro: 0.3976
+2026-02-02 08:06:48,262 - src.evaluation.indicglue_evaluator - INFO -   f1_weighted: 0.7370
+2026-02-02 08:06:48,262 - src.evaluation.indicglue_evaluator - INFO -   precision_macro: 0.4709
+2026-02-02 08:06:48,262 - src.evaluation.indicglue_evaluator - INFO -   recall_macro: 0.3728
+2026-02-02 08:06:48,262 - src.evaluation.indicglue_evaluator - INFO -   fine_tuned: 1.0000
+2026-02-02 08:06:48,262 - src.evaluation.indicglue_evaluator - INFO -   fine_tuning_time_seconds: 449.6833
+2026-02-02 08:06:48,641 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 08:06:48,642 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating Wikipedia Section Title Prediction...
+2026-02-02 08:06:48,642 - src.evaluation.evaluation_cache - DEBUG - Cache key includes model_type: gpt
+2026-02-02 08:06:48,642 - src.evaluation.evaluation_cache - DEBUG - Cache key includes vocab_size: 32768
+2026-02-02 08:06:48,642 - src.evaluation.evaluation_cache - DEBUG - Cache key includes tokenizer_type: wordpiece
+2026-02-02 08:06:48,642 - src.evaluation.evaluation_cache - DEBUG - Generated cache key: 9c40044f09bf8c4188ffa4a649ebf4eefd93b133f9f63510cf8af6ba2d60b334
+2026-02-02 08:06:48,642 - src.evaluation.evaluation_cache - DEBUG - Cache miss: 9c40044f09bf8c4188ffa4a649ebf4eefd93b133f9f63510cf8af6ba2d60b334
+2026-02-02 08:06:48,642 - src.evaluation.indicglue_evaluator - INFO - ✗ Cache miss for Wikipedia Section Title Prediction (fine-tuned mode)
+2026-02-02 08:06:48,642 - src.evaluation.indicglue_evaluator - INFO -   Proceeding with fine-tuning and inference
+2026-02-02 08:06:48,642 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning mode enabled for Wikipedia Section Title Prediction
+2026-02-02 08:06:48,642 - src.evaluation.indicglue_evaluator - INFO - Using original HuggingFace splits for Wikipedia Section Title Prediction
+2026-02-02 08:06:48,642 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Wikipedia Section Title Prediction from ai4bharat/indic_glue with config 'wstp.hi' (split=train)
+2026-02-02 08:06:53,047 - filelock - DEBUG - Attempting to acquire lock 139860290045024 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:53,051 - filelock - DEBUG - Lock 139860290045024 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:53,065 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 08:06:53,066 - filelock - DEBUG - Attempting to release lock 139860290045024 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:53,066 - filelock - DEBUG - Lock 139860290045024 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:53,068 - filelock - DEBUG - Attempting to acquire lock 139860289785712 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:53,071 - filelock - DEBUG - Lock 139860289785712 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:53,072 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 08:06:53,072 - filelock - DEBUG - Attempting to release lock 139860289785712 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:53,072 - filelock - DEBUG - Lock 139860289785712 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:53,488 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded Wikipedia Section Title Prediction train split with 44069 examples
+2026-02-02 08:06:53,489 - src.evaluation.indicglue_evaluator - INFO -   Loaded train: 44069 examples
+2026-02-02 08:06:53,489 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Wikipedia Section Title Prediction from ai4bharat/indic_glue with config 'wstp.hi' (split=validation)
+2026-02-02 08:06:54,454 - filelock - DEBUG - Attempting to acquire lock 139860290378144 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:54,455 - filelock - DEBUG - Lock 139860290378144 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:54,455 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 08:06:54,456 - filelock - DEBUG - Attempting to release lock 139860290378144 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:54,456 - filelock - DEBUG - Lock 139860290378144 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:54,458 - filelock - DEBUG - Attempting to acquire lock 139859908331648 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:54,459 - filelock - DEBUG - Lock 139859908331648 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:54,459 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 08:06:54,460 - filelock - DEBUG - Attempting to release lock 139859908331648 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:54,460 - filelock - DEBUG - Lock 139859908331648 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:54,622 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded Wikipedia Section Title Prediction validation split with 5509 examples
+2026-02-02 08:06:54,622 - src.evaluation.indicglue_evaluator - INFO -   Loaded validation: 5509 examples
+2026-02-02 08:06:54,622 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Wikipedia Section Title Prediction from ai4bharat/indic_glue with config 'wstp.hi' (split=test)
+2026-02-02 08:06:55,743 - filelock - DEBUG - Attempting to acquire lock 139860290544976 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:55,744 - filelock - DEBUG - Lock 139860290544976 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:55,744 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 08:06:55,745 - filelock - DEBUG - Attempting to release lock 139860290544976 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:55,745 - filelock - DEBUG - Lock 139860290544976 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_wstp.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 08:06:55,747 - filelock - DEBUG - Attempting to acquire lock 139860290075664 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:55,748 - filelock - DEBUG - Lock 139860290075664 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:55,748 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 08:06:55,749 - filelock - DEBUG - Attempting to release lock 139860290075664 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:55,749 - filelock - DEBUG - Lock 139860290075664 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/wstp.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 08:06:55,913 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded Wikipedia Section Title Prediction test split with 5509 examples
+2026-02-02 08:06:55,914 - src.evaluation.indicglue_evaluator - INFO -   Loaded test: 5509 examples
+2026-02-02 08:06:55,914 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning on Wikipedia Section Title Prediction...
+2026-02-02 08:06:55,914 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting fine-tuning for Wikipedia Section Title Prediction
+2026-02-02 08:06:55,915 - src.evaluation.indicglue.fine_tuning_manager - INFO - Train samples: 44069, Val samples: 5509
+2026-02-02 08:06:55,915 - src.evaluation.indicglue_evaluator - INFO - Creating custom MultipleChoiceWrapper for 'Wikipedia Section Title Prediction' with 4 choices
+2026-02-02 08:06:55,915 - src.evaluation.indicglue_evaluator - INFO - Auto-detected GPT-like model (HindiGPTModel), using 'last' token pooling
+2026-02-02 08:06:55,916 - src.evaluation.indicglue_evaluator - INFO - MultipleChoiceWrapper initialized: num_choices=4, hidden_size=768, pooling=last, dropout=0.1, weight_std=0.0515, bias=0.10
+2026-02-02 08:06:55,920 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting training loop for Wikipedia Section Title Prediction
+2026-02-02 08:06:55,921 - src.evaluation.indicglue.fine_tuning_manager - INFO - Model parameters: 110,615,809 total, 110,615,809 trainable (100.0%)
+2026-02-02 08:06:55,921 - src.evaluation.indicglue.fine_tuning_manager - INFO - ✓ End-to-end training mode (all parameters trainable)
+2026-02-02 08:06:55,923 - src.evaluation.indicglue.fine_tuning_manager - INFO - Optimizer: AdamW with 76 params with decay, 74 without decay
+2026-02-02 08:06:55,923 - src.evaluation.indicglue.fine_tuning_manager - INFO - Scheduler created: Linear schedule with 1377 warmup steps (total 27550 steps)
+2026-02-02 08:06:55,923 - src.evaluation.indicglue.fine_tuning_manager - INFO - Training config: total_steps=27550, warmup_steps=1377 (5.0%)
+2026-02-02 08:31:57,847 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 1/10: train_loss=1.6012, val_acc=0.2588, val_loss=1.4399
+2026-02-02 08:31:58,071 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.2588 (improvement: 0.2588)
+2026-02-02 08:56:58,575 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 2/10: train_loss=1.5765, val_acc=0.2647, val_loss=1.4092
+2026-02-02 08:56:59,090 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.2647 (improvement: 0.0058)
+2026-02-02 09:21:59,101 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 3/10: train_loss=1.5324, val_acc=0.2790, val_loss=1.3820
+2026-02-02 09:21:59,626 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.2790 (improvement: 0.0143)
+2026-02-02 09:46:59,800 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 4/10: train_loss=1.4978, val_acc=0.2917, val_loss=1.3684
+2026-02-02 09:47:00,332 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.2917 (improvement: 0.0127)
+2026-02-02 10:12:00,668 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 5/10: train_loss=1.4686, val_acc=0.3026, val_loss=1.3598
+2026-02-02 10:12:01,200 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3026 (improvement: 0.0109)
+2026-02-02 10:37:02,436 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 6/10: train_loss=1.4488, val_acc=0.3222, val_loss=1.3517
+2026-02-02 10:37:02,951 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3222 (improvement: 0.0196)
+2026-02-02 11:02:04,231 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 7/10: train_loss=1.4217, val_acc=0.3385, val_loss=1.3411
+2026-02-02 11:02:04,787 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3385 (improvement: 0.0163)
+2026-02-02 11:27:05,205 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 8/10: train_loss=1.3948, val_acc=0.3529, val_loss=1.3262
+2026-02-02 11:27:05,738 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3529 (improvement: 0.0143)
+2026-02-02 11:52:06,985 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 9/10: train_loss=1.3672, val_acc=0.3698, val_loss=1.3032
+2026-02-02 11:52:07,502 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3698 (improvement: 0.0169)
+2026-02-02 12:17:09,171 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 10/10: train_loss=1.3348, val_acc=0.3914, val_loss=1.2724
+2026-02-02 12:17:09,746 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3914 (improvement: 0.0216)
+2026-02-02 12:17:09,776 - src.evaluation.indicglue.fine_tuning_manager - INFO - Restored best model from epoch 10 with val_acc=0.3914
+2026-02-02 12:17:10,259 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 12:17:10,259 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - Cleaned up optimizer, scheduler, and GPU memory after fine-tuning
+2026-02-02 12:17:10,259 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)
+2026-02-02 12:17:10,260 - src.evaluation.indicglue_evaluator - INFO - Evaluating fine-tuned model on test set...
+2026-02-02 12:17:10,260 - src.evaluation.indicglue_evaluator - INFO - Evaluating on 5509 examples
+2026-02-02 12:17:10,260 - src.evaluation.indicglue_evaluator - INFO - [ROUTING] Wikipedia Section Title Prediction: Fine-tuned MC task → Using classification head (matches official IndicBERT)
+2026-02-02 12:17:10,268 - src.evaluation.indicglue_evaluator - INFO - Evaluating Wikipedia Section Title Prediction with MultipleChoiceWrapper on 5509 examples
+2026-02-02 12:18:18,531 - src.evaluation.indicglue_evaluator - DEBUG - DataLoader cleanup completed
+2026-02-02 12:18:46,307 - src.evaluation.evaluation_cache - INFO - Predictions cached: 9c40044f09bf8c4188ffa4a649ebf4eefd93b133f9f63510cf8af6ba2d60b334
+2026-02-02 12:18:46,307 - src.evaluation.evaluation_cache - DEBUG -   Samples: 2
+2026-02-02 12:18:46,307 - src.evaluation.indicglue_evaluator - INFO - Saved predictions to cache for Wikipedia Section Title Prediction
+2026-02-02 12:18:46,307 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for Wikipedia Section Title Prediction
+2026-02-02 12:18:46,829 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO - Wikipedia Section Title Prediction Results:
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   num_examples: 5509.0000
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   accuracy: 0.4032
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   f1_macro: 0.4018
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   f1_weighted: 0.4019
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   precision_macro: 0.4143
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   recall_macro: 0.4025
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   fine_tuned: 1.0000
+2026-02-02 12:18:46,844 - src.evaluation.indicglue_evaluator - INFO -   fine_tuning_time_seconds: 15014.3457
+2026-02-02 12:18:47,230 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 12:18:47,231 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating Cloze-style multiple-choice QA...
+2026-02-02 12:18:47,231 - src.evaluation.evaluation_cache - DEBUG - Cache key includes model_type: gpt
+2026-02-02 12:18:47,231 - src.evaluation.evaluation_cache - DEBUG - Cache key includes vocab_size: 32768
+2026-02-02 12:18:47,231 - src.evaluation.evaluation_cache - DEBUG - Cache key includes tokenizer_type: wordpiece
+2026-02-02 12:18:47,231 - src.evaluation.evaluation_cache - DEBUG - Generated cache key: f5fbee3e85c4ff88133bb15dd9443c02ea1a38314023557a6ec56de339ef6e0f
+2026-02-02 12:18:47,231 - src.evaluation.evaluation_cache - DEBUG - Cache miss: f5fbee3e85c4ff88133bb15dd9443c02ea1a38314023557a6ec56de339ef6e0f
+2026-02-02 12:18:47,247 - src.evaluation.indicglue_evaluator - INFO - ✗ Cache miss for Cloze-style multiple-choice QA (fine-tuned mode)
+2026-02-02 12:18:47,247 - src.evaluation.indicglue_evaluator - INFO -   Proceeding with fine-tuning and inference
+2026-02-02 12:18:47,247 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning mode enabled for Cloze-style multiple-choice QA
+2026-02-02 12:18:47,247 - src.evaluation.indicglue_evaluator - INFO - Creating custom splits for Cloze-style multiple-choice QA
+2026-02-02 12:18:47,247 - src.evaluation.indicglue_evaluator - INFO -   Reason: Dataset only has test split (35,140 examples); custom splits required for fine-tuning
+2026-02-02 12:18:47,247 - src.evaluation.indicglue_evaluator - INFO - Creating custom splits for Cloze-style multiple-choice QA...
+2026-02-02 12:18:47,247 - src.evaluation.indicglue_evaluator - INFO - Using task-specific split ratios for Cloze-style multiple-choice QA
+2026-02-02 12:18:47,248 - src.evaluation.indicglue_evaluator - INFO -   Train: 80.0%, Val: 10.0%, Test: 10.0%, Seed: 42
+2026-02-02 12:18:47,248 - src.evaluation.indicglue_evaluator - INFO - Loading complete dataset for Cloze-style multiple-choice QA (all available splits)...
+2026-02-02 12:18:47,248 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Cloze-style multiple-choice QA from ai4bharat/indic_glue with config 'csqa.hi' (split=train)
+2026-02-02 12:18:48,955 - filelock - DEBUG - Attempting to acquire lock 139859908331600 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:48,959 - filelock - DEBUG - Lock 139859908331600 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:48,961 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 12:18:48,962 - filelock - DEBUG - Attempting to release lock 139859908331600 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:48,962 - filelock - DEBUG - Lock 139859908331600 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:48,964 - filelock - DEBUG - Attempting to acquire lock 139859907664096 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:48,967 - filelock - DEBUG - Lock 139859907664096 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:48,967 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 12:18:48,968 - filelock - DEBUG - Attempting to release lock 139859907664096 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:48,968 - filelock - DEBUG - Lock 139859907664096 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:48,968 - src.evaluation.indicglue_evaluator - DEBUG - Failed to load Cloze-style multiple-choice QA train split from HuggingFace: Unknown split "train". Should be one of ['test'].
+2026-02-02 12:18:48,969 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Cloze-style multiple-choice QA from ai4bharat/indic_glue with config 'csqa.hi' (split=validation)
+2026-02-02 12:18:50,048 - filelock - DEBUG - Attempting to acquire lock 139859920850464 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:50,050 - filelock - DEBUG - Lock 139859920850464 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:50,051 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 12:18:50,052 - filelock - DEBUG - Attempting to release lock 139859920850464 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:50,052 - filelock - DEBUG - Lock 139859920850464 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:50,053 - filelock - DEBUG - Attempting to acquire lock 139868950720368 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:50,054 - filelock - DEBUG - Lock 139868950720368 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:50,054 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 12:18:50,055 - filelock - DEBUG - Attempting to release lock 139868950720368 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:50,055 - filelock - DEBUG - Lock 139868950720368 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:50,055 - src.evaluation.indicglue_evaluator - DEBUG - Failed to load Cloze-style multiple-choice QA validation split from HuggingFace: Unknown split "validation". Should be one of ['test'].
+2026-02-02 12:18:50,055 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Cloze-style multiple-choice QA from ai4bharat/indic_glue with config 'csqa.hi' (split=test)
+2026-02-02 12:18:51,002 - filelock - DEBUG - Attempting to acquire lock 139859907109936 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:51,003 - filelock - DEBUG - Lock 139859907109936 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:51,004 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 12:18:51,005 - filelock - DEBUG - Attempting to release lock 139859907109936 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:51,005 - filelock - DEBUG - Lock 139859907109936 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_csqa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 12:18:51,006 - filelock - DEBUG - Attempting to acquire lock 139859919750048 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:51,020 - filelock - DEBUG - Lock 139859919750048 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:51,021 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 12:18:51,021 - filelock - DEBUG - Attempting to release lock 139859919750048 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:51,021 - filelock - DEBUG - Lock 139859919750048 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/csqa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 12:18:51,372 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded Cloze-style multiple-choice QA test split with 35140 examples
+2026-02-02 12:18:51,372 - src.evaluation.indicglue_evaluator - INFO -   Loaded test: 35140 examples
+2026-02-02 12:18:51,372 - src.evaluation.indicglue_evaluator - INFO -   Combined dataset: 35140 total examples from [test(35140)]
+2026-02-02 12:18:51,571 - src.evaluation.indicglue_evaluator - INFO - Custom splits created for Cloze-style multiple-choice QA:
+2026-02-02 12:18:51,572 - src.evaluation.indicglue_evaluator - INFO -   Train:      28112 examples (80.0%)
+2026-02-02 12:18:51,572 - src.evaluation.indicglue_evaluator - INFO -   Validation:  3514 examples (10.0%)
+2026-02-02 12:18:51,572 - src.evaluation.indicglue_evaluator - INFO -   Test:        3514 examples (10.0%)
+2026-02-02 12:18:51,572 - src.evaluation.indicglue_evaluator - INFO -   Total:      35140 examples
+2026-02-02 12:18:51,572 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning on Cloze-style multiple-choice QA...
+2026-02-02 12:18:51,572 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting fine-tuning for Cloze-style multiple-choice QA
+2026-02-02 12:18:51,572 - src.evaluation.indicglue.fine_tuning_manager - INFO - Train samples: 28112, Val samples: 3514
+2026-02-02 12:18:51,572 - src.evaluation.indicglue_evaluator - INFO - Creating custom MultipleChoiceWrapper for 'Cloze-style multiple-choice QA' with 4 choices
+2026-02-02 12:18:51,572 - src.evaluation.indicglue_evaluator - INFO - Auto-detected GPT-like model (HindiGPTModel), using 'last' token pooling
+2026-02-02 12:18:51,573 - src.evaluation.indicglue_evaluator - INFO - MultipleChoiceWrapper initialized: num_choices=4, hidden_size=768, pooling=last, dropout=0.1, weight_std=0.0503, bias=0.10
+2026-02-02 12:18:51,576 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting training loop for Cloze-style multiple-choice QA
+2026-02-02 12:18:51,577 - src.evaluation.indicglue.fine_tuning_manager - INFO - Model parameters: 110,615,809 total, 110,615,809 trainable (100.0%)
+2026-02-02 12:18:51,577 - src.evaluation.indicglue.fine_tuning_manager - INFO - ✓ End-to-end training mode (all parameters trainable)
+2026-02-02 12:18:51,578 - src.evaluation.indicglue.fine_tuning_manager - INFO - Optimizer: AdamW with 76 params with decay, 74 without decay
+2026-02-02 12:18:51,578 - src.evaluation.indicglue.fine_tuning_manager - INFO - Scheduler created: Linear schedule with 878 warmup steps (total 17570 steps)
+2026-02-02 12:18:51,578 - src.evaluation.indicglue.fine_tuning_manager - INFO - Training config: total_steps=17570, warmup_steps=878 (5.0%)
+2026-02-02 12:34:00,579 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 1/10: train_loss=1.5729, val_acc=0.2223, val_loss=1.4716
+2026-02-02 12:34:00,753 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.2223 (improvement: 0.2223)
+2026-02-02 12:49:09,744 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 2/10: train_loss=1.5104, val_acc=0.3179, val_loss=1.3678
+2026-02-02 12:49:10,249 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3179 (improvement: 0.0956)
+2026-02-02 13:04:21,191 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 3/10: train_loss=1.4563, val_acc=0.3355, val_loss=1.3361
+2026-02-02 13:04:21,705 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3355 (improvement: 0.0176)
+2026-02-02 13:19:30,563 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 4/10: train_loss=1.4274, val_acc=0.3438, val_loss=1.3211
+2026-02-02 13:19:31,100 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3438 (improvement: 0.0083)
+2026-02-02 13:34:39,802 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 5/10: train_loss=1.3942, val_acc=0.3677, val_loss=1.3095
+2026-02-02 13:34:40,331 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3677 (improvement: 0.0239)
+2026-02-02 13:49:49,682 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 6/10: train_loss=1.3720, val_acc=0.3660, val_loss=1.3044
+2026-02-02 13:49:49,683 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 1/5)
+2026-02-02 14:04:58,489 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 7/10: train_loss=1.3468, val_acc=0.3754, val_loss=1.2973
+2026-02-02 14:04:59,041 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3754 (improvement: 0.0077)
+2026-02-02 14:20:07,850 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 8/10: train_loss=1.3238, val_acc=0.3793, val_loss=1.2909
+2026-02-02 14:20:08,396 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3793 (improvement: 0.0040)
+2026-02-02 14:35:17,037 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 9/10: train_loss=1.3040, val_acc=0.3916, val_loss=1.2876
+2026-02-02 14:35:17,672 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3916 (improvement: 0.0122)
+2026-02-02 14:50:26,622 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 10/10: train_loss=1.2807, val_acc=0.3978, val_loss=1.2764
+2026-02-02 14:50:27,141 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3978 (improvement: 0.0063)
+2026-02-02 14:50:27,170 - src.evaluation.indicglue.fine_tuning_manager - INFO - Restored best model from epoch 10 with val_acc=0.3978
+2026-02-02 14:50:27,673 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:50:27,674 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - Cleaned up optimizer, scheduler, and GPU memory after fine-tuning
+2026-02-02 14:50:27,674 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)
+2026-02-02 14:50:27,674 - src.evaluation.indicglue_evaluator - INFO - Evaluating fine-tuned model on test set...
+2026-02-02 14:50:27,674 - src.evaluation.indicglue_evaluator - INFO - Evaluating on 3514 examples
+2026-02-02 14:50:27,674 - src.evaluation.indicglue_evaluator - INFO - [ROUTING] Cloze-style multiple-choice QA: Fine-tuned MC task → Using classification head (matches official IndicBERT)
+2026-02-02 14:50:27,674 - src.evaluation.indicglue_evaluator - INFO - Evaluating Cloze-style multiple-choice QA with MultipleChoiceWrapper on 3514 examples
+2026-02-02 14:51:05,389 - src.evaluation.indicglue_evaluator - DEBUG - DataLoader cleanup completed
+2026-02-02 14:51:29,540 - src.evaluation.evaluation_cache - INFO - Predictions cached: f5fbee3e85c4ff88133bb15dd9443c02ea1a38314023557a6ec56de339ef6e0f
+2026-02-02 14:51:29,540 - src.evaluation.evaluation_cache - DEBUG -   Samples: 2
+2026-02-02 14:51:29,540 - src.evaluation.indicglue_evaluator - INFO - Saved predictions to cache for Cloze-style multiple-choice QA
+2026-02-02 14:51:29,541 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for Cloze-style multiple-choice QA
+2026-02-02 14:51:30,094 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:51:30,098 - src.evaluation.indicglue_evaluator - INFO - Cloze-style multiple-choice QA Results:
+2026-02-02 14:51:30,098 - src.evaluation.indicglue_evaluator - INFO -   num_examples: 3514.0000
+2026-02-02 14:51:30,098 - src.evaluation.indicglue_evaluator - INFO -   accuracy: 0.3933
+2026-02-02 14:51:30,098 - src.evaluation.indicglue_evaluator - INFO -   f1_macro: 0.3930
+2026-02-02 14:51:30,099 - src.evaluation.indicglue_evaluator - INFO -   f1_weighted: 0.3934
+2026-02-02 14:51:30,099 - src.evaluation.indicglue_evaluator - INFO -   precision_macro: 0.3932
+2026-02-02 14:51:30,100 - src.evaluation.indicglue_evaluator - INFO -   recall_macro: 0.3931
+2026-02-02 14:51:30,100 - src.evaluation.indicglue_evaluator - INFO -   fine_tuned: 1.0000
+2026-02-02 14:51:30,100 - src.evaluation.indicglue_evaluator - INFO -   fine_tuning_time_seconds: 9096.1018
+2026-02-02 14:51:30,489 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:51:30,489 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating WinogradNLI...
+2026-02-02 14:51:30,489 - src.evaluation.indicglue_evaluator - WARNING - Skipping WinogradNLI: WNLI contains only entailment class for train and validation sets while the test set contains None
+2026-02-02 14:51:30,489 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for WinogradNLI
+2026-02-02 14:51:30,879 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:51:30,880 - src.evaluation.indicglue_evaluator - INFO - WinogradNLI Results:
+2026-02-02 14:51:31,268 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:51:31,268 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating Choice of Plausible Alternatives...
+2026-02-02 14:51:31,269 - src.evaluation.evaluation_cache - DEBUG - Cache key includes model_type: gpt
+2026-02-02 14:51:31,269 - src.evaluation.evaluation_cache - DEBUG - Cache key includes vocab_size: 32768
+2026-02-02 14:51:31,269 - src.evaluation.evaluation_cache - DEBUG - Cache key includes tokenizer_type: wordpiece
+2026-02-02 14:51:31,269 - src.evaluation.evaluation_cache - DEBUG - Generated cache key: 96018eb338846ddd0af836f5b0cab78501a1fedea40b607c4b1873c3c0ca5902
+2026-02-02 14:51:31,269 - src.evaluation.evaluation_cache - DEBUG - Cache miss: 96018eb338846ddd0af836f5b0cab78501a1fedea40b607c4b1873c3c0ca5902
+2026-02-02 14:51:31,269 - src.evaluation.indicglue_evaluator - INFO - ✗ Cache miss for Choice of Plausible Alternatives (fine-tuned mode)
+2026-02-02 14:51:31,269 - src.evaluation.indicglue_evaluator - INFO -   Proceeding with fine-tuning and inference
+2026-02-02 14:51:31,269 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning mode enabled for Choice of Plausible Alternatives
+2026-02-02 14:51:31,269 - src.evaluation.indicglue_evaluator - INFO - Using original HuggingFace splits for Choice of Plausible Alternatives
+2026-02-02 14:51:31,269 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Choice of Plausible Alternatives from ai4bharat/indic_glue with config 'copa.hi' (split=train)
+2026-02-02 14:51:32,861 - filelock - DEBUG - Attempting to acquire lock 139860290206208 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:32,863 - filelock - DEBUG - Lock 139860290206208 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:32,866 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:51:32,867 - filelock - DEBUG - Attempting to release lock 139860290206208 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:32,867 - filelock - DEBUG - Lock 139860290206208 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:32,869 - filelock - DEBUG - Attempting to acquire lock 139860290402048 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:32,871 - filelock - DEBUG - Lock 139860290402048 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:32,872 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:51:32,872 - filelock - DEBUG - Attempting to release lock 139860290402048 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:32,872 - filelock - DEBUG - Lock 139860290402048 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:32,916 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded Choice of Plausible Alternatives train split with 362 examples
+2026-02-02 14:51:32,917 - src.evaluation.indicglue_evaluator - INFO -   Loaded train: 362 examples
+2026-02-02 14:51:32,917 - src.evaluation.indicglue_evaluator - INFO - Choice of Plausible Alternatives: Remapping split 'validation' → 'test' (working around corrupted dataset)
+2026-02-02 14:51:32,917 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Choice of Plausible Alternatives from ai4bharat/indic_glue with config 'copa.hi' (split=test)
+2026-02-02 14:51:33,893 - filelock - DEBUG - Attempting to acquire lock 139859906086512 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:33,894 - filelock - DEBUG - Lock 139859906086512 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:33,894 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:51:33,895 - filelock - DEBUG - Attempting to release lock 139859906086512 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:33,895 - filelock - DEBUG - Lock 139859906086512 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:33,897 - filelock - DEBUG - Attempting to acquire lock 139860290467728 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:33,898 - filelock - DEBUG - Lock 139860290467728 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:33,898 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:51:33,899 - filelock - DEBUG - Attempting to release lock 139860290467728 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:33,899 - filelock - DEBUG - Lock 139860290467728 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:33,916 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded Choice of Plausible Alternatives test split with 449 examples
+2026-02-02 14:51:33,917 - src.evaluation.indicglue_evaluator - INFO -   Loaded validation: 449 examples
+2026-02-02 14:51:33,917 - src.evaluation.indicglue_evaluator - INFO - Choice of Plausible Alternatives: Remapping split 'test' → 'validation' (working around corrupted dataset)
+2026-02-02 14:51:33,917 - src.evaluation.indicglue_evaluator - INFO - Attempting to load Choice of Plausible Alternatives from ai4bharat/indic_glue with config 'copa.hi' (split=validation)
+2026-02-02 14:51:34,884 - filelock - DEBUG - Attempting to acquire lock 139859907041072 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:34,885 - filelock - DEBUG - Lock 139859907041072 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:34,885 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:51:34,886 - filelock - DEBUG - Attempting to release lock 139859907041072 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:34,887 - filelock - DEBUG - Lock 139859907041072 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_copa.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:51:34,889 - filelock - DEBUG - Attempting to acquire lock 139859920335248 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:34,889 - filelock - DEBUG - Lock 139859920335248 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:34,890 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:51:34,890 - filelock - DEBUG - Attempting to release lock 139859920335248 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:34,890 - filelock - DEBUG - Lock 139859920335248 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/copa.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:51:34,905 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded Choice of Plausible Alternatives validation split with 88 examples
+2026-02-02 14:51:34,906 - src.evaluation.indicglue_evaluator - INFO -   Loaded test: 88 examples
+2026-02-02 14:51:34,906 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning on Choice of Plausible Alternatives...
+2026-02-02 14:51:34,906 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting fine-tuning for Choice of Plausible Alternatives
+2026-02-02 14:51:34,907 - src.evaluation.indicglue.fine_tuning_manager - INFO - Train samples: 362, Val samples: 449
+2026-02-02 14:51:34,907 - src.evaluation.indicglue_evaluator - INFO - Creating custom MultipleChoiceWrapper for 'Choice of Plausible Alternatives' with 2 choices
+2026-02-02 14:51:34,907 - src.evaluation.indicglue_evaluator - INFO - Auto-detected GPT-like model (HindiGPTModel), using 'last' token pooling
+2026-02-02 14:51:34,908 - src.evaluation.indicglue_evaluator - INFO - MultipleChoiceWrapper initialized: num_choices=2, hidden_size=768, pooling=last, dropout=0.1, weight_std=0.0509, bias=0.10
+2026-02-02 14:51:34,911 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting training loop for Choice of Plausible Alternatives
+2026-02-02 14:51:34,912 - src.evaluation.indicglue.fine_tuning_manager - INFO - Model parameters: 110,615,809 total, 110,615,809 trainable (100.0%)
+2026-02-02 14:51:34,912 - src.evaluation.indicglue.fine_tuning_manager - INFO - ✓ End-to-end training mode (all parameters trainable)
+2026-02-02 14:51:34,914 - src.evaluation.indicglue.fine_tuning_manager - INFO - Optimizer: AdamW with 76 params with decay, 74 without decay
+2026-02-02 14:51:34,914 - src.evaluation.indicglue.fine_tuning_manager - INFO - Scheduler created: Linear schedule with 11 warmup steps (total 230 steps)
+2026-02-02 14:51:34,914 - src.evaluation.indicglue.fine_tuning_manager - INFO - Training config: total_steps=230, warmup_steps=11 (5.0%)
+2026-02-02 14:51:43,099 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 1/10: train_loss=0.7508, val_acc=0.5122, val_loss=0.7146
+2026-02-02 14:51:43,310 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.5122 (improvement: 0.5122)
+2026-02-02 14:51:51,367 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 2/10: train_loss=0.7436, val_acc=0.5145, val_loss=0.7285
+2026-02-02 14:51:51,762 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.5145 (improvement: 0.0022)
+2026-02-02 14:51:59,802 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 3/10: train_loss=0.6761, val_acc=0.4967, val_loss=0.7494
+2026-02-02 14:51:59,856 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 1/5)
+2026-02-02 14:52:07,894 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 4/10: train_loss=0.5647, val_acc=0.4722, val_loss=0.8947
+2026-02-02 14:52:07,895 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 2/5)
+2026-02-02 14:52:15,932 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 5/10: train_loss=0.4384, val_acc=0.5122, val_loss=1.1404
+2026-02-02 14:52:15,932 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 3/5)
+2026-02-02 14:52:23,969 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 6/10: train_loss=0.2405, val_acc=0.5234, val_loss=1.7914
+2026-02-02 14:52:24,393 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.5234 (improvement: 0.0089)
+2026-02-02 14:52:32,450 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 7/10: train_loss=0.1440, val_acc=0.5122, val_loss=2.0591
+2026-02-02 14:52:32,450 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 1/5)
+2026-02-02 14:52:40,487 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 8/10: train_loss=0.1294, val_acc=0.5033, val_loss=2.5717
+2026-02-02 14:52:40,488 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 2/5)
+2026-02-02 14:52:48,526 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 9/10: train_loss=0.0922, val_acc=0.4833, val_loss=2.4690
+2026-02-02 14:52:48,526 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 3/5)
+2026-02-02 14:52:56,564 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 10/10: train_loss=0.1317, val_acc=0.4922, val_loss=2.1235
+2026-02-02 14:52:56,579 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 4/5)
+2026-02-02 14:52:56,644 - src.evaluation.indicglue.fine_tuning_manager - INFO - Restored best model from epoch 6 with val_acc=0.5234
+2026-02-02 14:52:57,186 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:52:57,187 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - Cleaned up optimizer, scheduler, and GPU memory after fine-tuning
+2026-02-02 14:52:57,187 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)
+2026-02-02 14:52:57,187 - src.evaluation.indicglue_evaluator - INFO - Evaluating fine-tuned model on test set...
+2026-02-02 14:52:57,187 - src.evaluation.indicglue_evaluator - INFO - Evaluating on 88 examples
+2026-02-02 14:52:57,187 - src.evaluation.indicglue_evaluator - INFO - [ROUTING] Choice of Plausible Alternatives: Fine-tuned MC task → Using classification head (matches official IndicBERT)
+2026-02-02 14:52:57,187 - src.evaluation.indicglue_evaluator - INFO - Evaluating Choice of Plausible Alternatives with MultipleChoiceWrapper on 88 examples
+2026-02-02 14:52:57,702 - src.evaluation.indicglue_evaluator - DEBUG - DataLoader cleanup completed
+2026-02-02 14:53:09,031 - src.evaluation.evaluation_cache - INFO - Predictions cached: 96018eb338846ddd0af836f5b0cab78501a1fedea40b607c4b1873c3c0ca5902
+2026-02-02 14:53:09,031 - src.evaluation.evaluation_cache - DEBUG -   Samples: 2
+2026-02-02 14:53:09,031 - src.evaluation.indicglue_evaluator - INFO - Saved predictions to cache for Choice of Plausible Alternatives
+2026-02-02 14:53:09,032 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for Choice of Plausible Alternatives
+2026-02-02 14:53:09,461 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:53:09,462 - src.evaluation.indicglue_evaluator - INFO - Choice of Plausible Alternatives Results:
+2026-02-02 14:53:09,462 - src.evaluation.indicglue_evaluator - INFO -   num_examples: 88.0000
+2026-02-02 14:53:09,462 - src.evaluation.indicglue_evaluator - INFO -   accuracy: 0.5227
+2026-02-02 14:53:09,462 - src.evaluation.indicglue_evaluator - INFO -   f1_macro: 0.5217
+2026-02-02 14:53:09,462 - src.evaluation.indicglue_evaluator - INFO -   f1_weighted: 0.5247
+2026-02-02 14:53:09,463 - src.evaluation.indicglue_evaluator - INFO -   precision_macro: 0.5259
+2026-02-02 14:53:09,463 - src.evaluation.indicglue_evaluator - INFO -   recall_macro: 0.5263
+2026-02-02 14:53:09,463 - src.evaluation.indicglue_evaluator - INFO -   fine_tuned: 1.0000
+2026-02-02 14:53:09,463 - src.evaluation.indicglue_evaluator - INFO -   fine_tuning_time_seconds: 82.2803
+2026-02-02 14:53:09,852 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:53:09,853 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating MovieReviewSentiment...
+2026-02-02 14:53:09,853 - src.evaluation.evaluation_cache - DEBUG - Cache key includes model_type: gpt
+2026-02-02 14:53:09,853 - src.evaluation.evaluation_cache - DEBUG - Cache key includes vocab_size: 32768
+2026-02-02 14:53:09,853 - src.evaluation.evaluation_cache - DEBUG - Cache key includes tokenizer_type: wordpiece
+2026-02-02 14:53:09,853 - src.evaluation.evaluation_cache - DEBUG - Generated cache key: f4021ad19b75417c8b223debaddb76bed6e9b6cc11b06cf04bb8265bc6697807
+2026-02-02 14:53:09,853 - src.evaluation.evaluation_cache - DEBUG - Cache miss: f4021ad19b75417c8b223debaddb76bed6e9b6cc11b06cf04bb8265bc6697807
+2026-02-02 14:53:09,853 - src.evaluation.indicglue_evaluator - INFO - ✗ Cache miss for MovieReviewSentiment (fine-tuned mode)
+2026-02-02 14:53:09,853 - src.evaluation.indicglue_evaluator - INFO -   Proceeding with fine-tuning and inference
+2026-02-02 14:53:09,853 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning mode enabled for MovieReviewSentiment
+2026-02-02 14:53:09,854 - src.evaluation.indicglue_evaluator - INFO - Using original HuggingFace splits for MovieReviewSentiment
+2026-02-02 14:53:09,854 - src.evaluation.indicglue_evaluator - INFO - Attempting to load MovieReviewSentiment from ai4bharat/indic_glue with config 'iitp-mr.hi' (split=train)
+2026-02-02 14:53:11,207 - filelock - DEBUG - Attempting to acquire lock 139859910332816 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:11,210 - filelock - DEBUG - Lock 139859910332816 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:11,213 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:53:11,214 - filelock - DEBUG - Attempting to release lock 139859910332816 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:11,214 - filelock - DEBUG - Lock 139859910332816 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:11,216 - filelock - DEBUG - Attempting to acquire lock 139860290379536 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:11,218 - filelock - DEBUG - Lock 139860290379536 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:11,218 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:53:11,219 - filelock - DEBUG - Attempting to release lock 139860290379536 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:11,219 - filelock - DEBUG - Lock 139860290379536 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:11,266 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded MovieReviewSentiment train split with 2480 examples
+2026-02-02 14:53:11,267 - src.evaluation.indicglue_evaluator - INFO -   Loaded train: 2480 examples
+2026-02-02 14:53:11,267 - src.evaluation.indicglue_evaluator - INFO - Attempting to load MovieReviewSentiment from ai4bharat/indic_glue with config 'iitp-mr.hi' (split=validation)
+2026-02-02 14:53:12,207 - filelock - DEBUG - Attempting to acquire lock 139860290379296 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:12,220 - filelock - DEBUG - Lock 139860290379296 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:12,221 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:53:12,221 - filelock - DEBUG - Attempting to release lock 139860290379296 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:12,252 - filelock - DEBUG - Lock 139860290379296 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:12,254 - filelock - DEBUG - Attempting to acquire lock 139859920855392 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:12,254 - filelock - DEBUG - Lock 139859920855392 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:12,255 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:53:12,255 - filelock - DEBUG - Attempting to release lock 139859920855392 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:12,256 - filelock - DEBUG - Lock 139859920855392 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:12,291 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded MovieReviewSentiment validation split with 310 examples
+2026-02-02 14:53:12,291 - src.evaluation.indicglue_evaluator - INFO -   Loaded validation: 310 examples
+2026-02-02 14:53:12,292 - src.evaluation.indicglue_evaluator - INFO - Attempting to load MovieReviewSentiment from ai4bharat/indic_glue with config 'iitp-mr.hi' (split=test)
+2026-02-02 14:53:13,282 - filelock - DEBUG - Attempting to acquire lock 139859910332480 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:13,283 - filelock - DEBUG - Lock 139859910332480 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:13,284 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:53:13,284 - filelock - DEBUG - Attempting to release lock 139859910332480 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:13,284 - filelock - DEBUG - Lock 139859910332480 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-mr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:53:13,286 - filelock - DEBUG - Attempting to acquire lock 139859907755792 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:13,287 - filelock - DEBUG - Lock 139859907755792 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:13,287 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:53:13,288 - filelock - DEBUG - Attempting to release lock 139859907755792 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:13,289 - filelock - DEBUG - Lock 139859907755792 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-mr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:53:13,316 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded MovieReviewSentiment test split with 310 examples
+2026-02-02 14:53:13,316 - src.evaluation.indicglue_evaluator - INFO -   Loaded test: 310 examples
+2026-02-02 14:53:13,316 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning on MovieReviewSentiment...
+2026-02-02 14:53:13,316 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting fine-tuning for MovieReviewSentiment
+2026-02-02 14:53:13,316 - src.evaluation.indicglue.fine_tuning_manager - INFO - Train samples: 2480, Val samples: 310
+2026-02-02 14:53:13,316 - src.evaluation.indicglue_evaluator - INFO - Wrapping model for task 'MovieReviewSentiment' with 3 classes
+2026-02-02 14:53:13,317 - src.models.classification_models - INFO - GPTForSequenceClassification initialized: num_classes=3, hidden_size=768, weight_std=0.0515, bias=0.10
+2026-02-02 14:53:13,320 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting training loop for MovieReviewSentiment
+2026-02-02 14:53:13,321 - src.evaluation.indicglue.fine_tuning_manager - INFO - Model parameters: 110,617,347 total, 110,617,347 trainable (100.0%)
+2026-02-02 14:53:13,322 - src.evaluation.indicglue.fine_tuning_manager - INFO - ✓ End-to-end training mode (all parameters trainable)
+2026-02-02 14:53:13,323 - src.evaluation.indicglue.fine_tuning_manager - INFO - Optimizer: AdamW with 76 params with decay, 74 without decay
+2026-02-02 14:53:13,323 - src.evaluation.indicglue.fine_tuning_manager - INFO - Scheduler created: Linear schedule with 77 warmup steps (total 1550 steps)
+2026-02-02 14:53:13,324 - src.evaluation.indicglue.fine_tuning_manager - INFO - Training config: total_steps=1550, warmup_steps=77 (5.0%)
+2026-02-02 14:53:45,797 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 1/10: train_loss=1.7105, val_acc=0.2484, val_loss=1.7454
+2026-02-02 14:53:46,010 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.2484 (improvement: 0.2484)
+2026-02-02 14:54:18,418 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 2/10: train_loss=1.3147, val_acc=0.4032, val_loss=1.1472
+2026-02-02 14:54:18,970 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.4032 (improvement: 0.1548)
+2026-02-02 14:54:51,434 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 3/10: train_loss=1.0455, val_acc=0.4710, val_loss=1.0293
+2026-02-02 14:54:51,887 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.4710 (improvement: 0.0677)
+2026-02-02 14:55:24,263 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 4/10: train_loss=0.9404, val_acc=0.4935, val_loss=1.0475
+2026-02-02 14:55:24,688 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.4935 (improvement: 0.0226)
+2026-02-02 14:55:57,076 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 5/10: train_loss=0.8027, val_acc=0.5129, val_loss=1.0568
+2026-02-02 14:55:57,598 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.5129 (improvement: 0.0194)
+2026-02-02 14:56:30,057 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 6/10: train_loss=0.6507, val_acc=0.5194, val_loss=1.1837
+2026-02-02 14:56:30,525 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.5194 (improvement: 0.0065)
+2026-02-02 14:57:02,904 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 7/10: train_loss=0.4792, val_acc=0.5484, val_loss=1.3064
+2026-02-02 14:57:03,367 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.5484 (improvement: 0.0290)
+2026-02-02 14:57:35,772 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 8/10: train_loss=0.3409, val_acc=0.5581, val_loss=1.4408
+2026-02-02 14:57:36,189 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.5581 (improvement: 0.0097)
+2026-02-02 14:58:08,573 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 9/10: train_loss=0.2489, val_acc=0.5194, val_loss=1.5780
+2026-02-02 14:58:08,574 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 1/5)
+2026-02-02 14:58:40,957 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 10/10: train_loss=0.1943, val_acc=0.5323, val_loss=1.7637
+2026-02-02 14:58:40,957 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 2/5)
+2026-02-02 14:58:41,181 - src.evaluation.indicglue.fine_tuning_manager - INFO - Restored best model from epoch 8 with val_acc=0.5581
+2026-02-02 14:58:41,774 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:58:41,774 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - Cleaned up optimizer, scheduler, and GPU memory after fine-tuning
+2026-02-02 14:58:41,774 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)
+2026-02-02 14:58:41,774 - src.evaluation.indicglue_evaluator - INFO - Evaluating fine-tuned model on test set...
+2026-02-02 14:58:41,775 - src.evaluation.indicglue_evaluator - INFO - Evaluating on 310 examples
+2026-02-02 14:58:41,775 - src.evaluation.indicglue_evaluator - INFO - [ROUTING] MovieReviewSentiment: Classification/NLI task → Using classification head
+2026-02-02 14:58:41,775 - src.evaluation.indicglue_evaluator - INFO - Evaluating MovieReviewSentiment on 310 examples
+2026-02-02 14:58:43,724 - src.evaluation.indicglue_evaluator - DEBUG - DataLoader cleanup completed
+2026-02-02 14:58:59,032 - src.evaluation.evaluation_cache - INFO - Predictions cached: f4021ad19b75417c8b223debaddb76bed6e9b6cc11b06cf04bb8265bc6697807
+2026-02-02 14:58:59,032 - src.evaluation.evaluation_cache - DEBUG -   Samples: 2
+2026-02-02 14:58:59,032 - src.evaluation.indicglue_evaluator - INFO - Saved predictions to cache for MovieReviewSentiment
+2026-02-02 14:58:59,032 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for MovieReviewSentiment
+2026-02-02 14:58:59,489 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO - MovieReviewSentiment Results:
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   num_examples: 310.0000
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   accuracy: 0.5387
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   f1_macro: 0.5384
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   f1_weighted: 0.5401
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   precision_macro: 0.5426
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   recall_macro: 0.5426
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   fine_tuned: 1.0000
+2026-02-02 14:58:59,490 - src.evaluation.indicglue_evaluator - INFO -   fine_tuning_time_seconds: 328.4583
+2026-02-02 14:58:59,881 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 14:58:59,881 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating ProductReviewSentiment...
+2026-02-02 14:58:59,881 - src.evaluation.evaluation_cache - DEBUG - Cache key includes model_type: gpt
+2026-02-02 14:58:59,881 - src.evaluation.evaluation_cache - DEBUG - Cache key includes vocab_size: 32768
+2026-02-02 14:58:59,881 - src.evaluation.evaluation_cache - DEBUG - Cache key includes tokenizer_type: wordpiece
+2026-02-02 14:58:59,881 - src.evaluation.evaluation_cache - DEBUG - Generated cache key: 236d278e3eaee9eb3e5fdbfe8ab75b2d0fee69adb6db7e2851118aef215ddba1
+2026-02-02 14:58:59,883 - src.evaluation.evaluation_cache - DEBUG - Cache miss: 236d278e3eaee9eb3e5fdbfe8ab75b2d0fee69adb6db7e2851118aef215ddba1
+2026-02-02 14:58:59,883 - src.evaluation.indicglue_evaluator - INFO - ✗ Cache miss for ProductReviewSentiment (fine-tuned mode)
+2026-02-02 14:58:59,883 - src.evaluation.indicglue_evaluator - INFO -   Proceeding with fine-tuning and inference
+2026-02-02 14:58:59,883 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning mode enabled for ProductReviewSentiment
+2026-02-02 14:58:59,883 - src.evaluation.indicglue_evaluator - INFO - Using original HuggingFace splits for ProductReviewSentiment
+2026-02-02 14:58:59,883 - src.evaluation.indicglue_evaluator - INFO - Attempting to load ProductReviewSentiment from ai4bharat/indic_glue with config 'iitp-pr.hi' (split=train)
+2026-02-02 14:59:01,387 - filelock - DEBUG - Attempting to acquire lock 139859909656336 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:01,390 - filelock - DEBUG - Lock 139859909656336 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:01,393 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:59:01,394 - filelock - DEBUG - Attempting to release lock 139859909656336 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:01,394 - filelock - DEBUG - Lock 139859909656336 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:01,396 - filelock - DEBUG - Attempting to acquire lock 139859788252544 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:01,398 - filelock - DEBUG - Lock 139859788252544 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:01,398 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:59:01,399 - filelock - DEBUG - Attempting to release lock 139859788252544 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:01,399 - filelock - DEBUG - Lock 139859788252544 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:01,427 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded ProductReviewSentiment train split with 4182 examples
+2026-02-02 14:59:01,427 - src.evaluation.indicglue_evaluator - INFO -   Loaded train: 4182 examples
+2026-02-02 14:59:01,428 - src.evaluation.indicglue_evaluator - INFO - Attempting to load ProductReviewSentiment from ai4bharat/indic_glue with config 'iitp-pr.hi' (split=validation)
+2026-02-02 14:59:02,380 - filelock - DEBUG - Attempting to acquire lock 139860290496784 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:02,381 - filelock - DEBUG - Lock 139860290496784 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:02,382 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:59:02,383 - filelock - DEBUG - Attempting to release lock 139860290496784 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:02,383 - filelock - DEBUG - Lock 139860290496784 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:02,385 - filelock - DEBUG - Attempting to acquire lock 139859919547168 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:02,385 - filelock - DEBUG - Lock 139859919547168 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:02,386 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:59:02,386 - filelock - DEBUG - Attempting to release lock 139859919547168 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:02,386 - filelock - DEBUG - Lock 139859919547168 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:02,421 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded ProductReviewSentiment validation split with 523 examples
+2026-02-02 14:59:02,421 - src.evaluation.indicglue_evaluator - INFO -   Loaded validation: 523 examples
+2026-02-02 14:59:02,421 - src.evaluation.indicglue_evaluator - INFO - Attempting to load ProductReviewSentiment from ai4bharat/indic_glue with config 'iitp-pr.hi' (split=test)
+2026-02-02 14:59:03,386 - filelock - DEBUG - Attempting to acquire lock 139859906081312 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:03,387 - filelock - DEBUG - Lock 139859906081312 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:03,388 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:59:03,388 - filelock - DEBUG - Attempting to release lock 139859906081312 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:03,388 - filelock - DEBUG - Lock 139859906081312 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_iitp-pr.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 14:59:03,390 - filelock - DEBUG - Attempting to acquire lock 139859910295216 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:03,392 - filelock - DEBUG - Lock 139859910295216 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:03,392 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 14:59:03,392 - filelock - DEBUG - Attempting to release lock 139859910295216 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:03,393 - filelock - DEBUG - Lock 139859910295216 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/iitp-pr.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 14:59:03,407 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded ProductReviewSentiment test split with 523 examples
+2026-02-02 14:59:03,408 - src.evaluation.indicglue_evaluator - INFO -   Loaded test: 523 examples
+2026-02-02 14:59:03,408 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning on ProductReviewSentiment...
+2026-02-02 14:59:03,408 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting fine-tuning for ProductReviewSentiment
+2026-02-02 14:59:03,408 - src.evaluation.indicglue.fine_tuning_manager - INFO - Train samples: 4182, Val samples: 523
+2026-02-02 14:59:03,408 - src.evaluation.indicglue_evaluator - INFO - Wrapping model for task 'ProductReviewSentiment' with 3 classes
+2026-02-02 14:59:03,409 - src.models.classification_models - INFO - GPTForSequenceClassification initialized: num_classes=3, hidden_size=768, weight_std=0.0508, bias=0.10
+2026-02-02 14:59:03,412 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting training loop for ProductReviewSentiment
+2026-02-02 14:59:03,413 - src.evaluation.indicglue.fine_tuning_manager - INFO - Model parameters: 110,617,347 total, 110,617,347 trainable (100.0%)
+2026-02-02 14:59:03,414 - src.evaluation.indicglue.fine_tuning_manager - INFO - ✓ End-to-end training mode (all parameters trainable)
+2026-02-02 14:59:03,415 - src.evaluation.indicglue.fine_tuning_manager - INFO - Optimizer: AdamW with 76 params with decay, 74 without decay
+2026-02-02 14:59:03,415 - src.evaluation.indicglue.fine_tuning_manager - INFO - Scheduler created: Linear schedule with 131 warmup steps (total 2620 steps)
+2026-02-02 14:59:03,416 - src.evaluation.indicglue.fine_tuning_manager - INFO - Training config: total_steps=2620, warmup_steps=131 (5.0%)
+2026-02-02 14:59:56,105 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 1/10: train_loss=1.3720, val_acc=0.3996, val_loss=1.4075
+2026-02-02 14:59:56,317 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.3996 (improvement: 0.3996)
+2026-02-02 15:00:48,882 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 2/10: train_loss=1.0752, val_acc=0.6214, val_loss=0.8928
+2026-02-02 15:00:49,434 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.6214 (improvement: 0.2218)
+2026-02-02 15:01:41,991 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 3/10: train_loss=0.8677, val_acc=0.6750, val_loss=0.7764
+2026-02-02 15:01:42,507 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.6750 (improvement: 0.0535)
+2026-02-02 15:02:35,055 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 4/10: train_loss=0.7497, val_acc=0.6998, val_loss=0.7328
+2026-02-02 15:02:35,496 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.6998 (improvement: 0.0249)
+2026-02-02 15:03:28,178 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 5/10: train_loss=0.6539, val_acc=0.7285, val_loss=0.6925
+2026-02-02 15:03:28,675 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7285 (improvement: 0.0287)
+2026-02-02 15:04:21,291 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 6/10: train_loss=0.5585, val_acc=0.7342, val_loss=0.6758
+2026-02-02 15:04:21,789 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7342 (improvement: 0.0057)
+2026-02-02 15:05:14,360 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 7/10: train_loss=0.4709, val_acc=0.7323, val_loss=0.7198
+2026-02-02 15:05:14,361 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 1/5)
+2026-02-02 15:06:06,926 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 8/10: train_loss=0.3586, val_acc=0.7323, val_loss=0.7465
+2026-02-02 15:06:06,927 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 2/5)
+2026-02-02 15:06:59,491 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 9/10: train_loss=0.2903, val_acc=0.7361, val_loss=0.8157
+2026-02-02 15:07:00,018 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7361 (improvement: 0.0019)
+2026-02-02 15:07:52,658 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 10/10: train_loss=0.2225, val_acc=0.7151, val_loss=0.8949
+2026-02-02 15:07:52,658 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 1/5)
+2026-02-02 15:07:52,882 - src.evaluation.indicglue.fine_tuning_manager - INFO - Restored best model from epoch 9 with val_acc=0.7361
+2026-02-02 15:07:53,453 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 15:07:53,454 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - Cleaned up optimizer, scheduler, and GPU memory after fine-tuning
+2026-02-02 15:07:53,454 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)
+2026-02-02 15:07:53,454 - src.evaluation.indicglue_evaluator - INFO - Evaluating fine-tuned model on test set...
+2026-02-02 15:07:53,454 - src.evaluation.indicglue_evaluator - INFO - Evaluating on 523 examples
+2026-02-02 15:07:53,454 - src.evaluation.indicglue_evaluator - INFO - [ROUTING] ProductReviewSentiment: Classification/NLI task → Using classification head
+2026-02-02 15:07:53,454 - src.evaluation.indicglue_evaluator - INFO - Evaluating ProductReviewSentiment on 523 examples
+2026-02-02 15:07:56,527 - src.evaluation.indicglue_evaluator - DEBUG - DataLoader cleanup completed
+2026-02-02 15:08:12,213 - src.evaluation.evaluation_cache - INFO - Predictions cached: 236d278e3eaee9eb3e5fdbfe8ab75b2d0fee69adb6db7e2851118aef215ddba1
+2026-02-02 15:08:12,213 - src.evaluation.evaluation_cache - DEBUG -   Samples: 2
+2026-02-02 15:08:12,213 - src.evaluation.indicglue_evaluator - INFO - Saved predictions to cache for ProductReviewSentiment
+2026-02-02 15:08:12,214 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for ProductReviewSentiment
+2026-02-02 15:08:12,692 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO - ProductReviewSentiment Results:
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO -   num_examples: 523.0000
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO -   accuracy: 0.7094
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO -   f1_macro: 0.6766
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO -   f1_weighted: 0.7137
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO -   precision_macro: 0.6671
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO -   recall_macro: 0.6943
+2026-02-02 15:08:12,693 - src.evaluation.indicglue_evaluator - INFO -   fine_tuned: 1.0000
+2026-02-02 15:08:12,694 - src.evaluation.indicglue_evaluator - INFO -   fine_tuning_time_seconds: 530.0458
+2026-02-02 15:08:13,085 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 15:08:13,086 - src.evaluation.indicglue_evaluator - INFO - 
+Evaluating DiscourseMode...
+2026-02-02 15:08:13,087 - src.evaluation.evaluation_cache - DEBUG - Cache key includes model_type: gpt
+2026-02-02 15:08:13,087 - src.evaluation.evaluation_cache - DEBUG - Cache key includes vocab_size: 32768
+2026-02-02 15:08:13,087 - src.evaluation.evaluation_cache - DEBUG - Cache key includes tokenizer_type: wordpiece
+2026-02-02 15:08:13,087 - src.evaluation.evaluation_cache - DEBUG - Generated cache key: 737a10a1bdef6ac88f9abe6ebf9ccaa7cd330d9683381c379ab56326755d81f4
+2026-02-02 15:08:13,087 - src.evaluation.evaluation_cache - DEBUG - Cache miss: 737a10a1bdef6ac88f9abe6ebf9ccaa7cd330d9683381c379ab56326755d81f4
+2026-02-02 15:08:13,087 - src.evaluation.indicglue_evaluator - INFO - ✗ Cache miss for DiscourseMode (fine-tuned mode)
+2026-02-02 15:08:13,087 - src.evaluation.indicglue_evaluator - INFO -   Proceeding with fine-tuning and inference
+2026-02-02 15:08:13,087 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning mode enabled for DiscourseMode
+2026-02-02 15:08:13,087 - src.evaluation.indicglue_evaluator - INFO - Using original HuggingFace splits for DiscourseMode
+2026-02-02 15:08:13,087 - src.evaluation.indicglue_evaluator - INFO - Attempting to load DiscourseMode from ai4bharat/indic_glue with config 'md.hi' (split=train)
+2026-02-02 15:08:14,601 - filelock - DEBUG - Attempting to acquire lock 139859907555872 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:14,603 - filelock - DEBUG - Lock 139859907555872 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:14,606 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 15:08:14,607 - filelock - DEBUG - Attempting to release lock 139859907555872 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:14,607 - filelock - DEBUG - Lock 139859907555872 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:14,609 - filelock - DEBUG - Attempting to acquire lock 139859921108560 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:14,611 - filelock - DEBUG - Lock 139859921108560 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:14,612 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 15:08:14,612 - filelock - DEBUG - Attempting to release lock 139859921108560 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:14,612 - filelock - DEBUG - Lock 139859921108560 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:14,649 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded DiscourseMode train split with 7974 examples
+2026-02-02 15:08:14,649 - src.evaluation.indicglue_evaluator - INFO -   Loaded train: 7974 examples
+2026-02-02 15:08:14,649 - src.evaluation.indicglue_evaluator - INFO - Attempting to load DiscourseMode from ai4bharat/indic_glue with config 'md.hi' (split=validation)
+2026-02-02 15:08:15,812 - filelock - DEBUG - Attempting to acquire lock 139859919289840 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:15,813 - filelock - DEBUG - Lock 139859919289840 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:15,813 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 15:08:15,814 - filelock - DEBUG - Attempting to release lock 139859919289840 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:15,814 - filelock - DEBUG - Lock 139859919289840 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:15,816 - filelock - DEBUG - Attempting to acquire lock 139859907120960 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:15,817 - filelock - DEBUG - Lock 139859907120960 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:15,817 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 15:08:15,817 - filelock - DEBUG - Attempting to release lock 139859907120960 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:15,818 - filelock - DEBUG - Lock 139859907120960 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:15,841 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded DiscourseMode validation split with 997 examples
+2026-02-02 15:08:15,842 - src.evaluation.indicglue_evaluator - INFO -   Loaded validation: 997 examples
+2026-02-02 15:08:15,842 - src.evaluation.indicglue_evaluator - INFO - Attempting to load DiscourseMode from ai4bharat/indic_glue with config 'md.hi' (split=test)
+2026-02-02 15:08:16,988 - filelock - DEBUG - Attempting to acquire lock 139859920752304 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:16,988 - filelock - DEBUG - Lock 139859920752304 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:16,989 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 15:08:16,989 - filelock - DEBUG - Attempting to release lock 139859920752304 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:16,990 - filelock - DEBUG - Lock 139859920752304 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/_dss_dsshome1_00_ge95xod2_.cache_huggingface_datasets_ai4bharat___indic_glue_md.hi_0.0.0_6dcbebd49d6b12965d433bffcd07e9a786211703.lock
+2026-02-02 15:08:16,992 - filelock - DEBUG - Attempting to acquire lock 139859907664672 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:16,993 - filelock - DEBUG - Lock 139859907664672 acquired on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:16,993 - fsspec.local - DEBUG - open file: /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703/dataset_info.json
+2026-02-02 15:08:16,993 - filelock - DEBUG - Attempting to release lock 139859907664672 on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:16,993 - filelock - DEBUG - Lock 139859907664672 released on /dss/dsshome1/00/ge95xod2/.cache/huggingface/datasets/ai4bharat___indic_glue/md.hi/0.0.0/6dcbebd49d6b12965d433bffcd07e9a786211703_builder.lock
+2026-02-02 15:08:17,012 - src.evaluation.indicglue_evaluator - INFO - Successfully loaded DiscourseMode test split with 997 examples
+2026-02-02 15:08:17,012 - src.evaluation.indicglue_evaluator - INFO -   Loaded test: 997 examples
+2026-02-02 15:08:17,012 - src.evaluation.indicglue_evaluator - INFO - Fine-tuning on DiscourseMode...
+2026-02-02 15:08:17,012 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting fine-tuning for DiscourseMode
+2026-02-02 15:08:17,013 - src.evaluation.indicglue.fine_tuning_manager - INFO - Train samples: 7974, Val samples: 997
+2026-02-02 15:08:17,013 - src.evaluation.indicglue_evaluator - INFO - Wrapping model for task 'DiscourseMode' with 6 classes
+2026-02-02 15:08:17,014 - src.models.classification_models - INFO - GPTForSequenceClassification initialized: num_classes=6, hidden_size=768, weight_std=0.0513, bias=0.10
+2026-02-02 15:08:17,016 - src.evaluation.indicglue.fine_tuning_manager - INFO - Starting training loop for DiscourseMode
+2026-02-02 15:08:17,018 - src.evaluation.indicglue.fine_tuning_manager - INFO - Model parameters: 110,619,654 total, 110,619,654 trainable (100.0%)
+2026-02-02 15:08:17,018 - src.evaluation.indicglue.fine_tuning_manager - INFO - ✓ End-to-end training mode (all parameters trainable)
+2026-02-02 15:08:17,020 - src.evaluation.indicglue.fine_tuning_manager - INFO - Optimizer: AdamW with 76 params with decay, 74 without decay
+2026-02-02 15:08:17,020 - src.evaluation.indicglue.fine_tuning_manager - INFO - Scheduler created: Linear schedule with 249 warmup steps (total 4990 steps)
+2026-02-02 15:08:17,020 - src.evaluation.indicglue.fine_tuning_manager - INFO - Training config: total_steps=4990, warmup_steps=249 (5.0%)
+2026-02-02 15:09:57,294 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 1/10: train_loss=2.5679, val_acc=0.1665, val_loss=2.4815
+2026-02-02 15:09:57,506 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.1665 (improvement: 0.1665)
+2026-02-02 15:11:37,743 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 2/10: train_loss=1.3995, val_acc=0.6028, val_loss=1.0332
+2026-02-02 15:11:38,275 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.6028 (improvement: 0.4363)
+2026-02-02 15:13:18,508 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 3/10: train_loss=0.9978, val_acc=0.6670, val_loss=0.8795
+2026-02-02 15:13:19,045 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.6670 (improvement: 0.0642)
+2026-02-02 15:14:59,293 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 4/10: train_loss=0.8516, val_acc=0.7001, val_loss=0.8211
+2026-02-02 15:14:59,829 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7001 (improvement: 0.0331)
+2026-02-02 15:16:40,042 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 5/10: train_loss=0.7619, val_acc=0.7151, val_loss=0.7981
+2026-02-02 15:16:40,592 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7151 (improvement: 0.0150)
+2026-02-02 15:18:20,827 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 6/10: train_loss=0.6955, val_acc=0.7232, val_loss=0.7750
+2026-02-02 15:18:21,337 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7232 (improvement: 0.0080)
+2026-02-02 15:20:01,555 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 7/10: train_loss=0.6179, val_acc=0.7382, val_loss=0.7655
+2026-02-02 15:20:02,114 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7382 (improvement: 0.0150)
+2026-02-02 15:21:44,127 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 8/10: train_loss=0.5511, val_acc=0.7422, val_loss=0.7838
+2026-02-02 15:21:44,684 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7422 (improvement: 0.0040)
+2026-02-02 15:23:25,173 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 9/10: train_loss=0.4730, val_acc=0.7392, val_loss=0.8340
+2026-02-02 15:23:25,174 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → No improvement (patience: 1/5)
+2026-02-02 15:25:05,579 - src.evaluation.indicglue.fine_tuning_manager - INFO - Epoch 10/10: train_loss=0.4031, val_acc=0.7432, val_loss=0.8768
+2026-02-02 15:25:06,076 - src.evaluation.indicglue.fine_tuning_manager - INFO -   → New best validation accuracy: 0.7432 (improvement: 0.0010)
+2026-02-02 15:25:06,105 - src.evaluation.indicglue.fine_tuning_manager - INFO - Restored best model from epoch 10 with val_acc=0.7432
+2026-02-02 15:25:06,610 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 15:25:06,610 - src.evaluation.indicglue.fine_tuning_manager - DEBUG - Cleaned up optimizer, scheduler, and GPU memory after fine-tuning
+2026-02-02 15:25:06,610 - src.evaluation.indicglue_evaluator - INFO - Evaluation mode switched to: fine-tuned (will use classification heads for all tasks)
+2026-02-02 15:25:06,610 - src.evaluation.indicglue_evaluator - INFO - Evaluating fine-tuned model on test set...
+2026-02-02 15:25:06,610 - src.evaluation.indicglue_evaluator - INFO - Evaluating on 997 examples
+2026-02-02 15:25:06,610 - src.evaluation.indicglue_evaluator - INFO - [ROUTING] DiscourseMode: Classification/NLI task → Using classification head
+2026-02-02 15:25:06,610 - src.evaluation.indicglue_evaluator - INFO - Evaluating DiscourseMode on 997 examples
+2026-02-02 15:25:12,427 - src.evaluation.indicglue_evaluator - DEBUG - DataLoader cleanup completed
+2026-02-02 15:25:39,242 - src.evaluation.evaluation_cache - INFO - Predictions cached: 737a10a1bdef6ac88f9abe6ebf9ccaa7cd330d9683381c379ab56326755d81f4
+2026-02-02 15:25:39,243 - src.evaluation.evaluation_cache - DEBUG -   Samples: 2
+2026-02-02 15:25:39,243 - src.evaluation.indicglue_evaluator - INFO - Saved predictions to cache for DiscourseMode
+2026-02-02 15:25:39,243 - src.evaluation.indicglue_evaluator - DEBUG - Cleared wrapped model cache for DiscourseMode
+2026-02-02 15:25:39,777 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO - DiscourseMode Results:
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO -   num_examples: 997.0000
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO -   accuracy: 0.7513
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO -   f1_macro: 0.5523
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO -   f1_weighted: 0.7454
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO -   precision_macro: 0.5532
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO -   recall_macro: 0.5629
+2026-02-02 15:25:39,778 - src.evaluation.indicglue_evaluator - INFO -   fine_tuned: 1.0000
+2026-02-02 15:25:39,789 - src.evaluation.indicglue_evaluator - INFO -   fine_tuning_time_seconds: 1009.5977
+2026-02-02 15:25:40,188 - src.evaluation.indicglue_evaluator - DEBUG - CUDA memory cleanup completed successfully
+2026-02-02 15:25:40,189 - src.evaluation.indicglue_evaluator - INFO - 
+============================================================
+2026-02-02 15:25:40,189 - src.evaluation.indicglue_evaluator - INFO - IndicGLUE Evaluation Complete
+2026-02-02 15:25:40,189 - src.evaluation.indicglue_evaluator - INFO - Overall Accuracy: 0.5820
+2026-02-02 15:25:40,189 - src.evaluation.indicglue_evaluator - INFO - ============================================================
+2026-02-02 15:25:40,189 - src.evaluation.multiblimp_evaluator - INFO - Starting MultiBLiMP evaluation on all phenomena...
+2026-02-02 15:25:40,189 - src.evaluation.multiblimp_evaluator - INFO - 
+Evaluating SV-#...
+2026-02-02 15:25:47,026 - src.evaluation.multiblimp_evaluator - INFO - SV-# Results:
+2026-02-02 15:25:47,026 - src.evaluation.multiblimp_evaluator - INFO -   Accuracy: 0.8501
+2026-02-02 15:25:47,026 - src.evaluation.multiblimp_evaluator - INFO -   Correct: 346/407
+2026-02-02 15:25:47,026 - src.evaluation.multiblimp_evaluator - INFO - 
+Evaluating SV-G...
+2026-02-02 15:25:54,062 - src.evaluation.multiblimp_evaluator - INFO - SV-G Results:
+2026-02-02 15:25:54,062 - src.evaluation.multiblimp_evaluator - INFO -   Accuracy: 0.8210
+2026-02-02 15:25:54,062 - src.evaluation.multiblimp_evaluator - INFO -   Correct: 344/419
+2026-02-02 15:25:54,062 - src.evaluation.multiblimp_evaluator - INFO - 
+Evaluating SV-P...
+2026-02-02 15:26:00,981 - src.evaluation.multiblimp_evaluator - INFO - SV-P Results:
+2026-02-02 15:26:00,981 - src.evaluation.multiblimp_evaluator - INFO -   Accuracy: 0.9320
+2026-02-02 15:26:00,981 - src.evaluation.multiblimp_evaluator - INFO -   Correct: 384/412
+2026-02-02 15:26:00,981 - src.evaluation.multiblimp_evaluator - INFO - 
+Evaluating SP-#...
+2026-02-02 15:26:02,659 - src.evaluation.multiblimp_evaluator - INFO - SP-# Results:
+2026-02-02 15:26:02,659 - src.evaluation.multiblimp_evaluator - INFO -   Accuracy: 0.8600
+2026-02-02 15:26:02,659 - src.evaluation.multiblimp_evaluator - INFO -   Correct: 86/100
+2026-02-02 15:26:02,659 - src.evaluation.multiblimp_evaluator - INFO - 
+Evaluating SP-G...
+2026-02-02 15:26:04,485 - src.evaluation.multiblimp_evaluator - INFO - SP-G Results:
+2026-02-02 15:26:04,485 - src.evaluation.multiblimp_evaluator - INFO -   Accuracy: 0.8440
+2026-02-02 15:26:04,485 - src.evaluation.multiblimp_evaluator - INFO -   Correct: 92/109
+2026-02-02 15:26:04,528 - src.evaluation.multiblimp_evaluator - INFO - 
+============================================================
+2026-02-02 15:26:04,528 - src.evaluation.multiblimp_evaluator - INFO - MultiBLiMP Evaluation Complete
+2026-02-02 15:26:04,528 - src.evaluation.multiblimp_evaluator - INFO - Overall Accuracy: 0.8614
+2026-02-02 15:26:04,528 - src.evaluation.multiblimp_evaluator - INFO - ============================================================
+2026-02-02 15:26:04,769 - root - INFO - 
+💾 Saving evaluation results...
+2026-02-02 15:26:04,796 - root - INFO -    Results saved to: results/gpt_10M_wordpiece/evaluation_results.json
+2026-02-02 15:26:04,796 - root - INFO - 
+📊 Evaluation Summary:
+2026-02-02 15:26:04,796 - root - INFO -    indicglue: 0.5820 average (7 tasks)
+2026-02-02 15:26:04,796 - root - INFO -    multiblimp: 0.8614 average (5 tasks)
+2026-02-02 15:26:04,796 - root - INFO -    summary: No numeric scores available
+2026-02-02 15:26:04,796 - root - INFO - 
+✅ Evaluation completed successfully!
+2026-02-02 15:26:04,800 - root - INFO - ✅ All stages completed successfully!
+2026-02-02 15:26:04,801 - root - INFO - 📁 Results directory: results/gpt_10M_wordpiece
+2026-02-02 15:26:04,801 - root - INFO - 📊 View results:
+2026-02-02 15:26:04,801 - root - INFO -    - Training summary: results/gpt_10M_wordpiece/training_summary.json
+2026-02-02 15:26:04,801 - root - INFO -    - Evaluation results: results/gpt_10M_wordpiece/evaluation_results.json
+2026-02-02 15:26:04,827 - root - INFO -    - Logs: results/gpt_10M_wordpiece/experiment.log

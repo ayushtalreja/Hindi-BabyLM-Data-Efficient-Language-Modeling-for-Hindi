@@ -1,0 +1,12 @@
+{
+  "experiment_name": "gpt_100M_large",
+  "timestamp": "2026-02-02T08:16:20.337657",
+  "python_version": "3.9.23 (main, Jun  5 2025, 13:40:20) \n[GCC 11.2.0]",
+  "pytorch_version": "2.8.0+cu128",
+  "cuda_available": true,
+  "cuda_version": "12.8",
+  "gpu_count": 1,
+  "gpu_names": [
+    "NVIDIA H100"
+  ]
+}

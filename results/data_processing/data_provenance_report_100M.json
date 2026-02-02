@@ -1,0 +1,145 @@
+{
+  "metadata": {
+    "timestamp": "2026-02-02T09:13:07.197591",
+    "config": {
+      "train_word_limit": 100000000,
+      "val_word_limit": 10000000,
+      "test_word_limit": 10000000,
+      "train_source_ratios": {
+        "indiccorp": 0.6842105263157895,
+        "wikipedia": 0.2631578947368421,
+        "indicdialogue": 0.052631578947368425
+      }
+    }
+  },
+  "raw_data_statistics": {
+    "indiccorp": {
+      "total_documents": 1000000,
+      "total_words": 57417242
+    },
+    "wikipedia": {
+      "total_documents": 136895,
+      "total_words": 11819472
+    },
+    "indicdialogue": {
+      "total_documents": 1731618,
+      "total_words": 13273977
+    },
+    "childrens_books": {
+      "total_documents": 0,
+      "total_words": 0
+    }
+  },
+  "deduplication_statistics": {
+    "indiccorp": {
+      "original_count": 495895,
+      "duplicates_removed": 1000,
+      "remaining_count": 494895,
+      "deduplication_rate": 0.002
+    },
+    "wikipedia": {
+      "original_count": 102424,
+      "duplicates_removed": 44022,
+      "remaining_count": 58402,
+      "deduplication_rate": 0.4298
+    },
+    "indicdialogue": {
+      "original_count": 378358,
+      "duplicates_removed": 8423,
+      "remaining_count": 369935,
+      "deduplication_rate": 0.0223
+    },
+    "childrens_books": {
+      "original_count": 0,
+      "duplicates_removed": 0,
+      "remaining_count": 0,
+      "deduplication_rate": 0.0
+    }
+  },
+  "split_statistics": {
+    "train": {
+      "sources": {
+        "indiccorp": {
+          "document_count": 450909,
+          "word_count": 20135238,
+          "percentage_of_split_documents": 68.22,
+          "percentage_of_split_words": 77.64
+        },
+        "wikipedia": {
+          "document_count": 46693,
+          "word_count": 4364970,
+          "percentage_of_split_documents": 7.06,
+          "percentage_of_split_words": 16.83
+        },
+        "indicdialogue": {
+          "document_count": 163331,
+          "word_count": 1434037,
+          "percentage_of_split_documents": 24.71,
+          "percentage_of_split_words": 5.53
+        }
+      },
+      "total_documents": 660933,
+      "total_words": 25934245
+    },
+    "val": {
+      "sources": {
+        "indiccorp": {
+          "document_count": 22015,
+          "word_count": 980943,
+          "percentage_of_split_documents": 16.8,
+          "percentage_of_split_words": 40.17
+        },
+        "wikipedia": {
+          "document_count": 5783,
+          "word_count": 552868,
+          "percentage_of_split_documents": 4.41,
+          "percentage_of_split_words": 22.64
+        },
+        "indicdialogue": {
+          "document_count": 103215,
+          "word_count": 908226,
+          "percentage_of_split_documents": 78.78,
+          "percentage_of_split_words": 37.19
+        }
+      },
+      "total_documents": 131013,
+      "total_words": 2442037
+    },
+    "test": {
+      "sources": {
+        "indiccorp": {
+          "document_count": 21966,
+          "word_count": 980742,
+          "percentage_of_split_documents": 16.74,
+          "percentage_of_split_words": 40.18
+        },
+        "wikipedia": {
+          "document_count": 5897,
+          "word_count": 551836,
+          "percentage_of_split_documents": 4.49,
+          "percentage_of_split_words": 22.61
+        },
+        "indicdialogue": {
+          "document_count": 103387,
+          "word_count": 908218,
+          "percentage_of_split_documents": 78.77,
+          "percentage_of_split_words": 37.21
+        }
+      },
+      "total_documents": 131250,
+      "total_words": 2440796
+    }
+  },
+  "summary": {
+    "total_documents": 923196,
+    "total_words": 30817078,
+    "sources_used": [
+      "indiccorp",
+      "indicdialogue",
+      "wikipedia"
+    ],
+    "sources_configured_but_empty": [
+      "childrens_books"
+    ]
+  }
+}
