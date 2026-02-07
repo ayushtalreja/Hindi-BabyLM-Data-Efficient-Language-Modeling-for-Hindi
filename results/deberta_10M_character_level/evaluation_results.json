@@ -8550,7 +8550,7 @@
     }
   },
   "summary": {
-    "evaluation_date": "2026-02-02T13:01:46.706544",
+    "evaluation_date": "2026-02-04T17:30:19.949486",
     "model_config": {
       "experiment_name": "deberta_10M_character_level",
       "experiment_description": "DeBERTa model with pure character-level tokenization - maximum morphological transparency",

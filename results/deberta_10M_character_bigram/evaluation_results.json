@@ -8564,7 +8564,7 @@
     }
   },
   "summary": {
-    "evaluation_date": "2026-02-02T12:08:03.302496",
+    "evaluation_date": "2026-02-04T16:36:59.120071",
     "model_config": {
       "experiment_name": "deberta_10M_character_bigram",
       "experiment_description": "DeBERTa model with hybrid character-bigram tokenization - balanced compression and morphology",

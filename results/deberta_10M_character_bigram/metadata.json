@@ -1,6 +1,6 @@
 {
   "experiment_name": "deberta_10M_character_bigram",
-  "timestamp": "2026-02-02T11:18:17.889532",
+  "timestamp": "2026-02-04T15:46:52.707774",
   "python_version": "3.9.23 (main, Jun  5 2025, 13:40:20) \n[GCC 11.2.0]",
   "pytorch_version": "2.8.0+cu128",
   "cuda_available": true,
