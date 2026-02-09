@@ -27301,13 +27301,13 @@
       "fine_tuning_time_seconds": 301.9079496860504
     },
     "overall": {
-      "average_accuracy": 0.5848346124395214,
+      "average_accuracy": 0.6640777939253831,
       "average_f1_macro": 0.4859742962544975,
       "tasks_evaluated": 7,
       "accuracies_by_task": {
         "BBCArticlesClassification": 0.7806004618937644,
-        "Wikipedia Section Title Prediction": 0.28190234162279904,
-        "Cloze-style multiple-choice QA": 0.30819578827546956,
+        "Wikipedia Section Title Prediction": 0.437,
+        "Cloze-style multiple-choice QA": 0.407,
         "Choice of Plausible Alternatives": 0.6363636363636364,
         "MovieReviewSentiment": 0.6193548387096774,
         "ProductReviewSentiment": 0.734225621414914,

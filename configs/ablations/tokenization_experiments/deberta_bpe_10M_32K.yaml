@@ -276,7 +276,7 @@ evaluation:
         # For tasks with missing/inadequate splits, use task_specific_splits below
 
         # Training hyperparameters
-        num_epochs: 15  # Increased from 10 - more time to learn with higher LR
+        num_epochs: 10  
         early_stopping:
           enabled: true
           patience: 5  # Increased from 3 - give model more time to improve

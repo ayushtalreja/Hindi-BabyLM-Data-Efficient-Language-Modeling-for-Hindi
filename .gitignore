@@ -67,7 +67,7 @@ checkpoints/
 
 # Logs
 logs/
-# *.log
+*.log
 *.out
 *.err
 
@@ -183,3 +183,4 @@ background_citation_verification.md
 background_citation_verification.md
 introduction_citation_verification.md
 appendix_indicbert.tex
+results_archive/*
