@@ -27301,7 +27301,7 @@
       "fine_tuning_time_seconds": 301.9079496860504
     },
     "overall": {
-      "average_accuracy": 0.6640777939253831,
+      "average_accuracy": 0.6208571428571429,
       "average_f1_macro": 0.4859742962544975,
       "tasks_evaluated": 7,
       "accuracies_by_task": {
@@ -27632,7 +27632,7 @@
       }
     },
     "overall_scores": {
-      "indicglue_avg": 0.5848346124395214,
+      "indicglue_avg": 0.6208571429,
       "multiblimp_accuracy": 0.9253673550974295
     }
   }
