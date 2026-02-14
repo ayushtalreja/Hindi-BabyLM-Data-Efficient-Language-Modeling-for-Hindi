@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
+[![HuggingFace](https://img.shields.io/badge/🤗-Model%20Hub-FFD54F?style=flat)](https://huggingface.co/Ayush-Talreja/hindi-babylm)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Profile-0077B5?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/ayush-kumar-935703231/)
 
 A comprehensive implementation of data-efficient language modeling for Hindi, designed as a BabyLM challenge adaptation for morphologically rich languages. This project trains transformer-based language models with developmentally plausible amounts of data (~10M and 100M tokens) and includes extensive evaluation frameworks for linguistic competence assessment.
